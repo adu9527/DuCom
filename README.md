@@ -3,7 +3,8 @@
 DuCom 是一款面向嵌入式设备高吞吐日志的 Windows 串口通信与调试工具。
 
 项目基于 .NET 10 与 WPF 构建。串口 I/O、日志落盘和 UI 渲染相互解耦，目标是在设备持续高速输出时仍保持界面可用，并避免静默丢失已接收的日志记录。
-![Uploading c2c2536d9860e2dd74d618fef4b58d45.png…]()
+<img width="2560" height="1379" alt="c5a7464c968c38e0cd084024ab63ab84" src="https://github.com/user-attachments/assets/150fb383-0c27-4b67-a94d-526446a9f391" />
+
 
 ## 当前状态
 
