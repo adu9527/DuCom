@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DuCom.Core\DuCom.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\DuCom\Behaviors\CoalescedActionGate.cs" Link="Behaviors\CoalescedActionGate.cs" />
+    <Compile Include="..\..\src\DuCom\Services\Shortcuts\ShortcutModifiers.cs" Link="Shortcuts\ShortcutModifiers.cs" />
+    <Compile Include="..\..\src\DuCom\Services\Shortcuts\ShortcutKeyGesture.cs" Link="Shortcuts\ShortcutKeyGesture.cs" />
+    <Compile Include="..\..\src\DuCom\Services\Shortcuts\ShortcutAction.cs" Link="Shortcuts\ShortcutAction.cs" />
+    <Compile Include="..\..\src\DuCom\Services\Shortcuts\ShortcutDefinition.cs" Link="Shortcuts\ShortcutDefinition.cs" />
+    <Compile Include="..\..\src\DuCom\Services\Shortcuts\ShortcutConflictResult.cs" Link="Shortcuts\ShortcutConflictResult.cs" />
+    <Compile Include="..\..\src\DuCom\Services\Shortcuts\ShortcutConfiguration.cs" Link="Shortcuts\ShortcutConfiguration.cs" />
+    <Compile Include="..\..\src\DuCom\Services\Shortcuts\ShortcutManager.cs" Link="Shortcuts\ShortcutManager.cs" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,588 @@
+<ui:FluentWindow x:Class="DuCom.SettingsWindow"
+                 x:Name="SettingsRoot"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                   xmlns:converters="clr-namespace:DuCom.Converters"
+                   xmlns:local="clr-namespace:DuCom"
+                  xmlns:sending="clr-namespace:DuCom.Core.Sending;assembly=DuCom.Core"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="{DynamicResource Settings.Title}"
+                   Width="920"
+                   Height="660"
+                   Icon="/Assets/DuCom.ico"
+                   MinWidth="800"
+                 MinHeight="520"
+                  ExtendsContentIntoTitleBar="True"
+                  WindowBackdropType="Mica"
+                  WindowStartupLocation="CenterOwner">
+    <ui:FluentWindow.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <converters:EqualityConverter x:Key="EqualityConverter" />
+        <Style x:Key="Style.SettingsComboBoxItem" TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+        </Style>
+        <Style x:Key="Style.SettingsComboBox" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource Style.SettingsComboBoxItem}" />
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Grid Background="{DynamicResource Brush.ShellSurface}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar x:Name="SettingsTitleBar" Title="{DynamicResource Settings.Title}" />
+
+        <Grid Grid.Row="1" Margin="12,4,12,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="CategoryColumn" Width="{DynamicResource Size.SettingsNavigationColumn}" />
+                <ColumnDefinition x:Name="CategoryGapColumn" Width="{DynamicResource Size.SettingsColumnGap}" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Style="{DynamicResource Style.Panel}">
+                <ListBox x:Name="CategoryList" SelectedIndex="0">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource Style.SidebarListItem}">
+                            <Setter Property="MinHeight" Value="36" />
+                             <Setter Property="Margin" Value="0" />
+                             <Setter Property="Padding" Value="10,0" />
+                            <Setter Property="VerticalContentAlignment" Value="Center" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBoxItem Content="{DynamicResource Settings.General}" />
+                    <ListBoxItem Content="{DynamicResource Settings.Transport}" />
+                    <ListBoxItem Content="{DynamicResource Settings.Receive}" />
+                    <ListBoxItem Content="{DynamicResource Settings.HighlightFilter}" />
+                    <ListBoxItem Content="{DynamicResource Menu.Tools.Plugins}" />
+                    <ListBoxItem Content="{DynamicResource Settings.Send}" />
+                    <ListBoxItem Content="{DynamicResource Settings.Appearance}" />
+                    <ListBoxItem Content="{DynamicResource Menu.Tools.Shortcuts}" />
+                    <ListBoxItem Content="{DynamicResource Settings.Tools}" />
+                </ListBox>
+            </Border>
+
+            <Border Grid.Column="2" Padding="24,16" Style="{DynamicResource Style.Panel}">
+                <TabControl SelectedIndex="{Binding SelectedIndex, ElementName=CategoryList}">
+                    <TabControl.ItemContainerStyle>
+                        <Style TargetType="TabItem">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                        </Style>
+                    </TabControl.ItemContainerStyle>
+
+                    <TabItem>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.General}" />
+                                <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.General.Description}" />
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.WindowBehavior}" />
+                                        <CheckBox Content="{DynamicResource Settings.CloseToTaskbar}" IsChecked="{Binding CloseToTaskbar}" />
+                                        <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.PreventSleep}" IsChecked="{Binding PreventSleep}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.PortList}" />
+                                        <CheckBox Content="{DynamicResource Settings.ShowPortDetails}" IsChecked="{Binding ShowPortType}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.Backup}" />
+                                        <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.AutoBackup}" IsChecked="{Binding AutoBackupEnabled}" />
+                                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.BackupPeriod}" />
+                                        <ComboBox IsEnabled="{Binding AutoBackupEnabled}" SelectedItem="{Binding AutoBackupPeriodDays}">
+                                            <system:Int32 xmlns:system="clr-namespace:System;assembly=System.Runtime">1</system:Int32>
+                                            <system:Int32 xmlns:system="clr-namespace:System;assembly=System.Runtime">3</system:Int32>
+                                            <system:Int32 xmlns:system="clr-namespace:System;assembly=System.Runtime">7</system:Int32>
+                                            <system:Int32 xmlns:system="clr-namespace:System;assembly=System.Runtime">15</system:Int32>
+                                            <system:Int32 xmlns:system="clr-namespace:System;assembly=System.Runtime">30</system:Int32>
+                                        </ComboBox>
+                                        <Button Margin="0,10,0,0" HorizontalAlignment="Left" Command="{Binding OpenBackupFolderCommand}" Content="{DynamicResource Settings.OpenBackupFolder}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.PrivateMemoryMonitor}" />
+                                        <TextBlock Margin="0,6,0,12" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Settings.PrivateMemoryMonitor.Description}" TextWrapping="Wrap" />
+                                        <CheckBox x:Name="PrivateMemoryMonitorCheckBox" Content="{DynamicResource Settings.PrivateMemoryMonitor.Enabled}" IsChecked="{Binding PrivateMemoryMonitorEnabled}" />
+                                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.PrivateMemoryThreshold}" />
+                                        <TextBox x:Name="PrivateMemoryThresholdTextBox" IsEnabled="{Binding PrivateMemoryMonitorEnabled}" Text="{Binding PrivateMemoryThresholdMiB, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Margin="0,6,0,0" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Settings.PrivateMemoryMonitor.SafeAction}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.ScrollBehavior}" />
+                                        <CheckBox Content="{DynamicResource Settings.PauseOnWheel}" IsChecked="{Binding PauseFollowOnMouseWheel}" />
+                                        <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.PauseOnFocus}" IsChecked="{Binding PauseFollowOnFocus}" />
+                                        <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.FreezeAfterSend}" IsChecked="{Binding FreezeAfterSend}" />
+                                        <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.ShowPauseHint}" IsChecked="{Binding ShowPauseHint}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.RestoreDefaults}" />
+                                        <TextBlock Margin="0,0,0,12" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Settings.RestoreDefaults.Description}" TextWrapping="Wrap" />
+                                        <Button HorizontalAlignment="Left" Command="{Binding RestoreDefaultSettingsCommand}" Content="{DynamicResource Settings.RestoreDefaults}" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="TransportPage">
+                                <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.Transport}" />
+                                <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Transport.Description}" />
+                                <TextBlock Margin="0,0,0,12"
+                                           Style="{DynamicResource Style.MutedText}"
+                                           Text="{DynamicResource Settings.Transport.EditHint}"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <StackPanel x:Name="SerialParameterInputs">
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                    <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.Connection}" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="16" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.BaudRate}" />
+                                            <ComboBox ItemsSource="{Binding BaudRates}" SelectedItem="{Binding SerialParameterBaudRate}" Style="{StaticResource Style.SettingsComboBox}" />
+                                            <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.DataBits}" />
+                                            <ComboBox ItemsSource="{Binding DataBitsOptions}" SelectedItem="{Binding SerialParameterDataBits}" Style="{StaticResource Style.SettingsComboBox}" />
+                                            <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.StopBits}" />
+                                            <ComboBox ItemsSource="{Binding StopBitsOptions}" SelectedItem="{Binding SerialParameterStopBits}" Style="{StaticResource Style.SettingsComboBox}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.Parity}" />
+                                            <ComboBox ItemsSource="{Binding ParityOptions}" SelectedItem="{Binding SerialParameterParity}" Style="{StaticResource Style.SettingsComboBox}" />
+                                            <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.Handshake}" />
+                                            <ComboBox ItemsSource="{Binding HandshakeOptions}" SelectedItem="{Binding SerialParameterHandshake}" Style="{StaticResource Style.SettingsComboBox}" />
+                                            <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.Encoding}" />
+                                            <ComboBox ItemsSource="{Binding EncodingOptions}" SelectedItem="{Binding SerialParameterEncodingName}" Style="{StaticResource Style.SettingsComboBox}" />
+                                            <CheckBox x:Name="DtrEnableCheckBox" Margin="0,12,0,0" Content="{DynamicResource Settings.DtrEnable}" IsChecked="{Binding SerialParameterDtrEnable}" Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <CheckBox x:Name="RtsEnableCheckBox" Margin="0,10,0,0" Content="{DynamicResource Settings.RtsEnable}" IsChecked="{Binding SerialParameterRtsEnable}" Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                             <CheckBox x:Name="DiscardNullCheckBox" Margin="0,10,0,0" Content="{DynamicResource Settings.DiscardNull}" IsChecked="{Binding SerialParameterDiscardNull}" Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                             <CheckBox Margin="0,10,0,0"
+                                                       Content="{DynamicResource Connection.AutoReconnect}"
+                                                       IsChecked="{Binding SerialParameterAutoReconnect}"
+                                                       ToolTip="{DynamicResource Connection.AutoReconnect.Tooltip}"
+                                                       Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{DynamicResource Style.SettingsCard}" Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                    <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.SendDefaults}" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="16" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.ModeLabel}" />
+                                            <ComboBox SelectedValue="{Binding SerialParameterSendMode}" SelectedValuePath="Tag">
+                                                <ComboBoxItem Content="{DynamicResource Send.ModeString}" Tag="{x:Static sending:SendMode.Str}" />
+                                                <ComboBoxItem Content="{DynamicResource Send.ModeHex}" Tag="{x:Static sending:SendMode.Hex}" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.NewlineLabel}" />
+                                            <TextBlock Margin="0,0,0,8" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Send.NewlineHint}" TextWrapping="Wrap" />
+                                            <StackPanel>
+                                                <RadioButton Content="{DynamicResource Send.NewlineNone.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.None}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                <RadioButton Content="{DynamicResource Send.NewlineCr.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Cr}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                <RadioButton Content="{DynamicResource Send.NewlineLf.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Lf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                <RadioButton Content="{DynamicResource Send.NewlineCrLf.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.CrLf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{DynamicResource Style.SettingsCard}" Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                    <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.ReceiveDefaults}" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="16" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.ReceiveMode}" />
+                                            <ComboBox ItemsSource="{Binding ReceiveModeOptions}" SelectedItem="{Binding SerialParameterReceiveMode}" />
+                                            <CheckBox Margin="0,12,0,0" Content="{DynamicResource Settings.Timestamp}" IsChecked="{Binding SerialParameterTimestampEnabled}" />
+                                            <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.AutoLog}" IsChecked="{Binding SerialParameterLoggingEnabled}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <CheckBox Content="{DynamicResource Log.Follow}" IsChecked="{Binding SerialParameterFollowEnd}" />
+                                            <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.FilterEnabled}" IsChecked="{Binding SerialParameterFilterEnabled}" />
+                                            <TextBlock Margin="0,12,0,0" Foreground="{DynamicResource Brush.Caution}" Text="{DynamicResource Settings.SessionRestartNotice}" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Grid>
+                                    </StackPanel>
+                                </Border>
+                                <Button Margin="0,0,0,12"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding RestoreCurrentPortDefaultsCommand}"
+                                        Content="{DynamicResource Settings.RestoreCurrentPortDefaults}"
+                                        Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.CustomBaudRates}" />
+                                        <ItemsControl ItemsSource="{Binding BaudRates}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <DockPanel Margin="0,2">
+                                                        <Button DockPanel.Dock="Right"
+                                                                Command="{Binding DataContext.RemoveBaudRateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                         CommandParameter="{Binding}"
+                                                                 AutomationProperties.Name="{DynamicResource Settings.CustomBaudRates.Delete}"
+                                                                 ToolTip="{DynamicResource Settings.CustomBaudRates.Delete}"
+                                                                 Style="{StaticResource Style.IconButton}">
+                                                            <ui:SymbolIcon FontSize="14" Symbol="Dismiss24" />
+                                                        </Button>
+                                                        <TextBlock VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource Brush.TextPrimary}"
+                                                                   Text="{Binding}" />
+                                                    </DockPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Margin="0,12,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.CustomBaudRates.New}" />
+                                        <WrapPanel>
+                                            <TextBox Width="180" Text="{Binding NewBaudRate, UpdateSourceTrigger=PropertyChanged}" />
+                                            <Button Margin="8,0,0,0" Command="{Binding AddBaudRateCommand}" Content="{DynamicResource Settings.CustomBaudRates.Add}" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.Receive}" />
+                                 <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Receive.Description}" />
+                                <TextBlock Margin="0,0,0,12" Foreground="{DynamicResource Brush.Caution}" Text="{DynamicResource Settings.SessionRestartNotice}" TextWrapping="Wrap" />
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.LogDisplay}" />
+                                        <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.ReceiveMode}" />
+                                        <ComboBox ItemsSource="{Binding ReceiveModeOptions}" SelectedItem="{Binding ReceiveMode}" />
+                                        <CheckBox Margin="0,14,0,0" IsChecked="{Binding TimestampEnabled}" Content="{DynamicResource Settings.Timestamp}" />
+                                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.TimestampFormat}" />
+                                        <ComboBox IsEnabled="{Binding TimestampEnabled}" ItemsSource="{Binding TimestampFormatOptions}" SelectedItem="{Binding TimestampFormat}" />
+                                        <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.TimestampPreview}" />
+                                        <Border Padding="12,9"
+                                                Background="{DynamicResource Brush.PanelRaised}"
+                                                BorderBrush="{DynamicResource Brush.PanelBorder}"
+                                                BorderThickness="1"
+                                                CornerRadius="{DynamicResource Radius.Small}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <ui:SymbolIcon Margin="0,0,9,0" VerticalAlignment="Center" FontSize="16" Foreground="{DynamicResource Brush.TextSecondary}" Symbol="Clock24" />
+                                                <TextBlock Grid.Column="1"
+                                                           VerticalAlignment="Center"
+                                                           FontFamily="Consolas"
+                                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                                           Text="{Binding TimestampPreview}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding TimestampPreview}" />
+                                            </Grid>
+                                        </Border>
+                                        <CheckBox Margin="0,10,0,0" IsChecked="{Binding LoggingEnabled}" Content="{DynamicResource Settings.AutoLog}" />
+                                        <CheckBox Margin="0,10,0,0" IsChecked="{Binding LogRotationEnabled}" Content="{DynamicResource Settings.EnableLogRotation}" />
+                                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogDirectory}" />
+                                         <TextBox Text="{Binding LogDirectory, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
+                                         <WrapPanel Margin="0,8,0,0">
+                                             <Button Command="{Binding SelectLogDirectoryCommand}" Content="{DynamicResource Settings.SelectLogDirectory}" />
+                                             <Button Margin="8,0,0,0" Command="{Binding OpenLogFolderCommand}" Content="{DynamicResource Log.OpenFolder}" />
+                                         </WrapPanel>
+                                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogRotationSize}" />
+                                        <TextBox IsEnabled="{Binding LogRotationEnabled}" Text="{Binding LogRotationMegabytes, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.DisplayBudget}" />
+                                        <TextBox Text="{Binding DisplayBudgetMegabytes, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogFileNameFormat}" />
+                                        <TextBox Text="{Binding LogFileNameFormat, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogFileNamePreview}" />
+                                        <Border Padding="12,9"
+                                                Background="{DynamicResource Brush.PanelRaised}"
+                                                BorderBrush="{DynamicResource Brush.PanelBorder}"
+                                                BorderThickness="1"
+                                                CornerRadius="{DynamicResource Radius.Small}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <ui:SymbolIcon Margin="0,0,9,0" VerticalAlignment="Center" FontSize="16" Foreground="{DynamicResource Brush.TextSecondary}" Symbol="DocumentText24" />
+                                                <TextBlock Grid.Column="1"
+                                                           VerticalAlignment="Center"
+                                                           FontFamily="Consolas"
+                                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                                           Text="{Binding LogFileNamePreview}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding LogFileNamePreview}" />
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.TxLogging}" />
+                                        <CheckBox Content="{DynamicResource Settings.SendPrefixEnabled}" IsChecked="{Binding SendPrefixEnabled}" />
+                                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.SendPrefix}" />
+                                        <TextBox IsEnabled="{Binding SendPrefixEnabled}" Text="{Binding SendPrefix, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.HighlightFilter}" />
+                                <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.HighlightFilter.Description}" />
+                            </StackPanel>
+                            <local:HighlightFilterRulesControl Grid.Row="1" DataContext="{Binding HighlightFilterSettings}" />
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem>
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Menu.Tools.Plugins}" />
+                                <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Plugins.Description}" />
+                            </StackPanel>
+                            <local:PluginManagerControl Grid.Row="1" DataContext="{Binding PluginManager}" />
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.Send}" />
+                                <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Send.Description}" />
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                    <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.SendDefaults}" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="16" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.ModeLabel}" />
+                                            <ComboBox SelectedValue="{Binding SerialParameterSendMode}" SelectedValuePath="Tag">
+                                                <ComboBoxItem Content="{DynamicResource Send.ModeString}" Tag="{x:Static sending:SendMode.Str}" />
+                                                <ComboBoxItem Content="{DynamicResource Send.ModeHex}" Tag="{x:Static sending:SendMode.Hex}" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.NewlineLabel}" />
+                                            <TextBlock Margin="0,0,0,8" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Send.NewlineHint}" TextWrapping="Wrap" />
+                                            <StackPanel>
+                                                <RadioButton Content="{DynamicResource Send.NewlineNone.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.None}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                <RadioButton Content="{DynamicResource Send.NewlineCr.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Cr}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                <RadioButton Content="{DynamicResource Send.NewlineLf.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Lf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                <RadioButton Content="{DynamicResource Send.NewlineCrLf.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.CrLf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.SendAdvanced}" />
+                                        <Button HorizontalAlignment="Left" Command="{Binding LoadSendFileCommand}" Content="{DynamicResource Send.LoadFile}" />
+                                        <CheckBox Margin="0,12,0,0" Content="{DynamicResource Send.InterpretEscapes}" IsChecked="{Binding SerialParameterInterpretSendEscapes}" />
+                                        <TextBlock Margin="0,5,0,0" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Send.InterpretEscapes.Hint}" TextWrapping="Wrap" />
+                                        <CheckBox Margin="0,14,0,0" Content="{DynamicResource Send.Timed}" IsChecked="{Binding SerialParameterTimedSendEnabled}" />
+                                        <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.TimedInterval}" />
+                                        <TextBox IsEnabled="{Binding SerialParameterTimedSendEnabled}" Text="{Binding SerialParameterTimedSendIntervalMilliseconds, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.Appearance}" />
+                                <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Appearance.Description}" />
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Menu.Tools.Theme}" />
+                                        <WrapPanel>
+                                            <ToggleButton Command="{Binding ApplyLightThemeCommand}" Content="{DynamicResource Menu.Tools.Theme.Light}" IsChecked="{Binding IsLightTheme, Mode=OneWay}" Style="{DynamicResource Style.SettingsChoice}" />
+                                            <ToggleButton Command="{Binding ApplyDarkThemeCommand}" Content="{DynamicResource Menu.Tools.Theme.Dark}" IsChecked="{Binding IsDarkTheme, Mode=OneWay}" Style="{DynamicResource Style.SettingsChoice}" />
+                                        </WrapPanel>
+                                        <TextBlock Margin="0,22,0,12" Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Language}" />
+                                        <WrapPanel>
+                                            <ToggleButton Command="{Binding ApplyChineseLanguageCommand}" Content="{DynamicResource Settings.Language.Chinese}" IsChecked="{Binding IsChineseLanguage, Mode=OneWay}" Style="{DynamicResource Style.SettingsChoice}" />
+                                            <ToggleButton Command="{Binding ApplyEnglishLanguageCommand}" Content="{DynamicResource Settings.Language.English}" IsChecked="{Binding IsEnglishLanguage, Mode=OneWay}" Style="{DynamicResource Style.SettingsChoice}" />
+                                        </WrapPanel>
+                                        <TextBlock Margin="0,14,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.SearchOpacity}" />
+                                        <Slider Minimum="0.2" Maximum="1" TickFrequency="0.1" IsSnapToTickEnabled="True" Value="{Binding SearchOpacity}" />
+                                        <TextBlock Margin="0,18,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogFontFamily}" />
+                                        <ComboBox ItemsSource="{Binding LogFontFamilies}" SelectedItem="{Binding LogFontFamily}" />
+                                        <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.FontPreview}" />
+                                        <Border Padding="12,9" Background="{DynamicResource Brush.LogSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="{DynamicResource Radius.Small}">
+                                            <TextBlock FontFamily="{Binding LogFontFamily}" FontSize="{Binding LogFontSize}" Foreground="{DynamicResource Brush.LogText}" Text="[15:42:18.237] Device boot complete 设备启动完成" />
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem>
+                        <Grid Margin="4">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Menu.Tools.Shortcuts}" />
+                                <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Shortcuts.Description}" />
+                            </StackPanel>
+                            <TextBox Grid.Row="1"
+                                     Margin="0,0,0,8"
+                                     AutomationProperties.Name="{DynamicResource Settings.Shortcuts.Search}"
+                                     Text="{Binding ShortcutsSettings.ShortcutSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="{DynamicResource Shortcut.SearchHint}" />
+                            <DataGrid Grid.Row="2"
+                                       Margin="0,8,0,0"
+                                       AutoGenerateColumns="False"
+                                       IsReadOnly="True"
+                                       ItemsSource="{Binding ShortcutsSettings.FilteredShortcuts}"
+                                       Style="{StaticResource Style.EditorDataGrid}"
+                                       MouseDoubleClick="ShortcutsDataGrid_MouseDoubleClick">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Width="*" Binding="{Binding ActionName}" Header="{DynamicResource Tools.Action}" />
+                                    <DataGridTextColumn Width="140" Binding="{Binding GestureText}" Header="{DynamicResource Menu.Tools.Shortcuts}" />
+                                    <DataGridTemplateColumn Width="90" Header="{DynamicResource Shortcut.Status}">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <CheckBox HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Command="{Binding DataContext.ShortcutsSettings.ToggleShortcutEnabledCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                          CommandParameter="{Binding}"
+                                                          IsChecked="{Binding IsEnabled, Mode=OneWay}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Width="2*"
+                                                        Binding="{Binding ConflictMessage}"
+                                                        Foreground="{DynamicResource Brush.Danger}"
+                                                        Header="{DynamicResource Shortcut.Conflict}" />
+                                    <DataGridTemplateColumn Width="Auto" Header="{DynamicResource Shortcut.Operation}">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Margin="4,0"
+                                                            Command="{Binding DataContext.ShortcutsSettings.StartEditShortcutCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"
+                                                            Content="{DynamicResource Shortcut.Edit}" />
+                                                    <Button Margin="4,0"
+                                                            Command="{Binding DataContext.ShortcutsSettings.ResetShortcutCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"
+                                                            Content="{DynamicResource Shortcut.Reset}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <StackPanel Grid.Row="3" Margin="0,8,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+                                <Button Command="{Binding ShortcutsSettings.ResetAllShortcutsCommand}" Content="{DynamicResource Shortcut.ResetAll}" />
+                            </StackPanel>
+                            <Popup Grid.Row="2"
+                                   IsOpen="{Binding ShortcutsSettings.IsEditingShortcut}"
+                                   Placement="Center"
+                                   StaysOpen="True">
+                                <Border MinWidth="{DynamicResource Size.SettingsPopupMinWidth}"
+                                        Padding="{DynamicResource Space.6}"
+                                        Background="{DynamicResource Brush.PanelRaised}"
+                                        BorderBrush="{DynamicResource Brush.PanelBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="8">
+                                    <StackPanel>
+                                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="{DynamicResource Shortcut.EnterKeys}" />
+                                        <TextBlock Margin="0,8,0,0" Text="{Binding ShortcutsSettings.EditingActionName}" />
+                                        <TextBox Margin="0,12,0,0"
+                                                 IsReadOnly="True"
+                                                 PreviewKeyDown="ShortcutInput_PreviewKeyDown"
+                                                 Text="{Binding ShortcutsSettings.EditingGestureText, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Margin="0,8,0,0"
+                                                   Foreground="{DynamicResource Brush.Danger}"
+                                                   Text="{Binding ShortcutsSettings.EditingErrorMessage}"
+                                                   TextWrapping="Wrap" />
+                                        <WrapPanel Margin="0,16,0,0" HorizontalAlignment="Right">
+                                            <Button Command="{Binding ShortcutsSettings.ClearEditedShortcutCommand}" Content="{DynamicResource Shortcut.Clear}" />
+                                            <ui:Button Margin="8,0,0,0" Appearance="Primary" Command="{Binding ShortcutsSettings.SaveEditedShortcutCommand}" Content="{DynamicResource Shortcut.Save}" />
+                                            <Button Margin="8,0,0,0"
+                                                    Command="{Binding ShortcutsSettings.CancelEditShortcutCommand}"
+                                                    Content="{DynamicResource Shortcut.Cancel}" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </TabItem>
+
+                    <TabItem>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.Tools}" />
+                                <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Tools.Description}" />
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
+                                    <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.ToolEntries}" />
+                                    <WrapPanel>
+                                        <Button Margin="0,0,8,8" Command="{Binding ShowToolCenterCommand}" CommandParameter="virtual-port" Content="{DynamicResource Menu.Tools.VirtualPort}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding ShowToolCenterCommand}" CommandParameter="telnet" Content="{DynamicResource Menu.Tools.Telnet}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding ShowToolCenterCommand}" CommandParameter="ascii" Content="{DynamicResource Menu.Tools.Ascii}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding ShowToolCenterCommand}" CommandParameter="monitor" Content="{DynamicResource Menu.Tools.Monitor}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding OpenLogFolderCommand}" Content="{DynamicResource Log.OpenFolder}" />
+                                        <Button Margin="0,0,8,8" Command="{Binding OpenDiagnosticFolderCommand}" Content="{DynamicResource Menu.Tools.Diagnostics}" />
+                                    </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+            </Border>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

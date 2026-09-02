@@ -1,0 +1,53 @@
+<ui:FluentWindow x:Class="DuCom.ColorWheelDialog"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="{DynamicResource HighlightFilter.ColorPicker.Title}"
+                 Width="390"
+                 Height="520"
+                 Icon="/Assets/DuCom.ico"
+                 ExtendsContentIntoTitleBar="True"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="False"
+                 WindowBackdropType="Mica"
+                 WindowStartupLocation="CenterOwner">
+    <Grid Background="{DynamicResource Brush.ShellSurface}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar Title="{DynamicResource HighlightFilter.ColorPicker.Title}" />
+        <StackPanel Grid.Row="1" Margin="24,16,24,20">
+            <Canvas x:Name="WheelCanvas" Width="280" Height="280" HorizontalAlignment="Center">
+                <Image x:Name="WheelImage"
+                       Width="280"
+                       Height="280"
+                       Cursor="Cross"
+                       MouseLeftButtonDown="WheelImage_MouseLeftButtonDown"
+                       MouseMove="WheelImage_MouseMove" />
+                <Ellipse x:Name="SelectionMarker"
+                         Width="14"
+                         Height="14"
+                         IsHitTestVisible="False"
+                         Fill="Transparent"
+                         Stroke="White"
+                         StrokeThickness="2" />
+            </Canvas>
+            <TextBlock Margin="0,14,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.ColorPicker.Brightness}" />
+            <Slider x:Name="BrightnessSlider" Minimum="0.05" Maximum="1" ValueChanged="BrightnessSlider_ValueChanged" />
+            <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="44" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border x:Name="SelectedColorPreview" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="4" />
+                <TextBox x:Name="HexTextBox" Grid.Column="2" IsReadOnly="True" FontFamily="Consolas" />
+            </Grid>
+            <StackPanel Margin="0,22,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+                <Button MinWidth="104" Height="34" Click="Cancel_Click" Content="{DynamicResource Shortcut.Cancel}" />
+                <ui:Button MinWidth="104" Height="34" Margin="10,0,0,0" Appearance="Primary" Click="Confirm_Click" Content="{DynamicResource HighlightFilter.ColorPicker.Confirm}" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</ui:FluentWindow>

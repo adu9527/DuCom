@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\DuCom.Core\DuCom.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AvalonEdit" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="System.Management" />
+    <PackageReference Include="WPF-UI" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>..\..\图标\DuCom_256x256.ico</ApplicationIcon>
+    <StartupObject>DuCom.Program</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="..\..\图标\DuCom_256x256.ico" Link="Assets\DuCom.ico" />
+    <Resource Include="..\..\图标\DuCom.png" Link="Assets\DuCom.png" />
+  </ItemGroup>
+
+</Project>

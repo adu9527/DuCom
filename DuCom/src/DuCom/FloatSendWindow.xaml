@@ -1,0 +1,268 @@
+<ui:FluentWindow x:Class="DuCom.FloatSendWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:behaviors="clr-namespace:DuCom.Behaviors"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  Title="DuCom"
+                   Width="640"
+                   Height="380"
+                   Icon="/Assets/DuCom.ico"
+                   MinWidth="460"
+                  MinHeight="320"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowStartupLocation="Manual">
+    <Grid Background="{DynamicResource Brush.LogSurface}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar x:Name="FloatTitleBar"
+                     Title="DuCom"
+                     ShowMaximize="True"
+                     ShowMinimize="True" />
+
+        <Grid Grid.Row="1" Margin="12,4,12,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal">
+            <ToggleButton x:Name="RecvHexToggle"
+                          MinWidth="44"
+                          Click="RecvHexToggle_Click">
+                <ToggleButton.Style>
+                    <Style TargetType="ToggleButton" BasedOn="{StaticResource Style.FloatToolbarToggle}">
+                        <Setter Property="Content" Value="STR" />
+                        <Setter Property="ToolTip" Value="{DynamicResource FloatSend.ShowStrToolTip}" />
+                        <Style.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Content" Value="HEX" />
+                                <Setter Property="ToolTip" Value="{DynamicResource FloatSend.ShowHexToolTip}" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </ToggleButton.Style>
+            </ToggleButton>
+            <ToggleButton x:Name="PinLogToggle"
+                          MinWidth="56"
+                          Margin="8,0,0,0"
+                          Style="{StaticResource Style.FloatToolbarToggle}"
+                          Content="{DynamicResource FloatSend.FixedScroll}"
+                          ToolTip="{DynamicResource FloatSend.FixedScrollToolTip}"
+                          Click="PinLogToggle_Click" />
+            <Button MinWidth="44"
+                    Margin="8,0,0,0"
+                    Style="{StaticResource Style.FloatToolbarButton}"
+                    Content="{DynamicResource FloatSend.Clear}"
+                    Click="Clear_Click" />
+            <Button MinWidth="44"
+                    Margin="8,0,0,0"
+                    Style="{StaticResource Style.FloatToolbarButton}"
+                    Content="{DynamicResource FloatSend.Save}"
+                    ToolTip="{DynamicResource FloatSend.SaveToolTip}"
+                    Click="Save_Click" />
+            <ToggleButton x:Name="TopmostToggle"
+                          MinWidth="44"
+                          Margin="8,0,0,0"
+                          Style="{StaticResource Style.FloatToolbarToggle}"
+                          Content="{DynamicResource FloatSend.Topmost}"
+                          Click="TopmostToggle_Click" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="16,0,0,0" Orientation="Horizontal">
+            <TextBlock Margin="8,0,4,0"
+                       VerticalAlignment="Center"
+                       Style="{DynamicResource Style.MutedText}"
+                       Text="{DynamicResource FloatSend.ReplyWindow}" />
+            <TextBox x:Name="ReplyWindowBox"
+                     Width="72"
+                     MinWidth="68"
+                     MinHeight="28"
+                     MaxLength="5"
+                     VerticalContentAlignment="Center"
+                     TextAlignment="Center"
+                     TextChanged="ReplyWindowBox_TextChanged"
+                     PreviewKeyDown="ReplyWindowBox_PreviewKeyDown"
+                     LostFocus="ReplyWindowBox_LostFocus" />
+            <TextBlock Margin="3,0,0,0"
+                       VerticalAlignment="Center"
+                       Style="{DynamicResource Style.MutedText}"
+                       Text="ms" />
+            </StackPanel>
+        </Grid>
+
+        <ListBox x:Name="LogList"
+                 Grid.Row="2"
+                 Margin="8,4,8,4"
+                 Padding="6"
+                 BorderThickness="0"
+                 Background="Transparent"
+                 FontSize="12"
+                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                 Style="{StaticResource Style.LogList}"
+                 behaviors:ListBoxAutoScrollBehavior.IsEnabled="True">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding Text}" FontFamily="Cascadia Mono, Consolas" />
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <Border Grid.Row="3"
+                Margin="8,0,8,8"
+                Padding="6,8,6,6"
+                BorderBrush="{DynamicResource Brush.PanelBorder}"
+                BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal">
+                    <ui:Button Width="38"
+                               Height="30"
+                               Padding="0"
+                               HorizontalContentAlignment="Center"
+                               Command="{Binding Session.ToggleCommandGroupRunCommand}"
+                               ToolTip="{DynamicResource Commands.RunToggle}">
+                        <ui:Button.Style>
+                            <Style BasedOn="{StaticResource {x:Type ui:Button}}" TargetType="ui:Button">
+                                <Setter Property="Appearance" Value="Primary" />
+                                <Setter Property="IsEnabled" Value="True" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Session.IsCommandGroupRunning}" Value="True">
+                                        <Setter Property="Appearance" Value="Danger" />
+                                    </DataTrigger>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding Session.IsCommandGroupRunning}" Value="False" />
+                                            <Condition Binding="{Binding Session.SelectedCommandGroup}" Value="{x:Null}" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="IsEnabled" Value="False" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="Play24">
+                                <ui:SymbolIcon.Style>
+                                    <Style TargetType="ui:SymbolIcon">
+                                        <Setter Property="Symbol" Value="Play24" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Session.IsCommandGroupRunning}" Value="True">
+                                                <Setter Property="Symbol" Value="Stop24" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:SymbolIcon.Style>
+                            </ui:SymbolIcon>
+                        </ui:Button.Icon>
+                    </ui:Button>
+                    <Grid Margin="6,0,0,0">
+                        <ComboBox x:Name="GroupsBox"
+                                  Height="30"
+                                  MinWidth="128"
+                                  Style="{StaticResource Style.FloatToolbarCombo}"
+                                  DisplayMemberPath="Name"
+                                  ItemsSource="{Binding Session.CommandGroups}"
+                                  SelectedItem="{Binding Session.SelectedCommandGroup}"
+                                  DropDownOpened="GroupsBox_DropOpened"
+                                  ToolTip="{DynamicResource Commands.SelectGroup}" />
+                        <TextBlock Margin="10,0,0,0"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False"
+                                   Text="{DynamicResource Commands.Placeholder}">
+                            <TextBlock.Style>
+                                <Style BasedOn="{StaticResource Style.MutedText}" TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Session.SelectedCommandGroup}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                    <ToggleButton x:Name="NewlineToggle"
+                                  MinWidth="52"
+                                  Height="30"
+                                  Margin="6,0,0,0"
+                                  Padding="6,0"
+                                  Style="{StaticResource Style.FloatToolbarToggle}"
+                                  Content="{DynamicResource FloatSend.AddNewline}"
+                                  ToolTip="{DynamicResource FloatSend.AddNewlineToolTip}" />
+                    <ToggleButton x:Name="SendHexToggle"
+                                  MinWidth="44"
+                                  Height="30"
+                                  Margin="4,0,0,0"
+                                  Click="SendHexToggle_Click">
+                        <ToggleButton.Style>
+                            <Style TargetType="ToggleButton" BasedOn="{StaticResource Style.FloatToolbarToggle}">
+                                <Setter Property="Content" Value="STR" />
+                                <Setter Property="ToolTip" Value="{DynamicResource FloatSend.SendStrToolTip}" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter Property="Content" Value="HEX" />
+                                        <Setter Property="ToolTip" Value="{DynamicResource FloatSend.SendHexToolTip}" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ToggleButton.Style>
+                    </ToggleButton>
+                    <ui:Button Width="40"
+                               Height="30"
+                               Margin="6,0,0,0"
+                               Padding="0"
+                               HorizontalContentAlignment="Center"
+                               Appearance="Primary"
+                               Click="Send_Click"
+                               ToolTip="{DynamicResource Send.Action}">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon FontSize="16" Symbol="Send24" />
+                        </ui:Button.Icon>
+                    </ui:Button>
+                </StackPanel>
+                <ScrollViewer Grid.Row="1"
+                              MaxHeight="96"
+                              Margin="0,6,0,0"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="CommandsControl" ItemsSource="{Binding Session.SelectedGroupCommands}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Margin="0,3,6,3"
+                                        Padding="8,3"
+                                        Command="{Binding DataContext.Session.SendScriptCommandCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        CommandParameter="{Binding}"
+                                        Content="{Binding Name}"
+                                        ToolTip="{Binding Payload}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                <TextBox x:Name="SendBox"
+                         Grid.Row="2"
+                         MinHeight="56"
+                         Margin="0,6,0,0"
+                         Padding="8"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         VerticalContentAlignment="Top"
+                         IsEnabled="{Binding Session.IsOpen}"
+                         PreviewKeyDown="SendBox_PreviewKeyDown"
+                         ToolTip="{DynamicResource FloatSend.SendBoxToolTip}" />
+            </Grid>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

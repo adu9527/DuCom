@@ -1,0 +1,44 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- IDE-inspired light palette: warm-neutral background with a calm blue accent.
+         Tuned for prolonged log capture under daylight; log surface stays paper-like. -->
+    <SolidColorBrush x:Key="Brush.ShellSurface" Color="#FFF6F7F9" />
+    <SolidColorBrush x:Key="Brush.PanelSurface" Color="#FFFCFCFD" />
+    <SolidColorBrush x:Key="Brush.PanelRaised" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.PanelBorder" Color="#FFE3E5EA" />
+    <SolidColorBrush x:Key="Brush.PanelBorderStrong" Color="#FFCFD2D9" />
+    <SolidColorBrush x:Key="Brush.TextPrimary" Color="#FF1B1E24" />
+    <SolidColorBrush x:Key="Brush.TextSecondary" Color="#FF4E5462" />
+    <SolidColorBrush x:Key="Brush.TextMuted" Color="#FF7A8190" />
+    <SolidColorBrush x:Key="Brush.LogSurface" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.LogText" Color="#FF1B1E24" />
+    <SolidColorBrush x:Key="Brush.Accent" Color="#FF1F6FEB" />
+    <SolidColorBrush x:Key="Brush.AccentSoft" Color="#221F6FEB" />
+    <SolidColorBrush x:Key="Brush.AccentHover" Color="#FF1A60CE" />
+    <SolidColorBrush x:Key="Brush.AccentPressed" Color="#FF1552B6" />
+    <SolidColorBrush x:Key="Brush.FocusStroke" Color="#FF1F6FEB" />
+    <SolidColorBrush x:Key="Brush.Success" Color="#FF117A3D" />
+    <SolidColorBrush x:Key="Brush.Caution" Color="#FF8A5A00" />
+    <SolidColorBrush x:Key="Brush.Danger" Color="#FFB42318" />
+    <SolidColorBrush x:Key="Brush.SuccessSoft" Color="#1A117A3D" />
+    <SolidColorBrush x:Key="Brush.CautionSoft" Color="#1A8A5A00" />
+    <SolidColorBrush x:Key="Brush.DangerSoft" Color="#1AB42318" />
+    <SolidColorBrush x:Key="Brush.StatusIdle" Color="#FF9DA3AE" />
+    <SolidColorBrush x:Key="Brush.RowHover" Color="#FFEEF1F5" />
+    <SolidColorBrush x:Key="Brush.RowSelected" Color="#FFDDE9FB" />
+    <SolidColorBrush x:Key="Brush.RowSelectedInactive" Color="#FFE5E8EE" />
+    <SolidColorBrush x:Key="Brush.SelectionText" Color="#FF0E1118" />
+    <SolidColorBrush x:Key="Brush.TabSelected" Color="#FFFCFCFD" />
+    <SolidColorBrush x:Key="Brush.TabHover" Color="#FFF1F3F7" />
+    <SolidColorBrush x:Key="Brush.InputSurface" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.InputBorder" Color="#FFCFD2D9" />
+    <SolidColorBrush x:Key="Brush.HeaderSurface" Color="#FFF1F3F7" />
+    <SolidColorBrush x:Key="Brush.ControlSurface" Color="#FFF7F8FA" />
+    <SolidColorBrush x:Key="Brush.ControlHover" Color="#FFEEF1F5" />
+    <SolidColorBrush x:Key="Brush.ControlPressed" Color="#FFE3E8F0" />
+    <SolidColorBrush x:Key="Brush.ControlDisabled" Color="#FFF1F2F4" />
+    <SolidColorBrush x:Key="Brush.ToolbarSurface" Color="#FFEEF1F5" />
+    <SolidColorBrush x:Key="Brush.Divider" Color="#FFE3E5EA" />
+    <SolidColorBrush x:Key="Brush.ScrollThumb" Color="#1F000000" />
+    <SolidColorBrush x:Key="Brush.ScrollThumbHover" Color="#40000000" />
+</ResourceDictionary>

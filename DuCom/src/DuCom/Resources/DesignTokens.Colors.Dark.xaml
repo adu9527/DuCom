@@ -1,0 +1,47 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- IDE-inspired dark palette: soft, layered neutral surface with a calm blue accent.
+         Designed for sustained 921600+ baud log capture; contrast prioritised for log content. -->
+    <SolidColorBrush x:Key="Brush.ShellSurface" Color="#F017191E" />
+    <SolidColorBrush x:Key="Brush.PanelSurface" Color="#FA1C1F24" />
+    <SolidColorBrush x:Key="Brush.PanelRaised" Color="#FA25282E" />
+    <SolidColorBrush x:Key="Brush.PanelBorder" Color="#FF363B44" />
+    <SolidColorBrush x:Key="Brush.PanelBorderStrong" Color="#FF454B56" />
+    <SolidColorBrush x:Key="Brush.TextPrimary" Color="#FFE2E6EC" />
+    <SolidColorBrush x:Key="Brush.TextSecondary" Color="#FFC8CDD5" />
+    <SolidColorBrush x:Key="Brush.TextMuted" Color="#FF858D99" />
+    <!-- Log content surface: a touch lighter than the deepest background so ANSI-rendered
+         dark backgrounds stay readable without sacrificing the "terminal" feel. -->
+    <SolidColorBrush x:Key="Brush.LogSurface" Color="#FF1B1E23" />
+    <SolidColorBrush x:Key="Brush.LogText" Color="#FFD6D9E0" />
+    <SolidColorBrush x:Key="Brush.Accent" Color="#FF4B8DFF" />
+    <SolidColorBrush x:Key="Brush.AccentSoft" Color="#334B8DFF" />
+    <SolidColorBrush x:Key="Brush.AccentHover" Color="#FF62A0FF" />
+    <SolidColorBrush x:Key="Brush.AccentPressed" Color="#FF3978DB" />
+    <SolidColorBrush x:Key="Brush.FocusStroke" Color="#FF62A0FF" />
+    <SolidColorBrush x:Key="Brush.Success" Color="#FF55D98A" />
+    <SolidColorBrush x:Key="Brush.Caution" Color="#FFF2B84B" />
+    <SolidColorBrush x:Key="Brush.Danger" Color="#FFF06A70" />
+    <SolidColorBrush x:Key="Brush.SuccessSoft" Color="#2E55D98A" />
+    <SolidColorBrush x:Key="Brush.CautionSoft" Color="#2EF2B84B" />
+    <SolidColorBrush x:Key="Brush.DangerSoft" Color="#2EF06A70" />
+    <SolidColorBrush x:Key="Brush.StatusIdle" Color="#FF737B87" />
+    <SolidColorBrush x:Key="Brush.RowHover" Color="#FF30353D" />
+    <SolidColorBrush x:Key="Brush.RowSelected" Color="#FF293E5C" />
+    <SolidColorBrush x:Key="Brush.RowSelectedInactive" Color="#FF303640" />
+    <SolidColorBrush x:Key="Brush.SelectionText" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="Brush.TabSelected" Color="#FF22262D" />
+    <SolidColorBrush x:Key="Brush.TabHover" Color="#FF292D34" />
+    <SolidColorBrush x:Key="Brush.InputSurface" Color="#FF20242A" />
+    <SolidColorBrush x:Key="Brush.InputBorder" Color="#FF3A4049" />
+    <SolidColorBrush x:Key="Brush.HeaderSurface" Color="#FF22252B" />
+    <SolidColorBrush x:Key="Brush.ControlSurface" Color="#FF292D34" />
+    <SolidColorBrush x:Key="Brush.ControlHover" Color="#FF323740" />
+    <SolidColorBrush x:Key="Brush.ControlPressed" Color="#FF22262C" />
+    <SolidColorBrush x:Key="Brush.ControlDisabled" Color="#FF22252B" />
+    <!-- Toolbar / chrome: matches the sidebar footer strip; used by the bottom action bar. -->
+    <SolidColorBrush x:Key="Brush.ToolbarSurface" Color="#FA171A1F" />
+    <SolidColorBrush x:Key="Brush.Divider" Color="#FF363B43" />
+    <SolidColorBrush x:Key="Brush.ScrollThumb" Color="#FF3B4049" />
+    <SolidColorBrush x:Key="Brush.ScrollThumbHover" Color="#FF5A626F" />
+</ResourceDictionary>
