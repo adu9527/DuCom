@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Threading;
 using DuCom.Core.Diagnostics;
+using DuCom.Core.Parsing;
 using DuCom.Services.Shortcuts;
 using DuCom.ViewModels;
 using Wpf.Ui.Appearance;
@@ -61,6 +62,10 @@ public partial class App : Application, IDisposable
         else if (arguments.ContainsKey("about-smoke"))
         {
             Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => RunAboutSmokeTest(MainWindow));
+        }
+        else if (arguments.ContainsKey("rules-smoke"))
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => RunRulesSmokeTest(MainWindow));
         }
         else if (arguments.ContainsKey("tools-smoke"))
         {
@@ -316,6 +321,65 @@ public partial class App : Application, IDisposable
         {
             DiagnosticLog?.Error("About smoke test failed.", exception);
             Shutdown(-3);
+        }
+    }
+
+    private void RunRulesSmokeTest(Window owner)
+    {
+        string cleanProfileDirectory = Path.Combine(Path.GetTempPath(), $"DuComRulesSmoke-{Guid.NewGuid():N}");
+        try
+        {
+            if (owner.DataContext is not MainViewModel viewModel)
+            {
+                throw new InvalidOperationException("Rules smoke requires MainViewModel.");
+            }
+
+            HighlightFilterRulesViewModel.RuleProjectEditor? defaultProject = viewModel.HighlightFilterSettings.Projects.FirstOrDefault(project =>
+                string.Equals(project.Name, "default", StringComparison.OrdinalIgnoreCase));
+            if (defaultProject is null || defaultProject.Rules.Count == 0)
+            {
+                throw new InvalidOperationException("Default highlight-rule project was not initialized in the rules editor.");
+            }
+
+            HighlightFilterRuleProject? runtimeProject = viewModel.HighlightRuleProjects.FirstOrDefault(project =>
+                string.Equals(project.Name, "default", StringComparison.OrdinalIgnoreCase));
+            if (runtimeProject is null || runtimeProject.Rules.Count == 0)
+            {
+                throw new InvalidOperationException("Default highlight-rule project was not loaded into the runtime rule collection.");
+            }
+
+            string cleanRulesPath = Path.Combine(cleanProfileDirectory, "DuCom", "highlight-filter-rules.json");
+            HighlightFilterRuleService cleanService = new(cleanRulesPath);
+            HighlightFilterRulesViewModel cleanViewModel = new(cleanService);
+            HighlightFilterRulesViewModel.RuleProjectEditor? cleanDefaultProject = cleanViewModel.Projects.FirstOrDefault(project =>
+                string.Equals(project.Name, "default", StringComparison.OrdinalIgnoreCase));
+            if (!File.Exists(cleanRulesPath) || cleanDefaultProject is null || cleanDefaultProject.Rules.Count == 0)
+            {
+                throw new InvalidOperationException("A clean profile did not create and expose the default highlight-rule project.");
+            }
+
+            DiagnosticLog?.Information(
+                $"Rules smoke test passed. EditorRules={defaultProject.Rules.Count}; RuntimeRules={runtimeProject.Rules.Count}; CleanProfileRules={cleanDefaultProject.Rules.Count}.");
+            Shutdown(0);
+        }
+        catch (Exception exception)
+        {
+            DiagnosticLog?.Error("Rules smoke test failed.", exception);
+            Shutdown(-8);
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(cleanProfileDirectory))
+                {
+                    Directory.Delete(cleanProfileDirectory, recursive: true);
+                }
+            }
+            catch (Exception exception)
+            {
+                DiagnosticLog?.Warning($"Rules smoke cleanup failed. {exception.Message}");
+            }
         }
     }
 

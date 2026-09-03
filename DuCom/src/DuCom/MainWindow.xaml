@@ -550,7 +550,8 @@
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <Separator />
-                                <MenuItem Header="{DynamicResource Menu.About.FeedbackReserved}" IsEnabled="False">
+                                <MenuItem Command="{Binding OpenFeedbackCommand}"
+                                          Header="{DynamicResource Menu.About.Feedback}">
                                     <MenuItem.Icon>
                                         <ui:SymbolIcon FontSize="16" Symbol="QuestionCircle24" />
                                     </MenuItem.Icon>

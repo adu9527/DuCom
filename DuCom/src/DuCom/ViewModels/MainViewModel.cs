@@ -27,6 +27,9 @@ namespace DuCom.ViewModels;
 
 public partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
+    private const string GitHubRepositoryUrl = "https://github.com/adu9527/DuCom";
+    private const string ChineseUserManualUrl = "https://github.com/adu9527/DuCom/blob/main/Doc/UserManual.zh-CN.md";
+    private const string EnglishUserManualUrl = "https://github.com/adu9527/DuCom/blob/main/Doc/UserManual.en-US.md";
     private static readonly int[] DefaultBaudRates = [9_600, 19_200, 115_200, 921_600, 1_152_000, 1_500_000, 2_000_000, 3_000_000];
 
     private static readonly JsonSerializerOptions ConfigurationJsonOptions = new() { WriteIndented = true };
@@ -2080,11 +2083,11 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     private static void OpenDocumentation()
     {
-        string path = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "docs"));
-        if (Directory.Exists(path))
-        {
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-        }
+        string language = ((App)Application.Current).CurrentLanguage;
+        string url = string.Equals(language, "en-US", StringComparison.OrdinalIgnoreCase)
+            ? EnglishUserManualUrl
+            : ChineseUserManualUrl;
+        OpenUrl(url);
     }
 
     [RelayCommand]
@@ -2095,8 +2098,14 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     [RelayCommand]
-    private static void OpenFeedback() =>
-        Process.Start(new ProcessStartInfo("mailto:du?subject=DuCom%20Feedback") { UseShellExecute = true });
+    private static void OpenFeedback()
+    {
+        FeedbackWindow window = new() { Owner = Application.Current.MainWindow };
+        window.ShowDialog();
+    }
+
+    private static void OpenUrl(string url) =>
+        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
 
     [RelayCommand]
     private void ApplyLightTheme()

@@ -1,0 +1,21 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DuCom 开发者文档</title><link rel="stylesheet" href="styles.css"></head><body><header class="top"><nav class="nav"><a class="brand" href="index.html">DuCom Docs</a><a href="developer-guide-en.html">English</a><a href="user-manual-zh.html">用户手册</a><a href="https://github.com/adu9527/DuCom">GitHub</a></nav></header><div class="hero"><div class="eyebrow">DEVELOPER GUIDE · .NET 10 / WPF / C# 14</div><h1>DuCom 开发者文档</h1><p>理解工程边界、接收管线、构建测试、性能约束和 Release 流程。</p></div><main class="layout"><aside class="side"><a href="#setup">开发环境</a><a href="#layout">工程结构</a><a href="#arch">架构</a><a href="#rules">并发规范</a><a href="#test">测试</a><a href="#i18n">本地化</a><a href="#contribute">贡献</a><a href="#release">发布</a></aside><article class="content"><section id="setup"><h2>开发环境与构建</h2><p>Windows 10/11、.NET 10 SDK、Git，推荐 Visual Studio 的“.NET 桌面开发”工作负载。</p><pre><code>git clone https://github.com/adu9527/DuCom.git
+cd DuCom\DuCom
+dotnet restore
+dotnet build
+dotnet run --project src\DuCom\DuCom.csproj
+dotnet test DuCom.slnx</code></pre></section><section id="layout"><h2>工程结构</h2><pre><code>Doc/                       对外中英文文档
+DuCom/src/DuCom/           WPF 应用
+DuCom/src/DuCom.Core/      无 UI 依赖的核心逻辑
+DuCom/tests/               xUnit 测试
+DuCom/tools/               负载工具
+DuCom/benchmarks/          性能基准
+DuCom/docs/                ADR 与内部验证资料</code></pre><p>Core 保持零 WPF 依赖；协议、解析、存储和状态机优先放入 Core。</p></section><section id="arch"><h2>核心架构</h2><pre><code>SerialPort callback
+ → 有界接收管线
+ → STR / HEX / ANSI 增量格式化
+ → Session sink
+    ├─ 异步文件日志
+    └─ 预算化显示存储
+       → UI 按渲染节奏读取快照</code></pre><ul><li>回调只复制和入队，不解析、不写盘、不调 Dispatcher。</li><li>日志写入独立于 UI 跟随和显示裁剪。</li><li>打开、关闭和异常断开显式串行化。</li><li>命令组在异步发送上增加多目标、延时、返回检查与循环。</li></ul></section><section id="rules"><h2>性能与并发规范</h2><ul><li>禁止阻塞 <code>SerialPort.DataReceived</code>。</li><li>UI 批量、限频刷新；搜索、导出和磁盘写入后台执行。</li><li>热路径避免逐字节对象分配。</li><li>后台循环支持取消和幂等停止。</li><li>用户正则必须设置超时。</li><li>明确区分显示裁剪和真实接收丢失。</li></ul></section><section id="test"><h2>测试策略</h2><div class="grid"><div class="mini"><h3>自动化</h3><p>编码、解析、搜索、正则超时、生命周期、存储预算、迁移、管线和多目标命令。</p></div><div class="mini"><h3>硬件与负载</h3><p>真实 USB 串口、热插拔、端口占用、错误帧、高波特率长跑和确定性完整性对比。</p></div></div><pre><code>dotnet build DuCom.slnx --configuration Release
+dotnet test DuCom.slnx --configuration Release</code></pre></section><section id="i18n"><h2>本地化与持久化</h2><p>可见文本放在 <code>Resources/Languages/zh-CN.xaml</code> 和 <code>en-US.xaml</code>，资源键保持一致。配置采用原子写入和向后兼容；Telnet 明文密码仅保存在运行内存。</p></section><section id="contribute"><h2>贡献流程</h2><ol><li>从 <code>test</code> 分支创建功能分支。</li><li>确定 Core/WPF 边界并先补纯逻辑测试。</li><li>实现取消、错误和持久化语义。</li><li>同步中英文资源和文档。</li><li>通过 Debug/Release 构建、测试和必要手测。</li><li>向 <code>test</code> 提交 PR，并附测试证据与界面截图。</li></ol><p>不要提交 bin、obj、日志、数据库、个人配置和发布 EXE。</p></section><section id="release"><h2>Release 发布</h2><div class="note">面向用户发布当前实测约 78 MB 的自包含单文件 EXE（不同版本可能略有浮动），下载后直接双击，无需安装 .NET。</div><table><tr><th>配置</th><th>值</th></tr><tr><td>Configuration</td><td>Release</td></tr><tr><td>Runtime</td><td>win-x64</td></tr><tr><td>Deployment</td><td>Self-contained</td></tr><tr><td>Single file</td><td>Enabled</td></tr></table><pre><code>dotnet publish src\DuCom\DuCom.csproj `
+  -c Release -r win-x64 --self-contained true `
+  -p:PublishSingleFile=true</code></pre><p>发布前检查版本、关于页日期、文档、README、Release Notes、安全扫描和干净机器启动。产物上传 GitHub Release，不提交仓库。</p><p><a href="../DeveloperGuide.zh-CN.md">阅读 Markdown 完整版</a></p></section></article></main><footer class="footer">DuCom Developer Guide · GPL-3.0</footer></body></html>

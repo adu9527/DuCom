@@ -56,7 +56,17 @@ public partial class HighlightFilterRulesViewModel : ObservableObject
     public HighlightFilterRulesViewModel(HighlightFilterRuleService service)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
-        foreach (HighlightFilterRuleProject project in service.LoadProjects())
+        List<HighlightFilterRuleProject> projects = [.. service.LoadProjects()];
+        if (projects.Count == 0)
+        {
+            projects.Add(new HighlightFilterRuleProject(
+                Guid.NewGuid(),
+                "default",
+                DefaultDuComData.MergeHighlightRules([], out _)));
+            service.SaveProjects(projects);
+        }
+
+        foreach (HighlightFilterRuleProject project in projects)
         {
             IReadOnlyList<HighlightFilterRule> rules =
                 string.Equals(project.Name, "default", StringComparison.OrdinalIgnoreCase) && project.Rules.Count == 0
