@@ -16,13 +16,18 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>..\..\图标\DuCom_256x256.ico</ApplicationIcon>
+    <ApplicationIcon>..\..\..\Image\DuCom_256x256.ico</ApplicationIcon>
     <StartupObject>DuCom.Program</StartupObject>
+    <DuComBuildDate>$([System.DateTime]::Now.ToString('yyyy-MM-dd'))</DuComBuildDate>
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="..\..\图标\DuCom_256x256.ico" Link="Assets\DuCom.ico" />
-    <Resource Include="..\..\图标\DuCom.png" Link="Assets\DuCom.png" />
+    <AssemblyMetadata Include="BuildDate" Value="$(DuComBuildDate)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="..\..\..\Image\DuCom_256x256.ico" Link="Assets\DuCom.ico" />
+    <Resource Include="..\..\..\Image\DuCom.png" Link="Assets\DuCom.png" />
   </ItemGroup>
 
 </Project>

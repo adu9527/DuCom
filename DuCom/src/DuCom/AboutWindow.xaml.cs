@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DuCom.ViewModels;
 using Wpf.Ui.Controls;
 
@@ -15,6 +16,9 @@ public partial class AboutWindow : FluentWindow, IDisposable
     }
 
     private void Close_Click(object sender, System.Windows.RoutedEventArgs e) => Close();
+
+    private void GitHub_Click(object sender, System.Windows.RoutedEventArgs e) =>
+        Process.Start(new ProcessStartInfo(_viewModel.GitHubUrl) { UseShellExecute = true });
 
     public void Dispose()
     {

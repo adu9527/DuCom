@@ -3,8 +3,10 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                   Title="{DynamicResource About.Title}"
-                  Width="520"
-                  Height="420"
+                  Width="600"
+                  Height="540"
+                  MinWidth="600"
+                  MinHeight="540"
                   Icon="/Assets/DuCom.ico"
                   ExtendsContentIntoTitleBar="True"
                  ResizeMode="NoResize"
@@ -43,6 +45,10 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="14" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="14" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="14" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock Style="{DynamicResource Style.MutedText}" Text="{DynamicResource About.Product}" />
                 <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="{Binding ProductName}" />
@@ -52,8 +58,20 @@
                 <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding ReleaseDate}" />
                 <TextBlock Grid.Row="6" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource About.Author}" />
                 <TextBlock Grid.Row="6" Grid.Column="2" Text="{Binding Author}" />
-                <TextBlock Grid.Row="8" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource About.CurrentTime}" />
-                <TextBlock Grid.Row="8" Grid.Column="2" FontFamily="Cascadia Mono, Consolas" Text="{Binding CurrentTime}" />
+                <TextBlock Grid.Row="8" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource About.GitHub}" />
+                <TextBlock Grid.Row="8" Grid.Column="2">
+                    <Hyperlink Click="GitHub_Click" NavigateUri="{Binding GitHubUrl, Mode=OneWay}">
+                        <Run Text="{Binding GitHubUrl, Mode=OneWay}" />
+                    </Hyperlink>
+                </TextBlock>
+                <TextBlock Grid.Row="10" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource About.QQGroup}" />
+                <TextBlock Grid.Row="10"
+                           Grid.Column="2"
+                           FontFamily="Cascadia Mono, Consolas"
+                           FontWeight="SemiBold"
+                           Text="{Binding QQGroupNumber, Mode=OneWay}" />
+                <TextBlock Grid.Row="12" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource About.CurrentTime}" />
+                <TextBlock Grid.Row="12" Grid.Column="2" FontFamily="Cascadia Mono, Consolas" Text="{Binding CurrentTime}" />
             </Grid>
         </Border>
         <Button Grid.Row="4"
