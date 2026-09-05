@@ -37,6 +37,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     private readonly IPortDiscovery _portDiscovery;
     private static readonly TimeSpan MinimumRenderInterval = TimeSpan.FromSeconds(1d / 60d);
     private static readonly TimeSpan StatusRefreshInterval = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan SlowOperationThreshold = TimeSpan.FromMilliseconds(50);
     private readonly HashSet<string> _hiddenPorts = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _settingsSaveTimer;
     private readonly DispatcherTimer _portSettingsApplyTimer;
@@ -66,6 +67,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     private TimeSpan _lastStatusRefreshTime;
     private string[] _backgroundImagePlaylist = [];
     private int _backgroundImageIndex = -1;
+    private readonly object _portRefreshSync = new();
+    private bool _portRefreshRequested;
+    private Task? _portRefreshTask;
+    private long _nextSlowProjectionLogTimestamp;
 
     internal MainViewModel(
         IPortDiscovery portDiscovery,
@@ -116,7 +121,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         LoadHighlightFilterRules();
         SendHistoryFileService.LoadInto(_sendHistory);
         SyncAppearanceSelection();
-        RefreshPorts();
+        _ = RefreshPortsAsync();
         ApplySystemBehaviorSettings();
     }
 
@@ -128,6 +133,12 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
 
         _sessionsRestored = true;
+        Task initialPortRefresh;
+        lock (_portRefreshSync)
+        {
+            initialPortRefresh = _portRefreshTask ?? Task.CompletedTask;
+        }
+        await initialPortRefresh;
         string[] openPorts = ResolvePersistedOpenSessionPorts();
         if (openPorts.Length == 0)
         {
@@ -721,18 +732,93 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     [NotifyCanExecuteChangedFor(nameof(SendCommand))]
     public partial SessionViewModel? SelectedSession { get; set; }
 
-    [RelayCommand]
-    private void RefreshPorts()
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private Task RefreshPortsAsync()
     {
-        string? previous = SelectedPort;
-        _discoveredPortDetails = (_portDiscovery as IPortDetailsProvider)?.GetPortDetails()
-            ?? new Dictionary<string, DiscoveredPort>(StringComparer.OrdinalIgnoreCase);
-        _discoveredPortNames = _discoveredPortDetails.Count > 0
-            ? _discoveredPortDetails.Keys.ToArray()
-            : _portDiscovery.GetPortNames().ToArray();
-        RebuildPortItems(previous);
-        CloseSessionsForRemovedPorts();
-        ReconnectReturnedPorts();
+        lock (_portRefreshSync)
+        {
+            _portRefreshRequested = true;
+            return _portRefreshTask ??= RunPortRefreshLoopAsync();
+        }
+    }
+
+    private async Task RunPortRefreshLoopAsync()
+    {
+        while (!_disposed)
+        {
+            lock (_portRefreshSync)
+            {
+                _portRefreshRequested = false;
+            }
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            PortDiscoverySnapshot discovered;
+            try
+            {
+                discovered = await Task.Run(() =>
+                {
+                    IReadOnlyDictionary<string, DiscoveredPort> details =
+                        (_portDiscovery as IPortDetailsProvider)?.GetPortDetails()
+                        ?? new Dictionary<string, DiscoveredPort>(StringComparer.OrdinalIgnoreCase);
+                    string[] names = details.Count > 0
+                        ? [.. details.Keys]
+                        : [.. _portDiscovery.GetPortNames()];
+                    return new PortDiscoverySnapshot(names, details);
+                });
+            }
+            catch (Exception exception)
+            {
+                Program.DiagnosticLog?.Warning("Serial-port discovery failed.", exception);
+                lock (_portRefreshSync)
+                {
+                    _portRefreshTask = null;
+                }
+                return;
+            }
+
+            stopwatch.Stop();
+            if (stopwatch.Elapsed >= SlowOperationThreshold)
+            {
+                Program.DiagnosticLog?.Warning(
+                    $"Slow serial-port discovery. ElapsedMs={stopwatch.Elapsed.TotalMilliseconds:0.0}; Ports={discovered.Names.Length}");
+            }
+
+            lock (_portRefreshSync)
+            {
+                if (_portRefreshRequested)
+                {
+                    continue;
+                }
+            }
+
+            if (_disposed)
+            {
+                return;
+            }
+
+            string? previous = SelectedPort;
+            _discoveredPortDetails = discovered.Details;
+            _discoveredPortNames = discovered.Names;
+            RebuildPortItems(previous);
+            CloseSessionsForRemovedPorts();
+            ReconnectReturnedPorts();
+
+            lock (_portRefreshSync)
+            {
+                if (_portRefreshRequested)
+                {
+                    continue;
+                }
+
+                _portRefreshTask = null;
+                return;
+            }
+        }
+
+        lock (_portRefreshSync)
+        {
+            _portRefreshTask = null;
+        }
     }
 
     private void CloseSessionsForRemovedPorts()
@@ -888,6 +974,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand(CanExecute = nameof(CanOpen))]
     private async Task OpenAsync()
     {
+        Stopwatch stopwatch = Stopwatch.StartNew();
         string portName = SelectedPort!;
         SessionViewModel? session = Sessions.FirstOrDefault(
             item => string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase));
@@ -944,14 +1031,22 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             }
         }
 
-        SelectedSession = session;
+        if (RightSessions.Contains(session))
+        {
+            SelectedRightSession = session;
+        }
+        else
+        {
+            SelectedSession = session;
+        }
+
         PortCommandResult result = await session.OpenAsync();
         if (result != PortCommandResult.Succeeded && createdNew)
         {
             Sessions.Remove(session);
             CloseFloatSendFor(session.PortName); CloseLogFilterFor(session.PortName);
             await session.DisposeAsync();
-            SelectedSession = Sessions.FirstOrDefault();
+            SelectedSession = Sessions.FirstOrDefault(candidate => !RightSessions.Contains(candidate));
             StatusMessage = GetResourceString("Status.OpenFailed")
                 .Replace("{0}", session.FaultMessage, StringComparison.Ordinal);
             Program.DiagnosticLog?.Warning(
@@ -970,6 +1065,12 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
 
         NotifyCommandStates();
+        stopwatch.Stop();
+        if (stopwatch.Elapsed >= SlowOperationThreshold)
+        {
+            Program.DiagnosticLog?.Warning(
+                $"Slow open command. Port={portName}; ElapsedMs={stopwatch.Elapsed.TotalMilliseconds:0.0}; IsOpen={session.IsOpen}");
+        }
     }
 
     private bool CanOpen() => !string.IsNullOrWhiteSpace(SelectedPort);
@@ -977,9 +1078,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand(CanExecute = nameof(CanClose))]
     private async Task CloseAsync()
     {
-        await SelectedSession!.CloseAsync();
+        SessionViewModel session = SelectedSession!;
+        string logFilePath = session.WorkspaceSession.CurrentLogFilePath ?? string.Empty;
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        await session.CloseAsync();
+        stopwatch.Stop();
         Program.DiagnosticLog?.Information(
-            $"Close command completed. Port={SelectedSession.PortName}; IsOpen={SelectedSession.IsOpen}; Fault={SelectedSession.FaultMessage}");
+            $"Close command completed. Port={session.PortName}; CompletedAt={DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz}; ElapsedMs={stopwatch.Elapsed.TotalMilliseconds:0.0}; IsOpen={session.IsOpen}; Fault={session.FaultMessage}; LogFile={logFilePath}");
         NotifyCommandStates();
     }
 
@@ -2938,6 +3043,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         NewlinePolicy Newline,
         Guid? HighlightRuleProjectId);
 
+    private sealed record PortDiscoverySnapshot(
+        string[] Names,
+        IReadOnlyDictionary<string, DiscoveredPort> Details);
+
     private void OnCompositionRendering(object? sender, EventArgs e)
     {
         if (e is not RenderingEventArgs { RenderingTime: TimeSpan renderingTime } ||
@@ -2966,7 +3075,19 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         bool commandStateChanged = false;
         foreach (SessionViewModel session in sessionsToProject)
         {
+            Stopwatch stopwatch = Stopwatch.StartNew();
             commandStateChanged |= session.PullDisplaySnapshot(session.Search.IsOpen);
+            stopwatch.Stop();
+            if (stopwatch.Elapsed >= SlowOperationThreshold)
+            {
+                long now = Stopwatch.GetTimestamp();
+                if (now >= _nextSlowProjectionLogTimestamp)
+                {
+                    _nextSlowProjectionLogTimestamp = now + Stopwatch.Frequency;
+                    Program.DiagnosticLog?.Warning(
+                        $"Slow UI snapshot projection. Port={session.PortName}; ElapsedMs={stopwatch.Elapsed.TotalMilliseconds:0.0}; VisibleLines={session.VisibleLines.Count}");
+                }
+            }
         }
         if (renderingTime - _lastStatusRefreshTime < StatusRefreshInterval)
         {
@@ -2996,7 +3117,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         RightSessions.Remove(session);
         if (SelectedSession is null || ReferenceEquals(SelectedSession, session))
         {
-            SelectedSession = Sessions.FirstOrDefault(item => item.IsOpen && !ReferenceEquals(item, session));
+            SelectedSession = Sessions.FirstOrDefault(item =>
+                item.IsOpen && !ReferenceEquals(item, session) && !RightSessions.Contains(item));
         }
 
         if (SelectedSession is not null)
@@ -3588,8 +3710,22 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             item => string.Equals(item.PortName, port.PortName, StringComparison.OrdinalIgnoreCase));
         if (session?.IsOpen == true)
         {
-            SelectedSession = session;
-            await CloseAsync();
+            // Toggle the port's own session without pulling a right-pane session into
+            // the left workspace, which would sync both panes to one session.
+            if (RightSessions.Contains(session))
+            {
+                SelectedRightSession = session;
+            }
+            else
+            {
+                SelectedSession = session;
+            }
+
+            string logFilePath = session.WorkspaceSession.CurrentLogFilePath ?? string.Empty;
+            await session.CloseAsync();
+            Program.DiagnosticLog?.Information(
+                $"Close command completed. Port={session.PortName}; CompletedAt={DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff zzz}; IsOpen={session.IsOpen}; Fault={session.FaultMessage}; LogFile={logFilePath}");
+            NotifyCommandStates();
         }
         else
         {

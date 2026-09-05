@@ -519,7 +519,8 @@ public sealed class SerialSession : IAsyncDisposable
         encodingName,
         _receiveDisplayMode,
         _timestampEnabled,
-        TimestampFormat: _timestampFormat);
+        TimestampFormat: _timestampFormat,
+        UnterminatedLineIdleMilliseconds: 200);
 
     private async Task<PortCommandResult> CloseCoreAsync(CancellationToken cancellationToken)
     {
@@ -578,7 +579,7 @@ public sealed class SerialSession : IAsyncDisposable
         {
             try
             {
-                await DrainRuntimeAsync(runtime).ConfigureAwait(false);
+                await DrainRuntimeAsync(runtime, appendDisconnectNewline: true).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -607,7 +608,7 @@ public sealed class SerialSession : IAsyncDisposable
         }
     }
 
-    private static async Task DrainRuntimeAsync(SessionRuntime runtime)
+    private static async Task DrainRuntimeAsync(SessionRuntime runtime, bool appendDisconnectNewline = false)
     {
         if (Interlocked.Exchange(ref runtime.Drained, 1) != 0)
         {
@@ -620,6 +621,18 @@ public sealed class SerialSession : IAsyncDisposable
         {
             await TryCleanupAsync(runtime.Pipeline.StopAsync, failures).ConfigureAwait(false);
             await TryCleanupAsync(() => runtime.Sink.FlushAsync(CancellationToken.None), failures).ConfigureAwait(false);
+            if (appendDisconnectNewline)
+            {
+                await TryCleanupAsync(async () =>
+                {
+                    if (!await runtime.LogWriter.WriteAsync(
+                            new FormattedLogRecord("\r\n", BypassRotation: true),
+                            CancellationToken.None).ConfigureAwait(false))
+                    {
+                        throw new IOException("Session log writer rejected the disconnect newline.");
+                    }
+                }, failures).ConfigureAwait(false);
+            }
             await TryCleanupAsync(runtime.LogWriter.StopAsync, failures).ConfigureAwait(false);
             await TryCleanupAsync(() => runtime.Pipeline.DisposeAsync().AsTask(), failures).ConfigureAwait(false);
             await TryCleanupAsync(() => runtime.Sink.DisposeAsync().AsTask(), failures).ConfigureAwait(false);

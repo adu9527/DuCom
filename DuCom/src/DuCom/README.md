@@ -10,7 +10,7 @@ Visible session snapshots are pulled from `CompositionTarget.Rendering` with a 1
 
 ## M1 Status
 
-The main log uses a bounded, read-only AvalonEdit projection over the frame-pulled `SerialSession` snapshots. Native editor selection, copy, caret, and search are available without moving serial, Channel, pooled-buffer, or logging ownership into the view. While following the end, the main display retains only the newest 10,000 segments or 1 MiB of text; older display content is trimmed without affecting session log files. Pausing follow keeps updating and retains the paused display without these two UI limits until the user resumes or clears it; crossing the configured private-memory threshold produces one warning per clear cycle.
+The main log uses a bounded, read-only AvalonEdit projection over the frame-pulled `SerialSession` snapshots. Native editor selection, copy, caret, and search are available without moving serial, Channel, pooled-buffer, or logging ownership into the view. While following the end, the main display retains only the newest 30,000 segments or 4 MiB of text; older display content is trimmed without affecting session log files. Pausing follow keeps updating and retains the paused display without these two UI limits until the user resumes or clears it; crossing the configured private-memory threshold produces one warning per clear cycle.
 
 ## Current Command Dock
 

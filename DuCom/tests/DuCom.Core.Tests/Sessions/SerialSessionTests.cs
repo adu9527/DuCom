@@ -27,7 +27,7 @@ public sealed class SerialSessionTests
         StoredLine line = Assert.Single(snapshot.Lines.Lines);
         Assert.Equal(LineDirection.Rx, line.Direction);
         Assert.Equal("hello", line.Text);
-        Assert.Equal("hello\r\n", ReadLogs(directory.Path));
+        Assert.Equal("hello\r\n\r\n", ReadLogs(directory.Path));
         Assert.True(snapshot.Metrics.IsLogFormattingCoverageComplete);
         Assert.Null(snapshot.Fault);
     }
@@ -50,7 +50,7 @@ public sealed class SerialSessionTests
         StoredLine line = Assert.Single(session.Snapshot().Lines.Lines);
         Assert.Equal("partial", line.Text);
         Assert.False(line.IsTerminated);
-        Assert.Equal("partial", ReadLogs(directory.Path));
+        Assert.Equal("partial\r\n", ReadLogs(directory.Path));
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public sealed class SerialSessionTests
         SerialSessionSnapshot snapshot = session.Snapshot();
         Assert.True(snapshot.Lines.Lines.Count >= 3);
         Assert.Single(snapshot.Lines.Lines.Select(line => line.LogicalId).Distinct());
-        Assert.Equal(payload, ReadLogs(directory.Path));
+        Assert.Equal(payload + "\r\n", ReadLogs(directory.Path));
         Assert.True(snapshot.Metrics.IsLogFormattingCoverageComplete);
     }
 
@@ -89,7 +89,7 @@ public sealed class SerialSessionTests
         Assert.Equal(
             ["TX > ping", "TX > A0 0B"],
             session.Snapshot().Lines.Lines.Select(line => line.Text));
-        Assert.Equal("TX > ping\r\nTX > A0 0B\r\n", ReadLogs(directory.Path));
+        Assert.Equal("TX > ping\r\nTX > A0 0B\r\n\r\n", ReadLogs(directory.Path));
     }
 
     [Fact]
@@ -105,7 +105,7 @@ public sealed class SerialSessionTests
         await session.CloseAsync();
 
         Assert.Empty(session.Snapshot().Lines.Lines);
-        Assert.Equal(string.Empty, ReadLogs(directory.Path));
+        Assert.Equal("\r\n", ReadLogs(directory.Path));
     }
 
     [Fact]
@@ -129,8 +129,8 @@ public sealed class SerialSessionTests
 
         Assert.Equal("first", Assert.Single(first.Snapshot().Lines.Lines).Text);
         Assert.Equal("second", Assert.Single(second.Snapshot().Lines.Lines).Text);
-        Assert.Equal("first\r\n", ReadLogs(firstDirectory.Path));
-        Assert.Equal("second\r\n", ReadLogs(secondDirectory.Path));
+        Assert.Equal("first\r\n\r\n", ReadLogs(firstDirectory.Path));
+        Assert.Equal("second\r\n\r\n", ReadLogs(secondDirectory.Path));
     }
 
     [Fact]
@@ -232,7 +232,7 @@ public sealed class SerialSessionTests
         await WaitUntilAsync(() => session.Snapshot().Metrics.AcceptedBlocks == 2);
         await session.CloseAsync();
 
-        Assert.Equal("\uFFFDé\r\n", ReadLogs(directory.Path));
+        Assert.Equal("\uFFFDé\r\n\r\n", ReadLogs(directory.Path));
         Assert.Equal(2, session.Snapshot().Metrics.FormattedLogBlocks);
     }
 

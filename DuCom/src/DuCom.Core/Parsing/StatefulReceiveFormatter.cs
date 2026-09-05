@@ -13,6 +13,7 @@ public sealed class StatefulReceiveFormatter
     private readonly int _maximumLineCharacters;
     private readonly bool _escapeNullBytes;
     private readonly ReceiveNewlinePolicy _newlinePolicy;
+    private readonly TimeSpan? _unterminatedLineIdleTimeout;
     private readonly StringBuilder _line = new();
     private DateTimeOffset? _lineReceivedAtUtc;
     private DateTimeOffset? _pendingInputReceivedAtUtc;
@@ -28,7 +29,8 @@ public sealed class StatefulReceiveFormatter
         string malformedInputReplacement = "\uFFFD",
         bool escapeNullBytes = true,
         ReceiveNewlinePolicy newlinePolicy = ReceiveNewlinePolicy.NormalizeCrLfCrLf,
-        string timestampFormat = "HH:mm:ss.fff")
+        string timestampFormat = "HH:mm:ss.fff",
+        TimeSpan? unterminatedLineIdleTimeout = null)
     {
         ArgumentNullException.ThrowIfNull(encoding);
         if (!Enum.IsDefined(mode))
@@ -54,6 +56,12 @@ public sealed class StatefulReceiveFormatter
         }
 
         _newlinePolicy = newlinePolicy;
+        if (unterminatedLineIdleTimeout is { } idleTimeout)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(idleTimeout, TimeSpan.Zero);
+        }
+
+        _unterminatedLineIdleTimeout = unterminatedLineIdleTimeout;
     }
 
     public IReadOnlyList<FormattedLine> Append(
@@ -65,11 +73,12 @@ public sealed class StatefulReceiveFormatter
             return [];
         }
 
+        DateTimeOffset? previousInputReceivedAtUtc = _lastInputReceivedAtUtc;
         _lastInputReceivedAtUtc = receivedAtUtc;
 
         return _mode == ReceiveDisplayMode.Hex
             ? AppendHex(bytes, receivedAtUtc)
-            : AppendStr(bytes, receivedAtUtc);
+            : AppendStr(bytes, receivedAtUtc, previousInputReceivedAtUtc);
     }
 
     public IReadOnlyList<FormattedLine> Flush()
@@ -138,17 +147,31 @@ public sealed class StatefulReceiveFormatter
 
     private List<FormattedLine> AppendStr(
         ReadOnlySpan<byte> bytes,
-        DateTimeOffset receivedAtUtc)
+        DateTimeOffset receivedAtUtc,
+        DateTimeOffset? previousInputReceivedAtUtc)
     {
+        List<FormattedLine> lines = [];
+        if (_lineReceivedAtUtc.HasValue &&
+            !_pendingCr &&
+            _pendingInputReceivedAtUtc is null &&
+            _unterminatedLineIdleTimeout.HasValue &&
+            previousInputReceivedAtUtc.HasValue &&
+            receivedAtUtc - previousInputReceivedAtUtc.Value >= _unterminatedLineIdleTimeout.Value)
+        {
+            // Some devices emit records without CR/LF. A meaningful receive idle period is
+            // their only record boundary; unlike splitting every read, this preserves
+            // high-speed messages that the driver delivers in multiple adjacent blocks.
+            lines.Add(CompleteLine());
+        }
+
         _pendingInputReceivedAtUtc ??= receivedAtUtc;
         char[] characters = new char[_encoding.GetMaxCharCount(bytes.Length)];
         int characterCount = _decoder.GetChars(bytes, characters, flush: false);
         if (characterCount == 0)
         {
-            return [];
+            return lines;
         }
 
-        List<FormattedLine> lines = [];
         ProcessCharacters(characters.AsSpan(0, characterCount), _pendingInputReceivedAtUtc.Value, lines);
         _pendingInputReceivedAtUtc = null;
 

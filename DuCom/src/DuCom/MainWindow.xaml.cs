@@ -24,6 +24,7 @@ public partial class MainWindow : FluentWindow
     private bool _splitLayoutInitialized;
     private readonly DispatcherTimer _deviceRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private HwndSource? _windowSource;
+    private GridLength _visibleConnectionColumnWidth = new(220);
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -32,6 +33,7 @@ public partial class MainWindow : FluentWindow
         DataContext = viewModel;
         _shortcutEngine = new ShortcutEngine(viewModel.ShortcutManager, viewModel, this);
         Loaded += MainWindow_Loaded;
+        viewModel.PropertyChanged += MainViewModel_PropertyChanged;
         SourceInitialized += MainWindow_SourceInitialized;
         Closed += MainWindow_Closed;
         _deviceRefreshTimer.Tick += DeviceRefreshTimer_Tick;
@@ -61,7 +63,7 @@ public partial class MainWindow : FluentWindow
         if (DataContext is MainViewModel viewModel && viewModel.RefreshPortsCommand.CanExecute(null))
         {
             viewModel.RefreshPortsCommand.Execute(null);
-            Program.DiagnosticLog?.Information("Serial-port list refreshed after a Windows device-change notification.");
+            Program.DiagnosticLog?.Information("Serial-port refresh requested after a Windows device-change notification.");
         }
     }
 
@@ -71,6 +73,10 @@ public partial class MainWindow : FluentWindow
         _deviceRefreshTimer.Tick -= DeviceRefreshTimer_Tick;
         _windowSource?.RemoveHook(WindowMessageHook);
         _windowSource = null;
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.PropertyChanged -= MainViewModel_PropertyChanged;
+        }
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -84,11 +90,33 @@ public partial class MainWindow : FluentWindow
         try
         {
             await viewModel.RestorePersistedSessionsAsync();
+            ApplySidebarVisibility(viewModel.IsSidebarVisible);
         }
         catch (Exception exception)
         {
             Program.DiagnosticLog?.Error("Failed to restore persisted sessions.", exception);
         }
+    }
+
+    private void MainViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.IsSidebarVisible) && sender is MainViewModel viewModel)
+        {
+            ApplySidebarVisibility(viewModel.IsSidebarVisible);
+        }
+    }
+
+    private void ApplySidebarVisibility(bool visible)
+    {
+        if (!visible && ConnectionColumn.Width.Value > 0)
+        {
+            _visibleConnectionColumnWidth = ConnectionColumn.Width;
+        }
+
+        ConnectionColumn.Width = visible
+            ? _visibleConnectionColumnWidth.Value > 0 ? _visibleConnectionColumnWidth : new GridLength(220)
+            : new GridLength(0);
+        ConnectionSplitterColumn.Width = visible ? new GridLength(4) : new GridLength(0);
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -270,6 +298,11 @@ public partial class MainWindow : FluentWindow
             }
 
             UpdateLayout();
+            if (ConnectionColumn.ActualWidth > 0.1d || ConnectionSplitterColumn.ActualWidth > 0.1d)
+            {
+                throw new InvalidOperationException(
+                    $"Sidebar command did not collapse its columns. Sidebar={ConnectionColumn.ActualWidth:0.#}; Splitter={ConnectionSplitterColumn.ActualWidth:0.#}.");
+            }
             ToolsMenuButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             if (ToolsMenuButton.ContextMenu?.IsOpen != true)
             {

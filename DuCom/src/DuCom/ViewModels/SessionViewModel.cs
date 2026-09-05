@@ -20,8 +20,8 @@ public partial class SessionViewModel : ObservableObject, IAsyncDisposable
     private readonly AnsiDisplayProjector _projector = new();
     private long? _renderedLastLogicalId;
     private int _renderedLastSegmentIndex = -1;
-    private const int MaximumVisibleSegments = 10_000;
-    private const int MaximumVisibleCharacters = 1 * 1024 * 1024;
+    private const int MaximumVisibleSegments = 30_000;
+    private const int MaximumVisibleCharacters = 4 * 1024 * 1024;
     private const int MaximumSegmentsPerRender = 128;
     private const int MaximumWarnings = 50;
     private string _lastLoggedFault = string.Empty;

@@ -93,6 +93,39 @@ public sealed class StatefulReceiveFormatterTests
     }
 
     [Fact]
+    public void StrTerminatesUnterminatedDeviceRecordsAfterReceiveIdle()
+    {
+        StatefulReceiveFormatter formatter = new(
+            Encoding.UTF8,
+            ReceiveDisplayMode.Str,
+            timestampEnabled: false,
+            unterminatedLineIdleTimeout: TimeSpan.FromMilliseconds(200));
+
+        Assert.Equal(
+            [new FormattedLine("H0049 N00 ", false, FirstReceivedAt, IsSoftWrapped: true)],
+            formatter.Append("H0049 N00 "u8, FirstReceivedAt));
+        Assert.Equal(
+            [
+                new FormattedLine(string.Empty, true, FirstReceivedAt),
+                new FormattedLine("update vbat", false, SecondReceivedAt, IsSoftWrapped: true),
+            ],
+            formatter.Append("update vbat"u8, SecondReceivedAt));
+    }
+
+    [Fact]
+    public void StrKeepsAdjacentReceiveBlocksOnTheSameLogicalLine()
+    {
+        StatefulReceiveFormatter formatter = CreateStrFormatter();
+        DateTimeOffset adjacentBlockTime = FirstReceivedAt.AddMilliseconds(20);
+
+        _ = formatter.Append("hello "u8, FirstReceivedAt);
+
+        Assert.Equal(
+            [new FormattedLine("world", false, FirstReceivedAt, IsSoftWrapped: true)],
+            formatter.Append("world"u8, adjacentBlockTime));
+    }
+
+    [Fact]
     public void StrMakesNulVisible()
     {
         StatefulReceiveFormatter formatter = CreateStrFormatter();

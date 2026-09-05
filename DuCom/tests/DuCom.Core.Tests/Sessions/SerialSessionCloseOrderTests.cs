@@ -32,7 +32,7 @@ public sealed class SerialSessionCloseOrderTests
 
         Assert.Equal(PortCommandResult.Succeeded, result);
         Assert.True(transport.ReadsWhileOpen >= 1, "drain must read while the port is still open");
-        Assert.Equal("late-line\r\n", ReadLogs(directory.Path));
+        Assert.Equal("late-line\r\n\r\n", ReadLogs(directory.Path));
         Assert.Equal("late-line", Assert.Single(session.Snapshot().Lines.Lines).Text);
         SerialSessionSnapshot snapshot = session.Snapshot();
         Assert.Null(snapshot.Fault);
@@ -65,7 +65,7 @@ public sealed class SerialSessionCloseOrderTests
         Assert.Equal(ShutdownDrainState.Completed, snapshot.Metrics.ShutdownDrainState);
         string log = ReadLogs(directory.Path);
         // The session log normalizes LF to CRLF, so each "data\n" block formats to 6 bytes.
-        Assert.Equal(blockCount * (payload.Length + 1), Encoding.UTF8.GetByteCount(log));
+        Assert.Equal(blockCount * (payload.Length + 1) + 2, Encoding.UTF8.GetByteCount(log));
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class SerialSessionCloseOrderTests
         Assert.Null(snapshot.Fault);
         string log = ReadLogs(directory.Path);
         // Each "x\n" block formats to "x\r\n" (3 bytes) by newline normalization.
-        Assert.Equal(blockCount * 3, Encoding.UTF8.GetByteCount(log));
+        Assert.Equal(blockCount * 3 + 2, Encoding.UTF8.GetByteCount(log));
     }
 
     [Fact]
@@ -192,8 +192,8 @@ public sealed class SerialSessionCloseOrderTests
         Assert.Equal(PortCommandResult.Succeeded, await first.CloseAsync());
         Assert.Equal(PortCommandResult.Succeeded, await second.CloseAsync());
 
-        Assert.Equal("one\r\n", ReadLogs(firstDirectory.Path));
-        Assert.Equal("two\r\n", ReadLogs(secondDirectory.Path));
+        Assert.Equal("one\r\n\r\n", ReadLogs(firstDirectory.Path));
+        Assert.Equal("two\r\n\r\n", ReadLogs(secondDirectory.Path));
         Assert.Null(first.Snapshot().Fault);
         Assert.Null(second.Snapshot().Fault);
     }

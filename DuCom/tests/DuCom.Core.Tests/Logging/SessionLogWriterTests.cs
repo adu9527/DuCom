@@ -227,6 +227,23 @@ public sealed class SessionLogWriterTests
         Assert.Equal(1, observer.Count(SessionLogFlushReason.Close));
     }
 
+    [Fact]
+    public async Task RotationBypassAppendsDisconnectNewlineToCurrentFile()
+    {
+        using TemporaryDirectory directory = new();
+        await using SessionLogWriter writer = new(
+            new SessionLogWriterOptions(directory.Path, "COM3", RotationBytes: 8),
+            new LoadMetrics());
+        await writer.StartAsync();
+
+        await writer.WriteAsync(new FormattedLogRecord("12345678"));
+        await writer.WriteAsync(new FormattedLogRecord("\r\n", BypassRotation: true));
+        await writer.StopAsync();
+
+        string path = Assert.Single(Directory.GetFiles(directory.Path, "*.txt"));
+        Assert.Equal("12345678\r\n", File.ReadAllText(path));
+    }
+
     private static async Task<string> WaitForSingleLogFileAsync(string directoryPath)
     {
         string? path = null;
