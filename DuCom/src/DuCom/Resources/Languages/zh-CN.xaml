@@ -301,7 +301,7 @@
     <system:String x:Key="LogPackage.ReproductionInfo">问题信息</system:String>
     <system:String x:Key="LogPackage.CurrentTime">当前时间（毫秒）</system:String>
     <system:String x:Key="LogPackage.CopyTime">复制时间</system:String>
-    <system:String x:Key="LogPackage.Project">日志名称 *</system:String>
+    <system:String x:Key="LogPackage.Project">项目名称 *</system:String>
     <system:String x:Key="LogPackage.Tester">测试人员 *</system:String>
     <system:String x:Key="LogPackage.DeviceSoftwareVersion">设备软件版本</system:String>
     <system:String x:Key="LogPackage.ReproductionProbability">复现概率</system:String>
