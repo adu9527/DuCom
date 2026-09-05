@@ -18,10 +18,13 @@ public partial class ThemedMessageDialog : FluentWindow
     }
 
     public static bool Confirm(Window? owner, string message, string title)
+        => Confirm(owner, message, title, "Dialog.Yes", "Dialog.No");
+
+    public static bool Confirm(Window? owner, string message, string title, string primaryResourceKey, string secondaryResourceKey)
     {
         ThemedMessageDialog dialog = Create(owner, message, title, ThemedMessageDialogKind.Warning);
-        dialog.PrimaryButton.Content = GetResourceString("Dialog.Yes", "Yes");
-        dialog.SecondaryButton.Content = GetResourceString("Dialog.No", "No");
+        dialog.PrimaryButton.Content = GetResourceString(primaryResourceKey, "Yes");
+        dialog.SecondaryButton.Content = GetResourceString(secondaryResourceKey, "No");
         dialog.SecondaryButton.Visibility = Visibility.Visible;
         return dialog.ShowDialog() == true;
     }
@@ -29,9 +32,35 @@ public partial class ThemedMessageDialog : FluentWindow
     public static void Show(Window? owner, string message, string title, ThemedMessageDialogKind kind)
     {
         ThemedMessageDialog dialog = Create(owner, message, title, kind);
+        dialog.PrimaryButton.Content = GetResourceString("Connection.KeepFailedTab", "Keep tab");
+        dialog.SecondaryButton.Content = GetResourceString("Connection.CloseFailedTab", "Close tab");
+        dialog.SecondaryButton.Visibility = Visibility.Visible;
+        _ = dialog.ShowDialog();
+    }
+
+    public static bool ShowOpenFailure(Window? owner, string message, string title, object session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ThemedMessageDialog dialog = Create(owner, message, title, ThemedMessageDialogKind.Error);
+        dialog.Tag = session;
         dialog.PrimaryButton.Content = GetResourceString("Dialog.OK", "OK");
         dialog.SecondaryButton.Visibility = Visibility.Collapsed;
-        _ = dialog.ShowDialog();
+
+        // The primary action keeps the failed session available for parameter changes.
+        // The secondary action and title-bar X both request removing the failed tab.
+        return dialog.ShowDialog() != true;
+    }
+
+    public static void CloseOpenFailureFor(object session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        foreach (ThemedMessageDialog dialog in Application.Current.Windows.OfType<ThemedMessageDialog>().ToArray())
+        {
+            if (ReferenceEquals(dialog.Tag, session))
+            {
+                dialog.Close();
+            }
+        }
     }
 
     private static ThemedMessageDialog Create(Window? owner, string message, string title, ThemedMessageDialogKind kind)
@@ -43,6 +72,7 @@ public partial class ThemedMessageDialog : FluentWindow
         };
         dialog.DialogTitleBar.Title = title;
         dialog.MessageText.Text = message;
+        dialog.MaxHeight = Math.Max(320, SystemParameters.WorkArea.Height - 40);
         dialog.ApplyKind(kind);
         return dialog;
     }

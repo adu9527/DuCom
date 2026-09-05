@@ -592,6 +592,12 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     public partial string LogDirectory { get; set; } = GetDefaultLogDirectory();
 
     [ObservableProperty]
+    public partial string LogPackageOutputDirectory { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool LogPackagePluginEnabled { get; set; } = true;
+
+    [ObservableProperty]
     public partial int LogRotationMegabytes { get; set; } = 40;
 
     [ObservableProperty]
@@ -972,10 +978,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     [RelayCommand(CanExecute = nameof(CanOpen))]
-    private async Task OpenAsync()
+    private Task OpenAsync() => OpenSelectedPortAsync(showFailureDialog: true);
+
+    private async Task OpenSelectedPortAsync(bool showFailureDialog)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
         string portName = SelectedPort!;
+        SessionViewModel? previouslySelectedSession = SelectedSession;
         SessionViewModel? session = Sessions.FirstOrDefault(
             item => string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase));
         if (session is { IsOpen: false })
@@ -1031,29 +1040,55 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             }
         }
 
-        if (RightSessions.Contains(session))
+        bool sessionIsInRightPane = RightSessions.Contains(session);
+        if (sessionIsInRightPane)
         {
             SelectedRightSession = session;
         }
-        else
-        {
-            SelectedSession = session;
-        }
 
         PortCommandResult result = await session.OpenAsync();
-        if (result != PortCommandResult.Succeeded && createdNew)
+        if (!Sessions.Contains(session))
         {
-            Sessions.Remove(session);
-            CloseFloatSendFor(session.PortName); CloseLogFilterFor(session.PortName);
-            await session.DisposeAsync();
-            SelectedSession = Sessions.FirstOrDefault(candidate => !RightSessions.Contains(candidate));
+            Program.DiagnosticLog?.Information(
+                $"Ignored late open result after session tab was closed. Port={portName}; Result={result}");
+            NotifyCommandStates();
+            return;
+        }
+
+        if (result != PortCommandResult.Succeeded)
+        {
+            if (!sessionIsInRightPane &&
+                previouslySelectedSession is not null &&
+                !ReferenceEquals(previouslySelectedSession, session) &&
+                Sessions.Contains(previouslySelectedSession))
+            {
+                SelectedSession = previouslySelectedSession;
+            }
+            else if (!sessionIsInRightPane)
+            {
+                SelectedSession = session;
+            }
+
             StatusMessage = GetResourceString("Status.OpenFailed")
                 .Replace("{0}", session.FaultMessage, StringComparison.Ordinal);
             Program.DiagnosticLog?.Warning(
-                $"Open failed and new session removed. Port={portName}; Result={result}; Fault={session.FaultMessage}");
+                $"Open failed. Port={portName}; Result={result}; Fault={session.FaultMessage}; CreatedNew={createdNew}");
+            if (showFailureDialog && ThemedMessageDialog.ShowOpenFailure(
+                    Application.Current.MainWindow,
+                    StatusMessage,
+                    GetResourceString("Connection.OpenFailedTitle"),
+                    session))
+            {
+                await CloseSessionAsync(session);
+            }
         }
         else
         {
+            if (!sessionIsInRightPane)
+            {
+                SelectedSession = session;
+            }
+
             StatusMessage = string.Empty;
             if (session.IsOpen)
             {
@@ -1373,6 +1408,24 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     [RelayCommand]
+    private void SelectLogPackageOutputDirectory()
+    {
+        string initialDirectory = ResolveLogPackageOutputDirectory();
+        OpenFolderDialog dialog = new()
+        {
+            Title = GetResourceString("LogPackage.SelectOutputDirectory"),
+            InitialDirectory = Directory.Exists(initialDirectory) ? initialDirectory : null,
+        };
+        if (dialog.ShowDialog() == true)
+        {
+            LogPackageOutputDirectory = dialog.FolderName;
+        }
+    }
+
+    [RelayCommand]
+    private void ResetLogPackageOutputDirectory() => LogPackageOutputDirectory = string.Empty;
+
+    [RelayCommand]
     private void AddBaudRate()
     {
         if (NewBaudRate <= 0 || BaudRates.Contains(NewBaudRate))
@@ -1465,6 +1518,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             TimestampFormat = "HH:mm:ss.fff";
             LoggingEnabled = true;
             LogDirectory = GetDefaultLogDirectory();
+            LogPackageOutputDirectory = string.Empty;
+            LogPackagePluginEnabled = true;
             DefaultSendMode = SendMode.Str;
             LogRotationMegabytes = 40;
             LogRotationEnabled = true;
@@ -2203,6 +2258,19 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     [RelayCommand]
+    private void ShowLogPackage()
+    {
+        LogPackageWindow window = new(
+            Sessions,
+            ResolveLogPackageOutputDirectory(),
+            path => LogPackageOutputDirectory = string.Equals(path, LogDirectory, StringComparison.OrdinalIgnoreCase) ? string.Empty : path)
+        {
+            Owner = Application.Current.MainWindow,
+        };
+        window.ShowDialog();
+    }
+
+    [RelayCommand]
     private static void OpenFeedback()
     {
         FeedbackWindow window = new() { Owner = Application.Current.MainWindow };
@@ -2375,6 +2443,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
+        bool wasSelectedMainSession = ReferenceEquals(SelectedSession, session);
+        int sessionIndex = Sessions.IndexOf(session);
+        ThemedMessageDialog.CloseOpenFailureFor(session);
+
         if (session.IsOpen)
         {
             await session.CloseAsync();
@@ -2389,9 +2461,17 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         Sessions.Remove(session);
         await session.DisposeAsync();
-        if (ReferenceEquals(SelectedSession, session))
+        if (wasSelectedMainSession || SelectedSession is null || !Sessions.Contains(SelectedSession))
         {
-            SelectedSession = Sessions.FirstOrDefault(candidate => !RightSessions.Contains(candidate));
+            List<SessionViewModel> mainSessions = [.. Sessions.Where(candidate => !RightSessions.Contains(candidate))];
+            SelectedSession = mainSessions.Count == 0
+                ? null
+                : mainSessions[Math.Clamp(sessionIndex, 0, mainSessions.Count - 1)];
+        }
+        if (SelectedSession is not null)
+        {
+            SelectedPortItem = AvailablePorts.FirstOrDefault(item =>
+                string.Equals(item.PortName, SelectedSession.PortName, StringComparison.OrdinalIgnoreCase));
         }
         NotifyCommandStates();
     }
@@ -2638,7 +2718,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         [.. Sessions.Where(session => session.IsOpen).Select(session => session.PortName)],
         [.. Sessions.Where(session => session.IsOpen).Select(session => session.PortName)],
         SelectedSession is { IsOpen: true, IsInRightPane: false } ? SelectedSession.PortName : null,
-        SelectedRightSession is { IsOpen: true, IsInRightPane: true } ? SelectedRightSession.PortName : null);
+        SelectedRightSession is { IsOpen: true, IsInRightPane: true } ? SelectedRightSession.PortName : null,
+        LogPackageOutputDirectory,
+        LogPackagePluginEnabled);
 
     private void ApplyConfiguration(ConfigurationSnapshot snapshot)
     {
@@ -2719,6 +2801,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             TelnetAllowRemote = snapshot.TelnetAllowRemote;
             TelnetAuthenticationEnabled = snapshot.TelnetAuthenticationEnabled;
             TelnetUsername = snapshot.TelnetUsername ?? string.Empty;
+            LogPackageOutputDirectory = snapshot.LogPackageOutputDirectory ?? string.Empty;
+            LogPackagePluginEnabled = snapshot.LogPackagePluginEnabled;
             if (!string.IsNullOrWhiteSpace(snapshot.Language))
             {
                 ((App)Application.Current).ApplyLanguage(snapshot.Language);
@@ -2989,7 +3073,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         List<string>? SessionOrder = null,
         List<string>? OpenSessionPorts = null,
         string? SelectedSessionPort = null,
-        string? SelectedRightSessionPort = null);
+        string? SelectedRightSessionPort = null,
+        string? LogPackageOutputDirectory = null,
+        bool LogPackagePluginEnabled = true);
 
     private static string[] NormalizePortNames(IEnumerable<string>? portNames) => [.. (portNames ?? [])
         .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -3290,6 +3376,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private static string GetDefaultLogDirectory() => Path.Combine(AppContext.BaseDirectory, "Logs");
 
+    private string ResolveLogPackageOutputDirectory() =>
+        string.IsNullOrWhiteSpace(LogPackageOutputDirectory) ? LogDirectory : LogPackageOutputDirectory;
+
     private void EnsureBaudRatePresent(int baudRate)
     {
         if (baudRate <= 0 || BaudRates.Contains(baudRate))
@@ -3457,6 +3546,12 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     partial void OnLoggingEnabledChanged(bool value) => MarkSettingsDirty();
 
     partial void OnLogDirectoryChanged(string value) => MarkSettingsDirty();
+    partial void OnLogPackageOutputDirectoryChanged(string value) => MarkSettingsDirty();
+    partial void OnLogPackagePluginEnabledChanged(bool value)
+    {
+        MarkSettingsDirty();
+        PluginManager?.SyncFromMainViewModel();
+    }
 
     partial void OnDefaultSendModeChanged(SendMode value) => MarkSettingsDirty();
 
@@ -3588,6 +3683,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         RefreshBackgroundImagePlayback();
         OnPropertyChanged(nameof(BackgroundImageSource));
     }
+
+    internal void SetLogPackagePluginEnabled(bool enabled) => LogPackagePluginEnabled = enabled;
 
     private void RefreshBackgroundImagePlayback()
     {
@@ -3729,7 +3826,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         else
         {
-            await OpenAsync();
+            await OpenSelectedPortAsync(showFailureDialog: true);
         }
     }
 
@@ -3741,7 +3838,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             item => string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase));
         if (session?.IsOpen != true)
         {
-            await OpenAsync();
+            await OpenSelectedPortAsync(showFailureDialog: false);
             session = Sessions.FirstOrDefault(item =>
                 string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase));
         }

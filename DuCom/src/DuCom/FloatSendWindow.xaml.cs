@@ -477,15 +477,17 @@ public partial class FloatSendWindow : FluentWindow
 
     private void ApplyGeometry(MiniLogPreferences preferences)
     {
-        Width = Math.Max(MinWidth, preferences.Width);
-        Height = Math.Max(MinHeight, preferences.Height);
+        double maximumWidth = Math.Max(MinWidth, SystemParameters.VirtualScreenWidth);
+        double maximumHeight = Math.Max(MinHeight, SystemParameters.VirtualScreenHeight);
+        Width = Math.Clamp(preferences.Width, MinWidth, maximumWidth);
+        Height = Math.Clamp(preferences.Height, MinHeight, maximumHeight);
         if (preferences.Left is not double left || preferences.Top is not double top)
         {
             return;
         }
 
-        double clampedLeft = Math.Clamp(left, SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - MinWidth);
-        double clampedTop = Math.Clamp(top, SystemParameters.VirtualScreenTop, SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - MinHeight);
+        double clampedLeft = Math.Clamp(left, SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - Width);
+        double clampedTop = Math.Clamp(top, SystemParameters.VirtualScreenTop, SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - Height);
         Left = clampedLeft;
         Top = clampedTop;
     }
