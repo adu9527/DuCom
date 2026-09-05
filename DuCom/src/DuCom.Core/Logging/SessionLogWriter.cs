@@ -5,7 +5,7 @@ using DuCom.Core.Diagnostics;
 
 namespace DuCom.Core.Logging;
 
-public readonly record struct FormattedLogRecord(string Text);
+public readonly record struct FormattedLogRecord(string Text, bool BypassRotation = false);
 
 public enum SessionLogFlushReason
 {
@@ -300,6 +300,7 @@ public sealed class SessionLogWriter : IAsyncDisposable
             foreach ((FormattedLogRecord record, int recordBytes) in records)
             {
                 if (writer is null ||
+                    !record.BypassRotation &&
                     _options.RotationEnabled && currentBytes + pendingBytes > 0 && currentBytes + pendingBytes + recordBytes > _options.RotationBytes)
                 {
                     await CommitPendingAsync().ConfigureAwait(false);

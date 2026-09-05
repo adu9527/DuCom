@@ -28,7 +28,7 @@ public sealed record SerialPortSettings(
         RtsEnable: false,
         DiscardNull: false,
         Encoding.UTF8.WebName,
-        16 * 1024,
+        128 * 1024,
         4 * 1024);
 
     public void Validate()

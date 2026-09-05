@@ -23,12 +23,13 @@ namespace DuCom.Controls;
 /// </summary>
 public sealed class BoundedLogEditor : TextEditor
 {
-    private const int MaximumDocumentCharacters = 1 * 1024 * 1024;
+    private const int MaximumDocumentCharacters = 4 * 1024 * 1024;
     private static readonly ConcurrentDictionary<int, SolidColorBrush> BrushCache = new();
     private readonly LogColorizer _colorizer = new();
     private readonly List<ProjectedLine> _projected = [];
     private readonly List<ColorSpan> _spans = [];
     private INotifyCollectionChanged? _observedCollection;
+    private ScrollViewer? _observedScrollViewer;
     private DispatcherOperation? _pendingSync;
     private SearchMatch? _appliedMatch;
     private int _searchSelectionStart = -1;
@@ -37,6 +38,7 @@ public sealed class BoundedLogEditor : TextEditor
     private bool _followSuppressed;
     private bool _memoryWarningDismissed;
     private long _nextMemoryCheckTimestamp;
+    private long _nextSlowSyncLogTimestamp;
     private DispatcherOperation? _pendingViewportRestore;
     private ViewportAnchor? _viewportAnchor;
 
@@ -105,6 +107,9 @@ public sealed class BoundedLogEditor : TextEditor
         get => (bool)GetValue(FollowEndProperty);
         set => SetValue(FollowEndProperty, value);
     }
+
+    /// <summary>Raised when the user scrolls a paused log back to the document end, so the host can restore <see cref="FollowEnd"/> and resume stacking.</summary>
+    public event EventHandler? FollowEndResumedFromBottom;
 
     /// <summary>Stops queued and future end-follow work before a binding update can arrive.</summary>
     public void PauseFollow() => _followSuppressed = true;
@@ -222,6 +227,12 @@ public sealed class BoundedLogEditor : TextEditor
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         Unsubscribe();
+        if (_observedScrollViewer is not null)
+        {
+            _observedScrollViewer.ScrollChanged -= OnScrollViewerScrollChanged;
+            _observedScrollViewer = null;
+        }
+
         _pendingSync?.Abort();
         _pendingSync = null;
         _pendingViewportRestore?.Abort();
@@ -267,6 +278,7 @@ public sealed class BoundedLogEditor : TextEditor
 
     private void SynchronizeDocumentSafe()
     {
+        long startedAt = Stopwatch.GetTimestamp();
         _pendingSync = null;
         ViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         List<LogLineViewModel> target = BuildBoundedTarget();
@@ -287,7 +299,51 @@ public sealed class BoundedLogEditor : TextEditor
             }
         }
         WarnForPausedMemoryGrowth();
+        HookScrollViewer();
         SetVerticalScrollThumbMinimum();
+
+        TimeSpan elapsed = Stopwatch.GetElapsedTime(startedAt);
+        long now = Stopwatch.GetTimestamp();
+        if (elapsed >= TimeSpan.FromMilliseconds(50) && now >= _nextSlowSyncLogTimestamp)
+        {
+            _nextSlowSyncLogTimestamp = now + Stopwatch.Frequency;
+            string portName = DataContext is SessionViewModel session ? session.PortName : "unknown";
+            Program.DiagnosticLog?.Warning(
+                $"Slow log editor synchronization. Port={portName}; ElapsedMs={elapsed.TotalMilliseconds:0.0}; Lines={target.Count}; Characters={Document.TextLength}");
+        }
+    }
+
+    private void HookScrollViewer()
+    {
+        if (_observedScrollViewer is not null)
+        {
+            return;
+        }
+
+        ScrollViewer? viewer = FindVisualDescendants<ScrollViewer>(this).FirstOrDefault();
+        if (viewer is null)
+        {
+            return;
+        }
+
+        _observedScrollViewer = viewer;
+        viewer.ScrollChanged += OnScrollViewerScrollChanged;
+    }
+
+    private void OnScrollViewerScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (FollowEnd && !_followSuppressed)
+        {
+            return;
+        }
+
+        double maximumOffset = Math.Max(0d, e.ExtentHeight - e.ViewportHeight);
+        if (maximumOffset <= 0d || e.VerticalOffset >= maximumOffset - 1d)
+        {
+            // The user scrolled the paused log back to the bottom; a click that never
+            // moved the viewport stays frozen (selection/inspection workflow).
+            FollowEndResumedFromBottom?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void SynchronizeDocument(List<LogLineViewModel> target, ViewportAnchor? viewportAnchor)

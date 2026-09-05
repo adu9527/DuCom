@@ -12,6 +12,17 @@ public partial class SessionWorkspace : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnWorkspaceDataContextChanged;
+        LogEditor.FollowEndResumedFromBottom += OnLogEditorFollowResumedFromBottom;
+    }
+
+    private void OnLogEditorFollowResumedFromBottom(object? sender, EventArgs e)
+    {
+        if (DataContext is SessionViewModel { FollowEnd: false } session)
+        {
+            session.FollowEnd = true;
+        }
+
+        LogEditor.ResumeFollow();
     }
 
     private void OnWorkspaceDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

@@ -29,7 +29,8 @@ public sealed record ReceiveFormattingProfile(
     string MalformedInputReplacement = "\uFFFD",
     bool EscapeNullBytes = true,
     ReceiveNewlinePolicy NewlinePolicy = ReceiveNewlinePolicy.NormalizeCrLfCrLf,
-    string TimestampFormat = "HH:mm:ss.fff")
+    string TimestampFormat = "HH:mm:ss.fff",
+    int UnterminatedLineIdleMilliseconds = 0)
 {
     public void Validate()
     {
@@ -43,6 +44,7 @@ public sealed record ReceiveFormattingProfile(
 
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(MaximumLineCharacters);
         ArgumentException.ThrowIfNullOrWhiteSpace(TimestampFormat);
+        ArgumentOutOfRangeException.ThrowIfNegative(UnterminatedLineIdleMilliseconds);
         ArgumentNullException.ThrowIfNull(MalformedInputReplacement);
         if (!Enum.IsDefined(NewlinePolicy))
         {
@@ -61,7 +63,10 @@ public sealed record ReceiveFormattingProfile(
             MalformedInputReplacement,
             EscapeNullBytes,
             NewlinePolicy,
-            TimestampFormat);
+            TimestampFormat,
+            UnterminatedLineIdleMilliseconds == 0
+                ? null
+                : TimeSpan.FromMilliseconds(UnterminatedLineIdleMilliseconds));
     }
 }
 
