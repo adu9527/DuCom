@@ -5,7 +5,12 @@ using DuCom.Core.Diagnostics;
 
 namespace DuCom.Core.Logging;
 
-public readonly record struct FormattedLogRecord(string Text, bool BypassRotation = false);
+public sealed record SessionLogFileSnapshot(string Path, long Length);
+
+public readonly record struct FormattedLogRecord(string Text, bool BypassRotation = false)
+{
+    internal TaskCompletionSource<IReadOnlyList<SessionLogFileSnapshot>>? SnapshotCompletion { get; init; }
+}
 
 public enum SessionLogFlushReason
 {
@@ -72,6 +77,7 @@ public sealed class SessionLogWriter : IAsyncDisposable
     private int _started;
     private int _stopped;
     private int _queuedRecords;
+    private readonly List<string> _createdFilePaths = [];
 
     public SessionLogWriter(
         SessionLogWriterOptions options,
@@ -98,6 +104,27 @@ public sealed class SessionLogWriter : IAsyncDisposable
     public string OutputDirectory { get; }
 
     public string? CurrentFilePath => Volatile.Read(ref _currentFilePath);
+
+    public async Task<IReadOnlyList<SessionLogFileSnapshot>> CreateSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        if (!_options.Enabled || Fault is not null || Volatile.Read(ref _stopped) != 0)
+        {
+            return [];
+        }
+
+        TaskCompletionSource<IReadOnlyList<SessionLogFileSnapshot>> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FormattedLogRecord request = new(string.Empty) { SnapshotCompletion = completion };
+        try
+        {
+            await _channel.Writer.WriteAsync(request, cancellationToken).ConfigureAwait(false);
+            Interlocked.Increment(ref _queuedRecords);
+            return await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (ChannelClosedException)
+        {
+            return [];
+        }
+    }
 
     public async Task StartAsync()
     {
@@ -299,6 +326,21 @@ public sealed class SessionLogWriter : IAsyncDisposable
 
             foreach ((FormattedLogRecord record, int recordBytes) in records)
             {
+                if (record.SnapshotCompletion is not null)
+                {
+                    await CommitPendingAsync().ConfigureAwait(false);
+                    if (writer is not null)
+                    {
+                        await FlushAsync(SessionLogFlushReason.Periodic).ConfigureAwait(false);
+                    }
+
+                    record.SnapshotCompletion.TrySetResult([.. _createdFilePaths
+                        .Where(File.Exists)
+                        .Select(path => new SessionLogFileSnapshot(path, new FileInfo(path).Length))]);
+                    indexOffset++;
+                    continue;
+                }
+
                 if (writer is null ||
                     !record.BypassRotation &&
                     _options.RotationEnabled && currentBytes + pendingBytes > 0 && currentBytes + pendingBytes + recordBytes > _options.RotationBytes)
@@ -319,6 +361,7 @@ public sealed class SessionLogWriter : IAsyncDisposable
                         AutoFlush = false,
                     };
                     Volatile.Write(ref _currentFilePath, path);
+                    _createdFilePaths.Add(path);
                     currentBytes = 0;
                 }
 

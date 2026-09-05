@@ -32,6 +32,7 @@ public partial class PluginManagerViewModel : ObservableObject
         ];
         SelectedPlaybackMode = PlaybackModes.First(option => option.Mode == mainViewModel.BackgroundImagePlaybackMode);
         RefreshPlugins();
+        OnPropertyChanged(nameof(LogPackagePluginEnabled));
     }
 
     public void SyncFromMainViewModel()
@@ -46,6 +47,7 @@ public partial class PluginManagerViewModel : ObservableObject
             BackgroundImageOpacity = _mainViewModel.BackgroundImageOpacity;
             SelectedPlaybackMode = PlaybackModes.First(option => option.Mode == _mainViewModel.BackgroundImagePlaybackMode);
             OnPropertyChanged(nameof(BackgroundImageSource));
+            OnPropertyChanged(nameof(LogPackagePluginEnabled));
         }
         finally
         {
@@ -61,12 +63,17 @@ public partial class PluginManagerViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsBackgroundPluginSelected))]
+    [NotifyPropertyChangedFor(nameof(IsLogPackagePluginSelected))]
     [NotifyPropertyChangedFor(nameof(IsExternalPluginSelected))]
     public partial PluginRow? SelectedPlugin { get; set; }
 
-    public bool IsBackgroundPluginSelected => SelectedPlugin?.IsBackgroundPlugin == true;
+    public bool IsBackgroundPluginSelected => SelectedPlugin?.Kind == PluginKind.BackgroundImage;
 
-    public bool IsExternalPluginSelected => SelectedPlugin is { IsBackgroundPlugin: false };
+    public bool IsLogPackagePluginSelected => SelectedPlugin?.Kind == PluginKind.LogPackage;
+
+    public bool IsExternalPluginSelected => SelectedPlugin?.Kind == PluginKind.External;
+
+    public bool LogPackagePluginEnabled => _mainViewModel.LogPackagePluginEnabled;
 
     [ObservableProperty]
     public partial bool BackgroundImageEnabled { get; set; }
@@ -100,9 +107,10 @@ public partial class PluginManagerViewModel : ObservableObject
     private void RefreshPlugins()
     {
         Directory.CreateDirectory(PluginDirectory);
-        string? selectedPath = SelectedPlugin?.Path;
+        string? selectedId = SelectedPlugin?.Id;
         Plugins.Clear();
-        Plugins.Add(new PluginRow(Resource("Plugins.BackgroundImage.Name"), "Built-in", Resource("Plugins.BackgroundImage.Description"), string.Empty, true));
+        Plugins.Add(new PluginRow("background-image", Resource("Plugins.BackgroundImage.Name"), "Built-in", Resource("Plugins.BackgroundImage.Description"), string.Empty, PluginKind.BackgroundImage));
+        Plugins.Add(new PluginRow("log-package", Resource("Plugins.LogPackage.Name"), "Built-in", Resource("Plugins.LogPackage.Description"), string.Empty, PluginKind.LogPackage));
         foreach (string file in Directory.GetFiles(PluginDirectory, "*.dll"))
         {
             string version = "Unknown";
@@ -115,10 +123,10 @@ public partial class PluginManagerViewModel : ObservableObject
                 version = "Invalid .NET assembly";
             }
 
-            Plugins.Add(new PluginRow(Path.GetFileNameWithoutExtension(file), version, Resource("Plugins.External.Description"), file, false));
+            Plugins.Add(new PluginRow(file, Path.GetFileNameWithoutExtension(file), version, Resource("Plugins.External.Description"), file, PluginKind.External));
         }
 
-        SelectedPlugin = Plugins.FirstOrDefault(plugin => string.Equals(plugin.Path, selectedPath, StringComparison.OrdinalIgnoreCase)) ?? Plugins.FirstOrDefault();
+        SelectedPlugin = Plugins.FirstOrDefault(plugin => string.Equals(plugin.Id, selectedId, StringComparison.OrdinalIgnoreCase)) ?? Plugins.FirstOrDefault();
     }
 
     [RelayCommand]
@@ -160,6 +168,13 @@ public partial class PluginManagerViewModel : ObservableObject
     {
         _mainViewModel.SetBackgroundImagePluginEnabled(!_mainViewModel.BackgroundImageEnabled);
         SyncFromMainViewModel();
+    }
+
+    [RelayCommand]
+    private void ToggleLogPackage()
+    {
+        _mainViewModel.SetLogPackagePluginEnabled(!_mainViewModel.LogPackagePluginEnabled);
+        OnPropertyChanged(nameof(LogPackagePluginEnabled));
     }
 
     [RelayCommand]
@@ -238,7 +253,14 @@ public partial class PluginManagerViewModel : ObservableObject
 
     private static string Resource(string key) => Application.Current?.TryFindResource(key) as string ?? key;
 
-    public sealed record PluginRow(string Name, string Version, string Description, string Path, bool IsBackgroundPlugin);
+    public sealed record PluginRow(string Id, string Name, string Version, string Description, string Path, PluginKind Kind);
+
+    public enum PluginKind
+    {
+        BackgroundImage,
+        LogPackage,
+        External,
+    }
 
     public sealed record PlaybackModeOption(BackgroundImagePlaybackMode Mode, string DisplayName);
 }

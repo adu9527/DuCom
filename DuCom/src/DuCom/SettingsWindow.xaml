@@ -317,6 +317,13 @@
                                              <Button Command="{Binding SelectLogDirectoryCommand}" Content="{DynamicResource Settings.SelectLogDirectory}" />
                                              <Button Margin="8,0,0,0" Command="{Binding OpenLogFolderCommand}" Content="{DynamicResource Log.OpenFolder}" />
                                          </WrapPanel>
+                                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogPackageOutputDirectory}" />
+                                         <TextBox Text="{Binding LogPackageOutputDirectory, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
+                                         <TextBlock Margin="0,4,0,0" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Settings.LogPackageOutputDirectoryHint}" TextWrapping="Wrap" />
+                                         <WrapPanel Margin="0,8,0,0">
+                                             <Button Command="{Binding SelectLogPackageOutputDirectoryCommand}" Content="{DynamicResource LogPackage.Browse}" />
+                                             <Button Margin="8,0,0,0" Command="{Binding ResetLogPackageOutputDirectoryCommand}" Content="{DynamicResource LogPackage.FollowLogDirectory}" />
+                                         </WrapPanel>
                                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogRotationSize}" />
                                         <TextBox IsEnabled="{Binding LogRotationEnabled}" Text="{Binding LogRotationMegabytes, UpdateSourceTrigger=PropertyChanged}" />
                                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.DisplayBudget}" />

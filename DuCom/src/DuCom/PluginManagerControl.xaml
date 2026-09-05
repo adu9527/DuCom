@@ -38,6 +38,17 @@
                     <Border MinHeight="180" Margin="0,18,0,0" Background="{DynamicResource Brush.ShellSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="8" ClipToBounds="True"><Grid><TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Plugins.BackgroundImage.Preview}" /><Image Opacity="{Binding BackgroundImageOpacity}" Source="{Binding BackgroundImageSource}" Stretch="UniformToFill" /></Grid></Border>
                 </StackPanel>
             </ScrollViewer>
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" Visibility="{Binding IsLogPackagePluginSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel Margin="22,16,22,24">
+                    <TextBlock FontSize="26" FontWeight="SemiBold" Text="{DynamicResource Plugins.LogPackage.Name}" />
+                    <TextBlock Margin="0,6,0,0" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Plugins.LogPackage.Description}" TextWrapping="Wrap" />
+                    <ui:Button Margin="0,18,0,0" HorizontalAlignment="Left" Appearance="Primary" Command="{Binding ToggleLogPackageCommand}"><TextBlock><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="{DynamicResource Plugins.LogPackage.Enable}" /><Style.Triggers><DataTrigger Binding="{Binding LogPackagePluginEnabled}" Value="True"><Setter Property="Text" Value="{DynamicResource Plugins.LogPackage.Disable}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></ui:Button>
+                    <Border Margin="0,18,0,0" Style="{DynamicResource Style.SettingsCard}"><StackPanel>
+                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Plugins.LogPackage.Behavior}" />
+                        <TextBlock Margin="0,8,0,0" Text="{DynamicResource Plugins.LogPackage.BehaviorDescription}" TextWrapping="Wrap" />
+                    </StackPanel></Border>
+                </StackPanel>
+            </ScrollViewer>
             <StackPanel Margin="22,16" Visibility="{Binding IsExternalPluginSelected, Converter={StaticResource BooleanToVisibilityConverter}}"><TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding SelectedPlugin.Name}" /><TextBlock Margin="0,8,0,0" Style="{DynamicResource Style.MutedText}" Text="{Binding SelectedPlugin.Description}" TextWrapping="Wrap" /><Border Margin="0,20,0,0" Style="{DynamicResource Style.SettingsCard}"><StackPanel><TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource About.Version}" /><TextBlock Text="{Binding SelectedPlugin.Version}" /><TextBlock Margin="0,14,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Tools.Path}" /><TextBlock Text="{Binding SelectedPlugin.Path}" TextWrapping="Wrap" /></StackPanel></Border></StackPanel>
         </Grid>
     </Grid>

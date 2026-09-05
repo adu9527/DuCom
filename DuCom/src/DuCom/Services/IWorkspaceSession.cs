@@ -1,4 +1,5 @@
 using DuCom.Core.Ports;
+using DuCom.Core.Logging;
 using DuCom.Core.Sending;
 using DuCom.Core.Sessions;
 using DuCom.Core.Storage;
@@ -14,6 +15,8 @@ public interface IWorkspaceSession : IAsyncDisposable
     string LogDirectory { get; }
 
     string? CurrentLogFilePath { get; }
+
+    Task<IReadOnlyList<SessionLogFileSnapshot>> CreateLogSnapshotAsync(CancellationToken cancellationToken = default);
 
     event EventHandler<SessionWarningEventArgs>? Warning;
 

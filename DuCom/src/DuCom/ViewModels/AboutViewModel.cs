@@ -20,7 +20,7 @@ public partial class AboutViewModel : ObservableObject, IDisposable
     public partial string ProductName { get; private set; } = "DuCom";
 
     [ObservableProperty]
-    public partial string Version { get; private set; } = "V0002";
+    public partial string Version { get; private set; } = "V0003";
 
     [ObservableProperty]
     public partial string ReleaseDate { get; private set; } = GetBuildDate();

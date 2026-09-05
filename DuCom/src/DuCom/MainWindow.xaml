@@ -29,7 +29,7 @@
 
     <Grid Background="{DynamicResource Brush.ShellSurface}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="40" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -52,6 +52,7 @@
         </Image>
 
         <ui:TitleBar Grid.Row="0"
+                     Panel.ZIndex="101"
                      ShowMaximize="True"
                      ShowMinimize="True">
             <ui:TitleBar.Header>
@@ -152,6 +153,12 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
+                <Button Margin="6,0,0,0"
+                        Style="{StaticResource Style.TopNavButton}"
+                        Command="{Binding ShowLogPackageCommand}"
+                        Content="{DynamicResource LogPackage.Entry}"
+                        ToolTip="{DynamicResource LogPackage.EntryHint}"
+                        Visibility="{Binding LogPackagePluginEnabled, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </StackPanel>
             </ui:TitleBar.Header>
         </ui:TitleBar>

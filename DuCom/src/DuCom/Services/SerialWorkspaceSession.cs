@@ -53,6 +53,9 @@ internal sealed class SerialWorkspaceSession : IWorkspaceSession
 
     public string? CurrentLogFilePath => _session.CurrentLogFilePath;
 
+    public Task<IReadOnlyList<SessionLogFileSnapshot>> CreateLogSnapshotAsync(CancellationToken cancellationToken = default) =>
+        _session.CreateLogSnapshotAsync(cancellationToken);
+
     public event EventHandler<SessionWarningEventArgs>? Warning;
 
     public Task<PortCommandResult> OpenAsync(CancellationToken cancellationToken = default) =>

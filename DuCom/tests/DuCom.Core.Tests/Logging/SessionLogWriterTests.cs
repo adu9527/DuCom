@@ -124,6 +124,27 @@ public sealed class SessionLogWriterTests
     }
 
     [Fact]
+    public async Task SnapshotFlushesAndReturnsOnlyFilesCreatedByThisWriter()
+    {
+        using TemporaryDirectory directory = new();
+        string oldFile = Path.Combine(directory.Path, "old.txt");
+        await File.WriteAllTextAsync(oldFile, "old");
+        await using SessionLogWriter writer = new(
+            new SessionLogWriterOptions(directory.Path, "COM3", RotationBytes: 8, FileNameFormat: "run-{Segment}"),
+            new LoadMetrics());
+        await writer.StartAsync();
+
+        Assert.True(await writer.WriteAsync(new FormattedLogRecord("12345678")));
+        Assert.True(await writer.WriteAsync(new FormattedLogRecord("abcdefgh")));
+        IReadOnlyList<SessionLogFileSnapshot> snapshot = await writer.CreateSnapshotAsync();
+
+        Assert.Equal(2, snapshot.Count);
+        Assert.DoesNotContain(snapshot, item => item.Path == oldFile);
+        Assert.Equal("12345678abcdefgh", string.Concat(snapshot.Select(item => ReadSharedText(item.Path))));
+        Assert.All(snapshot, item => Assert.Equal(8, item.Length));
+    }
+
+    [Fact]
     public async Task InvalidDirectoryProducesExplicitFaultAndRejectsWrites()
     {
         using TemporaryDirectory directory = new();

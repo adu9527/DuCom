@@ -30,13 +30,6 @@
             </Grid.RowDefinitions>
 
             <Grid Background="{DynamicResource Brush.LogSurface}">
-                <Border Padding="8,5"
-                        Background="{DynamicResource Brush.PanelRaised}"
-                        BorderBrush="{DynamicResource Brush.Danger}"
-                        BorderThickness="3,0,0,0"
-                        Visibility="{Binding HasFault, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <TextBlock Foreground="{DynamicResource Brush.Danger}" Text="{Binding FaultMessage}" TextTrimming="CharacterEllipsis" />
-                </Border>
                 <controls:BoundedLogEditor x:Name="LogEditor"
                                            Padding="8,6"
                                            Background="Transparent"
@@ -78,6 +71,27 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
+                <Border MaxWidth="560"
+                        Margin="28"
+                        Padding="24"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="{DynamicResource Brush.PanelRaised}"
+                        BorderBrush="{DynamicResource Brush.Danger}"
+                        BorderThickness="1"
+                        CornerRadius="{DynamicResource Radius.Medium}"
+                        Panel.ZIndex="20"
+                        Visibility="{Binding HasFault, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel HorizontalAlignment="Center">
+                        <Border Width="52" Height="52" HorizontalAlignment="Center" Background="{DynamicResource Brush.DangerSoft}" CornerRadius="26">
+                            <ui:SymbolIcon HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="26" Foreground="{DynamicResource Brush.Danger}" Symbol="ErrorCircle24" />
+                        </Border>
+                        <TextBlock Margin="0,14,0,0" HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="{DynamicResource Connection.OpenFailedTitle}" />
+                        <TextBlock Margin="0,6,0,0" HorizontalAlignment="Center" FontSize="15" FontWeight="SemiBold" Text="{Binding PortName}" />
+                        <TextBlock Margin="0,10,0,0" HorizontalAlignment="Center" Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding FaultMessage}" TextAlignment="Center" TextWrapping="Wrap" />
+                        <ui:Button Margin="0,18,0,0" MinWidth="120" HorizontalAlignment="Center" Appearance="Primary" Command="{Binding ToggleConnectionCommand}" Content="{DynamicResource Connection.Retry}" />
+                    </StackPanel>
+                </Border>
             </Grid>
 
             <GridSplitter Grid.Row="1"
@@ -364,8 +378,21 @@
                     BorderThickness="1"
                     CornerRadius="{DynamicResource Radius.Small}"
                     Panel.ZIndex="30"
-                    Opacity="{Binding DataContext.SearchOpacity, RelativeSource={RelativeSource AncestorType=Window}}"
-                    Visibility="{Binding Search.IsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Opacity="{Binding DataContext.SearchOpacity, RelativeSource={RelativeSource AncestorType=Window}}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Search.IsOpen}" Value="True" />
+                                    <Condition Binding="{Binding IsOpen}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <StackPanel Orientation="Horizontal">
                     <TextBox x:Name="SearchTextBox"
                              MinWidth="180"

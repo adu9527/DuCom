@@ -105,6 +105,10 @@ public sealed class SerialSession : IAsyncDisposable
 
     public string? CurrentLogFilePath => Volatile.Read(ref _runtime)?.LogWriter.CurrentFilePath;
 
+    public Task<IReadOnlyList<SessionLogFileSnapshot>> CreateLogSnapshotAsync(CancellationToken cancellationToken = default) =>
+        Volatile.Read(ref _runtime)?.LogWriter.CreateSnapshotAsync(cancellationToken)
+        ?? Task.FromResult<IReadOnlyList<SessionLogFileSnapshot>>([]);
+
     public async Task ApplySettingsAsync(SerialPortSettings settings, CancellationToken cancellationToken = default)
     {
         settings.Validate();

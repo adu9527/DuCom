@@ -7,6 +7,7 @@
                  Icon="/Assets/DuCom.ico"
                  MinWidth="420"
                  MaxWidth="620"
+                 MaxHeight="720"
                  ExtendsContentIntoTitleBar="True"
                  ResizeMode="NoResize"
                  ShowInTaskbar="False"
@@ -17,27 +18,29 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <ui:TitleBar x:Name="DialogTitleBar" />
+        <ui:TitleBar x:Name="DialogTitleBar" ShowClose="True" />
         <Grid Grid.Row="1" Margin="22,18,22,20">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Border x:Name="IconSurface" Width="38" Height="38" Margin="0,0,14,0" CornerRadius="19">
-                    <ui:SymbolIcon x:Name="DialogIcon" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="20" />
-                </Border>
-                <TextBlock x:Name="MessageText"
-                           Grid.Column="1"
-                           VerticalAlignment="Center"
-                           FontSize="14"
-                           Foreground="{DynamicResource Brush.TextPrimary}"
-                           TextWrapping="Wrap" />
-            </Grid>
+            <ScrollViewer MaxHeight="560" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="IconSurface" Width="38" Height="38" Margin="0,0,14,0" VerticalAlignment="Top" CornerRadius="19">
+                        <ui:SymbolIcon x:Name="DialogIcon" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="20" />
+                    </Border>
+                    <TextBlock x:Name="MessageText"
+                               Grid.Column="1"
+                               VerticalAlignment="Center"
+                               FontSize="14"
+                               Foreground="{DynamicResource Brush.TextPrimary}"
+                               TextWrapping="Wrap" />
+                </Grid>
+            </ScrollViewer>
             <StackPanel Grid.Row="1" Margin="0,24,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
                 <Button x:Name="SecondaryButton" MinWidth="88" Margin="0,0,8,0" Click="SecondaryButton_Click" />
                 <ui:Button x:Name="PrimaryButton" MinWidth="88" Appearance="Primary" Click="PrimaryButton_Click" />
