@@ -60,7 +60,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="12" />
-                                        <ColumnDefinition Width="100" />
+                                        <ColumnDefinition Width="160" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <Grid.RowDefinitions>
