@@ -1022,52 +1022,76 @@
                                     <Rectangle Canvas.Left="704" Canvas.Top="438" Width="8" Height="8" Fill="#62C8FF" />
                                 </Canvas>
 
-                                <Border Canvas.Left="174" Canvas.Top="148" Width="452" Height="116"
-                                        BorderBrush="#24516F" BorderThickness="2" CornerRadius="0" Opacity="0.72">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Opacity" Value="0.55" />
+                                <Border Canvas.Left="150" Canvas.Top="136" Width="500" Height="142"
+                                        BorderBrush="#24516F" BorderThickness="2" CornerRadius="0" Opacity="0.64" />
+                                <Rectangle Canvas.Left="142" Canvas.Top="128" Width="34" Height="6" Fill="#42A5F5" />
+                                <Rectangle Canvas.Left="624" Canvas.Top="280" Width="34" Height="6" Fill="#42A5F5" />
+
+                                <!-- The full logo moves as one object. No opacity flicker or per-letter jitter. -->
+                                <Canvas Canvas.Left="214" Canvas.Top="170" Width="372" Height="70"
+                                        RenderTransformOrigin="0.5,0.5">
+                                    <Canvas.RenderTransform>
+                                        <TransformGroup>
+                                            <ScaleTransform ScaleX="1.2" ScaleY="1.2" />
+                                            <TranslateTransform />
+                                        </TransformGroup>
+                                    </Canvas.RenderTransform>
+                                    <Canvas.Style>
+                                        <Style TargetType="Canvas">
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
                                                     <DataTrigger.EnterActions>
-                                                        <BeginStoryboard x:Name="TitleFrameAnimation">
+                                                        <BeginStoryboard x:Name="TitleFloatAnimation">
                                                             <Storyboard>
-                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                                 From="0.38" To="0.9" Duration="0:0:2"
+                                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)"
+                                                                                 From="-5" To="5" Duration="0:0:2.8"
                                                                                  AutoReverse="True" RepeatBehavior="Forever" />
                                                             </Storyboard>
                                                         </BeginStoryboard>
                                                     </DataTrigger.EnterActions>
                                                     <DataTrigger.ExitActions>
-                                                        <RemoveStoryboard BeginStoryboardName="TitleFrameAnimation" />
+                                                        <RemoveStoryboard BeginStoryboardName="TitleFloatAnimation" />
                                                     </DataTrigger.ExitActions>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </Border.Style>
-                                </Border>
-                                <Rectangle Canvas.Left="166" Canvas.Top="140" Width="24" Height="6" Fill="#42A5F5" />
-                                <Rectangle Canvas.Left="610" Canvas.Top="266" Width="24" Height="6" Fill="#42A5F5" />
-
-                                <!-- Block title assembled from square pixel runs. -->
-                                <Canvas Canvas.Left="203" Canvas.Top="179" Opacity="0.32">
-                                    <Path Fill="#087AC1" Data="M0,0 H40 V10 H50 V60 H40 V70 H0 Z M10,10 V60 H35 V50 H40 V20 H35 V10 Z M68,0 H78 V55 H88 V60 H108 V55 H118 V0 H128 V58 H118 V68 H108 V70 H88 V68 H78 V58 H68 Z M146,10 H156 V0 H196 V10 H206 V20 H196 V10 H156 V60 H196 V50 H206 V60 H196 V70 H156 V60 H146 Z M224,10 H234 V0 H274 V10 H284 V60 H274 V70 H234 V60 H224 Z M234,10 V60 H274 V10 Z M302,0 H312 V10 H322 V20 H332 V10 H342 V0 H352 V70 H342 V25 H332 V35 H322 V25 H312 V70 H302 Z" />
-                                </Canvas>
-                                <Canvas Canvas.Left="198" Canvas.Top="174">
+                                    </Canvas.Style>
+                                    <Path Canvas.Left="5" Canvas.Top="6" Fill="#087AC1" Opacity="0.34" Data="M0,0 H40 V10 H50 V60 H40 V70 H0 Z M10,10 V60 H35 V50 H40 V20 H35 V10 Z M68,0 H78 V55 H88 V60 H108 V55 H118 V0 H128 V58 H118 V68 H108 V70 H88 V68 H78 V58 H68 Z M146,10 H156 V0 H196 V10 H206 V20 H196 V10 H156 V60 H196 V50 H206 V60 H196 V70 H156 V60 H146 Z M224,10 H234 V0 H274 V10 H284 V60 H274 V70 H234 V60 H224 Z M234,10 V60 H274 V10 Z M302,0 H312 V10 H322 V20 H332 V10 H342 V0 H352 V70 H342 V25 H332 V35 H322 V25 H312 V70 H302 Z" />
                                     <Path Fill="#F4F8FC" Data="M0,0 H40 V10 H50 V60 H40 V70 H0 Z M10,10 V60 H35 V50 H40 V20 H35 V10 Z M68,0 H78 V55 H88 V60 H108 V55 H118 V0 H128 V58 H118 V68 H108 V70 H88 V68 H78 V58 H68 Z" />
                                     <Path Fill="#42A5F5" Data="M146,10 H156 V0 H196 V10 H206 V20 H196 V10 H156 V60 H196 V50 H206 V60 H196 V70 H156 V60 H146 Z M224,10 H234 V0 H274 V10 H284 V60 H274 V70 H234 V60 H224 Z M234,10 V60 H274 V10 Z M302,0 H312 V10 H322 V20 H332 V10 H342 V0 H352 V70 H342 V25 H332 V35 H322 V25 H312 V70 H302 Z" />
                                     <Rectangle Canvas.Left="362" Canvas.Top="60" Width="10" Height="10" Fill="#90CAF9" />
                                 </Canvas>
 
-                                <Grid Canvas.Top="274" Width="800">
+                                <Grid Canvas.Top="298" Width="800">
                                     <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
                                         <Rectangle Width="8" Height="8" Margin="0,0,12,0" VerticalAlignment="Center" Fill="#42A5F5" />
-                                        <Rectangle Width="54" Height="4" Margin="0,0,16,0" VerticalAlignment="Center" Fill="#304A61" />
-                                        <TextBlock Margin="0,0,16,0" VerticalAlignment="Center"
-                                                   FontFamily="Consolas, Microsoft YaHei UI" FontSize="14"
-                                                   FontWeight="Bold" Foreground="#8295A8"
-                                                   Text="{DynamicResource Cover.Subtitle}" />
-                                        <Rectangle Width="54" Height="4" Margin="0,0,12,0" VerticalAlignment="Center" Fill="#304A61" />
+                                        <Rectangle Width="44" Height="4" Margin="0,0,18,0" VerticalAlignment="Center" Fill="#304A61" />
+                                        <Border Margin="0,0,18,0" Padding="14,7"
+                                                Background="#101C28" BorderBrush="#31536A" BorderThickness="2"
+                                                SnapsToDevicePixels="True">
+                                            <Grid>
+                                                <!-- A hard offset shadow and aliased glyph edges create a pixel display without corrupting Chinese characters. -->
+                                                <TextBlock Margin="3,3,0,0"
+                                                           FontFamily="Microsoft YaHei UI, Cascadia Mono, Consolas"
+                                                           FontSize="17" FontWeight="Black" Foreground="#174E70"
+                                                           TextOptions.TextFormattingMode="Display"
+                                                           TextOptions.TextRenderingMode="Aliased"
+                                                           Text="{DynamicResource Cover.Subtitle}" />
+                                                <TextBlock
+                                                           FontFamily="Microsoft YaHei UI, Cascadia Mono, Consolas"
+                                                           FontSize="17" FontWeight="Black" Foreground="#B9D7E8"
+                                                           TextOptions.TextFormattingMode="Display"
+                                                           TextOptions.TextRenderingMode="Aliased"
+                                                           Text="{DynamicResource Cover.Subtitle}" />
+                                                <Rectangle Width="7" Height="3" Margin="-8,-11,0,0"
+                                                           HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                           Fill="#42A5F5" />
+                                                <Rectangle Width="7" Height="3" Margin="0,0,-8,-11"
+                                                           HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                           Fill="#42A5F5" />
+                                            </Grid>
+                                        </Border>
+                                        <Rectangle Width="44" Height="4" Margin="0,0,12,0" VerticalAlignment="Center" Fill="#304A61" />
                                         <Rectangle Width="8" Height="8" VerticalAlignment="Center" Fill="#42A5F5" />
                                     </StackPanel>
                                 </Grid>

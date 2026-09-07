@@ -484,7 +484,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     public partial bool ShowCoverPage { get; set; } = true;
 
     [ObservableProperty]
-    public partial bool CoverPageAnimationEnabled { get; set; }
+    public partial bool CoverPageAnimationEnabled { get; set; } = true;
 
     [ObservableProperty]
     public partial PortSortMode PortSortMode { get; set; } = PortSortMode.NameAscending;
@@ -719,7 +719,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     public partial int NewBaudRate { get; set; }
 
     [ObservableProperty]
-    public partial bool ShowPortType { get; set; } = true;
+    public partial bool ShowPortType { get; set; }
 
     [ObservableProperty]
     public partial double SearchOpacity { get; set; } = 1d;
@@ -1595,7 +1595,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             FreezeAfterSend = false;
             SendPrefixEnabled = true;
             SendPrefix = "TX > ";
-            ShowPortType = true;
+            ShowPortType = false;
             PauseFollowOnMouseWheel = true;
             PauseFollowOnFocus = false;
             ShowPauseHint = true;
@@ -1612,6 +1612,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             ShowHiddenPorts = false;
             ShowSerialPorts = true;
             ShowVirtualPorts = true;
+            ShowCoverPage = true;
+            CoverPageAnimationEnabled = true;
             BackgroundImageEnabled = false;
             BackgroundImagePath = string.Empty;
             BackgroundImageFolderPath = string.Empty;
@@ -1757,7 +1759,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         LogFontSize = 14;
         LogFontFamily = "Cascadia Mono";
         ShowCoverPage = true;
-        CoverPageAnimationEnabled = false;
+        CoverPageAnimationEnabled = true;
     }
 
     [RelayCommand]
@@ -3263,7 +3265,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         string LogFontFamily = "Cascadia Mono",
         string Language = "",
         string ThemeMode = "Dark",
-        bool ShowPortType = true,
+        bool ShowPortType = false,
         double SearchOpacity = 1d,
         bool IsSidebarVisible = true,
         bool IsBottomSendVisible = true,
@@ -3272,7 +3274,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         bool ShowSerialPorts = true,
         bool ShowVirtualPorts = true,
         bool ShowCoverPage = true,
-        bool CoverPageAnimationEnabled = false,
+        bool CoverPageAnimationEnabled = true,
         bool BackgroundImageEnabled = false,
         string? BackgroundImagePath = null,
         string? BackgroundImageFolderPath = null,
