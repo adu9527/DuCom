@@ -285,7 +285,10 @@
     <system:String x:Key="Update.Prompt.Later">稍后</system:String>
     <system:String x:Key="Update.Prompt.Ready">新版本已下载完成，重启后生效。</system:String>
     <system:String x:Key="Settings.Section.Update">更新</system:String>
-    <system:String x:Key="Settings.AutoCheckUpdates">启动时自动检查更新</system:String>
+    <system:String x:Key="Settings.Update">检查更新</system:String>
+    <system:String x:Key="Settings.Update.Description">从 GitHub 检查并安装 DuCom 的最新发布版本。</system:String>
+    <system:String x:Key="Settings.AutoCheckUpdates">自动检查更新</system:String>
+    <system:String x:Key="Settings.AutoCheckUpdates.Label">启动时自动检查更新</system:String>
     <system:String x:Key="Settings.AutoCheckUpdates.Description">连接 GitHub 检查最新发布版本，发现新版本时弹窗提醒。</system:String>
     <system:String x:Key="Settings.CheckForUpdates">检查更新</system:String>
     <system:String x:Key="Feedback.Title">反馈与支持</system:String>

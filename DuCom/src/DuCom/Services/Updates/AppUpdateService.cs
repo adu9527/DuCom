@@ -120,7 +120,7 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
                 if (_updateInfo?.TargetFullRelease is { } target)
                 {
                     LatestVersionTag = $"V{target.Version}";
-                    ReleaseNotes = target.NotesMarkdown ?? target.NotesHTML ?? string.Empty;
+                    ReleaseNotes = ReleaseNotesSanitizer.ToPlainText(target.NotesMarkdown ?? target.NotesHTML);
                     ReleasePageUrl = $"{RepositoryUrl}/releases/tag/{LatestVersionTag}";
                 }
             }
@@ -129,7 +129,7 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
                 _latestRelease = await _releaseClient.GetLatestReleaseAsync(cancellationToken).ConfigureAwait(true)
                     ?? throw new InvalidOperationException("No published release was found on GitHub.");
                 LatestVersionTag = _latestRelease.TagName;
-                ReleaseNotes = _latestRelease.Body ?? string.Empty;
+                ReleaseNotes = ReleaseNotesSanitizer.ToPlainText(_latestRelease.Body);
                 ReleasePageUrl = _latestRelease.HtmlUrl ?? $"{RepositoryUrl}/releases";
                 Version? latest = UpdateVersion.TryParse(_latestRelease.TagName)
                     ?? throw new InvalidOperationException($"Release tag '{_latestRelease.TagName}' is not a recognizable version.");
@@ -199,6 +199,11 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
             }
 
             Phase = UpdatePhase.ReadyToInstall;
+            if (_updateManager is { IsInstalled: true })
+            {
+                // Installed builds update fully automatically: apply and restart right away.
+                ApplyAndRestart();
+            }
         }
         catch (OperationCanceledException)
         {

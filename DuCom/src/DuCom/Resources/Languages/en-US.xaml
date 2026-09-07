@@ -285,7 +285,10 @@
     <system:String x:Key="Update.Prompt.Later">Later</system:String>
     <system:String x:Key="Update.Prompt.Ready">The new version has been downloaded. It takes effect after a restart.</system:String>
     <system:String x:Key="Settings.Section.Update">Updates</system:String>
-    <system:String x:Key="Settings.AutoCheckUpdates">Automatically check for updates at startup</system:String>
+    <system:String x:Key="Settings.Update">Check for updates</system:String>
+    <system:String x:Key="Settings.Update.Description">Check GitHub for and install the latest published DuCom release.</system:String>
+    <system:String x:Key="Settings.AutoCheckUpdates">Automatic updates</system:String>
+    <system:String x:Key="Settings.AutoCheckUpdates.Label">Automatically check for updates at startup</system:String>
     <system:String x:Key="Settings.AutoCheckUpdates.Description">Queries GitHub for the latest release and prompts when a newer version is found.</system:String>
     <system:String x:Key="Settings.CheckForUpdates">Check for updates</system:String>
     <system:String x:Key="Feedback.Title">Feedback and support</system:String>

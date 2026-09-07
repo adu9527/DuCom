@@ -5,9 +5,9 @@ using Wpf.Ui.Controls;
 
 namespace DuCom;
 
-public partial class UpdateWindow : FluentWindow, IDisposable
+public partial class UpdateWindow : FluentWindow
 {
-    private readonly UpdateViewModel _viewModel = new();
+    private readonly UpdateViewModel _viewModel = UpdateViewModel.Instance;
     private readonly bool _downloadOnLoad;
     private bool _checkedOnLoad;
 
@@ -17,7 +17,6 @@ public partial class UpdateWindow : FluentWindow, IDisposable
         InitializeComponent();
         DataContext = _viewModel;
         Loaded += UpdateWindow_Loaded;
-        Closed += OnClosed;
     }
 
     public static bool IsOpen => Application.Current.Windows.OfType<UpdateWindow>().Any();
@@ -61,14 +60,4 @@ public partial class UpdateWindow : FluentWindow, IDisposable
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
     private void ReleasePage_Click(object sender, RoutedEventArgs e) => _viewModel.OpenReleasePageCommand.Execute(null);
-
-    public void Dispose()
-    {
-        Loaded -= UpdateWindow_Loaded;
-        Closed -= OnClosed;
-        _viewModel.Dispose();
-        GC.SuppressFinalize(this);
-    }
-
-    private void OnClosed(object? sender, EventArgs e) => Dispose();
 }

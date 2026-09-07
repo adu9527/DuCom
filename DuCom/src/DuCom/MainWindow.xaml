@@ -149,6 +149,11 @@
                             <MenuItem Command="{Binding OpenDocumentationCommand}" Header="{DynamicResource Menu.About.Help}" />
                             <MenuItem Command="{Binding OpenFeedbackCommand}" Header="{DynamicResource Menu.About.Feedback}" />
                             <Separator />
+                            <MenuItem Command="{Binding CheckForUpdatesCommand}" Header="{DynamicResource Settings.CheckForUpdates}">
+                                <MenuItem.Icon>
+                                    <ui:SymbolIcon FontSize="16" Symbol="ArrowSync24" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem Command="{Binding ShowAboutCommand}" Header="{DynamicResource About.Title}" />
                         </ContextMenu>
                     </Button.ContextMenu>
@@ -554,6 +559,11 @@
                                 <MenuItem Command="{Binding ToggleSettingsCommand}" Header="{DynamicResource Settings.MenuTitle}">
                                     <MenuItem.Icon>
                                         <ui:SymbolIcon FontSize="16" Symbol="Settings24" />
+                                    </MenuItem.Icon>
+                                </MenuItem>
+                                <MenuItem Command="{Binding CheckForUpdatesCommand}" Header="{DynamicResource Settings.CheckForUpdates}">
+                                    <MenuItem.Icon>
+                                        <ui:SymbolIcon FontSize="16" Symbol="ArrowSync24" />
                                     </MenuItem.Icon>
                                 </MenuItem>
                                 <Separator />

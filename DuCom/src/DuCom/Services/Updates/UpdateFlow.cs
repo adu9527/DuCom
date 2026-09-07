@@ -74,19 +74,16 @@ public static class UpdateFlow
             return;
         }
 
-        Application.Current?.Dispatcher.BeginInvoke(() =>
-        {
-            if (!UpdateWindow.IsOpen)
-            {
-                PromptApplyAndRestart();
-            }
-        });
+        Application.Current?.Dispatcher.BeginInvoke(PromptApplyAndRestart);
     }
 
-    private static void PromptApplyAndRestart()
+    /// <summary>Prompts the portable user to swap the staged executable and restart.</summary>
+    internal static void PromptApplyAndRestart()
     {
+        Window? owner = Application.Current?.Windows.OfType<Window>().FirstOrDefault(window => window.IsActive)
+            ?? Application.Current?.MainWindow;
         ThemedMessageDialogChoice choice = ThemedMessageDialog.ShowChoice(
-            Application.Current?.MainWindow,
+            owner,
             GetResourceString("Update.Prompt.Ready"),
             GetResourceString("Update.Title"),
             ThemedMessageDialogKind.Information,

@@ -8,8 +8,10 @@ using DuCom.Services.Updates;
 
 namespace DuCom.ViewModels;
 
-public partial class UpdateViewModel : ObservableObject, IDisposable
+public partial class UpdateViewModel : ObservableObject
 {
+    public static UpdateViewModel Instance { get; } = new();
+
     private readonly AppUpdateService _service = AppUpdateService.Instance;
     private CompositeFormat? _failedFormat;
     private CompositeFormat? _availableFormat;
@@ -57,21 +59,21 @@ public partial class UpdateViewModel : ObservableObject, IDisposable
 
     public string ReleasePageUrl => _service.ReleasePageUrl;
 
-    public UpdateViewModel()
+    private UpdateViewModel()
     {
         _service.PropertyChanged += OnServicePropertyChanged;
         RefreshState();
     }
 
-    public void Dispose()
-    {
-        _service.PropertyChanged -= OnServicePropertyChanged;
-        GC.SuppressFinalize(this);
-    }
-
     [RelayCommand]
     private async Task CheckAsync()
     {
+        if (_service.Phase == UpdatePhase.ReadyToInstall)
+        {
+            UpdateFlow.PromptApplyAndRestart();
+            return;
+        }
+
         bool hasUpdate = await _service.CheckForUpdatesAsync();
         if (!hasUpdate && _service.Phase == UpdatePhase.Failed)
         {

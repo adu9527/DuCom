@@ -48,6 +48,10 @@
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
+    <Style x:Key="Style.InfoValue" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+    </Style>
+
     <Style x:Key="Style.FieldLabel" TargetType="TextBlock">
         <Setter Property="Margin" Value="0,0,0,4" />
         <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />

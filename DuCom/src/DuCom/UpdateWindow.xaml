@@ -3,10 +3,10 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  Title="{DynamicResource Update.Title}"
-                 Width="560"
-                 Height="520"
-                 MinWidth="560"
-                 MinHeight="440"
+                 Width="600"
+                 Height="560"
+                 MinWidth="600"
+                 MinHeight="460"
                  Icon="/Assets/DuCom.ico"
                  ExtendsContentIntoTitleBar="True"
                  ResizeMode="NoResize"
@@ -18,94 +18,86 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="16" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <ui:TitleBar Title="{DynamicResource Update.Title}" ShowMaximize="False" ShowMinimize="False" />
-        <Grid Grid.Row="2" Margin="28,0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="14" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="14" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="14" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
-            <Border Padding="20" Style="{DynamicResource Style.SettingsCard}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="24" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="10" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <TextBlock Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Update.CurrentVersion}" />
-                    <TextBlock Grid.Column="2" FontWeight="SemiBold" Text="{Binding CurrentVersion}" />
-                    <TextBlock Grid.Row="2" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Update.LatestVersion}" />
-                    <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding LatestVersion}" />
-                    <TextBlock Grid.Row="4" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Update.Channel}" />
-                    <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding ChannelText}" />
-                </Grid>
-            </Border>
-            <Border Grid.Row="2" Padding="20" Style="{DynamicResource Style.SettingsCard}" Visibility="{Binding HasReleaseNotes, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel>
-                    <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Update.ReleaseNotes}" />
-                    <TextBox MaxHeight="170"
-                             Margin="0,10,0,0"
-                             VerticalScrollBarVisibility="Auto"
-                             FontFamily="Cascadia Mono, Consolas"
-                             IsReadOnly="True"
-                             Text="{Binding ReleaseNotes, Mode=OneWay}"
-                             TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-            <Border Grid.Row="4" Padding="20" Style="{DynamicResource Style.SettingsCard}">
-                <StackPanel>
-                    <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Update.Status}" />
-                    <ProgressBar Height="6"
-                                 Margin="0,12,0,0"
-                                 IsIndeterminate="{Binding IsIndeterminate}"
-                                 Maximum="100"
-                                 Minimum="0"
-                                 Value="{Binding ProgressValue, Mode=OneWay}"
-                                 Visibility="{Binding IsProgressVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    <TextBlock Margin="0,10,0,0"
-                               Style="{DynamicResource Style.MutedText}"
-                               Text="{Binding StatusText}"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-            <StackPanel Grid.Row="6" Orientation="Horizontal">
-                <Button MinWidth="96"
-                        Command="{Binding CheckCommand}"
-                        Content="{DynamicResource Update.Check}"
-                        IsEnabled="{Binding CanCheck}" />
-                <Button MinWidth="96"
-                        Margin="12,0,0,0"
-                        Command="{Binding DownloadCommand}"
-                        Content="{DynamicResource Update.Download}"
-                        IsEnabled="{Binding CanDownload}" />
-                <ui:Button MinWidth="96"
-                           Margin="12,0,0,0"
-                           Appearance="Primary"
-                           Command="{Binding ApplyAndRestartCommand}"
-                           Content="{DynamicResource Update.ApplyAndRestart}"
-                           IsEnabled="{Binding CanApply}" />
-                <Button MinWidth="96"
-                        Margin="12,0,0,0"
-                        Command="{Binding SkipVersionCommand}"
-                        Content="{DynamicResource Update.SkipVersion}"
-                        IsEnabled="{Binding CanSkip}" />
+        <ui:TitleBar Title="" ShowMaximize="False" ShowMinimize="False" />
+        <Grid Grid.Row="1" Margin="28,12,28,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock VerticalAlignment="Center"
+                       FontSize="28"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource Brush.TextPrimary}"
+                       Text="{DynamicResource Update.Title}" />
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock MaxWidth="260"
+                           HorizontalAlignment="Right"
+                           Style="{DynamicResource Style.MutedText}"
+                           Text="{Binding StatusText}"
+                           TextAlignment="Right"
+                           TextWrapping="Wrap" />
+                <ProgressBar Width="220"
+                             Height="4"
+                             Margin="0,8,0,0"
+                             HorizontalAlignment="Right"
+                             IsIndeterminate="{Binding IsIndeterminate}"
+                             Maximum="100"
+                             Minimum="0"
+                             Value="{Binding ProgressValue, Mode=OneWay}"
+                             Visibility="{Binding IsProgressVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </StackPanel>
         </Grid>
+        <ScrollViewer Grid.Row="2" Margin="28,16,28,0" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Padding="20" Style="{DynamicResource Style.SettingsCard}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="10" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Update.CurrentVersion}" />
+                        <TextBlock Grid.Column="2" Style="{DynamicResource Style.InfoValue}" Text="{Binding CurrentVersion}" />
+                        <TextBlock Grid.Row="2" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Update.Channel}" />
+                        <TextBlock Grid.Row="2" Grid.Column="2" Style="{DynamicResource Style.InfoValue}" Text="{Binding ChannelText}" />
+                    </Grid>
+                </Border>
+                <Border Padding="20" Margin="0,14,0,0" Style="{DynamicResource Style.SettingsCard}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="24" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Update.LatestVersion}" />
+                            <TextBlock Grid.Column="2" Style="{DynamicResource Style.InfoValue}" Text="{Binding LatestVersion}" />
+                        </Grid>
+                        <TextBlock Margin="0,14,0,0"
+                                   Style="{DynamicResource Style.SectionTitle}"
+                                   Text="{DynamicResource Update.ReleaseNotes}"
+                                   Visibility="{Binding HasReleaseNotes, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <TextBox MaxHeight="240"
+                                 Margin="0,10,0,0"
+                                 VerticalScrollBarVisibility="Auto"
+                                 FontFamily="Cascadia Mono, Consolas"
+                                 IsReadOnly="True"
+                                 Text="{Binding ReleaseNotes, Mode=OneWay}"
+                                 TextWrapping="Wrap"
+                                 Visibility="{Binding HasReleaseNotes, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
         <StackPanel Grid.Row="3"
                     Margin="28,16,28,24"
                     HorizontalAlignment="Right"
@@ -117,8 +109,21 @@
             </TextBlock>
             <Button MinWidth="96"
                     Margin="20,0,0,0"
-                    Click="Close_Click"
-                    Content="{DynamicResource Update.Close}" />
+                    Command="{Binding CheckCommand}"
+                    Content="{DynamicResource Update.Check}"
+                    IsEnabled="{Binding CanCheck}" />
+            <ui:Button MinWidth="96"
+                       Margin="12,0,0,0"
+                       Appearance="Primary"
+                       Command="{Binding DownloadCommand}"
+                       Content="{DynamicResource Update.Download}"
+                       IsEnabled="{Binding CanDownload}" />
+            <Button MinWidth="96"
+                    Margin="12,0,0,0"
+                    Command="{Binding SkipVersionCommand}"
+                    Content="{DynamicResource Update.SkipVersion}"
+                    IsEnabled="{Binding CanSkip}" />
+            <Button MinWidth="96" Margin="12,0,0,0" Click="Close_Click" Content="{DynamicResource Update.Close}" />
         </StackPanel>
     </Grid>
 </ui:FluentWindow>

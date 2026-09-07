@@ -483,7 +483,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     public partial bool WordWrap { get; set; }
 
     [ObservableProperty]
-    public partial bool ShowLineNumbers { get; set; }
+    public partial bool ShowLineNumbers { get; set; } = true;
 
     [ObservableProperty]
     public partial bool HighlightCurrentLine { get; set; } = true;
@@ -1562,7 +1562,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             BackgroundImageOpacity = 0.18d;
             PortSortMode = PortSortMode.NameAscending;
             WordWrap = false;
-            ShowLineNumbers = false;
+            ShowLineNumbers = true;
             HighlightCurrentLine = true;
             ShowControlCharacters = false;
             ShowSpaces = false;
@@ -3067,7 +3067,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         bool PreventSleep = false,
         bool CloseToTaskbar = false,
         bool WordWrap = false,
-        bool ShowLineNumbers = false,
+        bool ShowLineNumbers = true,
         bool HighlightCurrentLine = true,
         bool ShowControlCharacters = false,
         bool ShowSpaces = false,
