@@ -17,8 +17,15 @@ public sealed class AppSettingsService
         "DuCom",
         "settings.json");
 
-    public static T? Load<T>() where T : class
+    public static T? Load<T>() where T : class => LoadWithReport<T>(out _);
+
+    /// <summary>
+    /// Loads the settings file with per-field fault isolation: one unreadable property
+    /// degrades to that property's default instead of discarding the whole snapshot.
+    /// </summary>
+    public static T? LoadWithReport<T>(out IReadOnlyList<string> skippedProperties) where T : class
     {
+        skippedProperties = [];
         string path = SettingsFilePath;
         if (!File.Exists(path))
         {
@@ -28,7 +35,14 @@ public sealed class AppSettingsService
         try
         {
             string json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<T>(json, JsonOptions);
+            if (TolerantJsonLoader.TryLoad(json, JsonOptions, out T? value, out IReadOnlyList<string> skipped))
+            {
+                skippedProperties = skipped;
+                return value;
+            }
+
+            Program.DiagnosticLog?.Warning($"Failed to load settings from {path}.");
+            return null;
         }
         catch (Exception exception)
         {

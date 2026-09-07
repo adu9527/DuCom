@@ -24,7 +24,19 @@ public static class VariableMonitorRuleStore
 
         try
         {
-            return JsonSerializer.Deserialize<List<VariableMonitorRule>>(File.ReadAllText(FilePath), JsonOptions) ?? [];
+            string json = File.ReadAllText(FilePath);
+            if (TolerantJsonLoader.TryLoadList<VariableMonitorRule>(json, JsonOptions, out List<VariableMonitorRule> rules, out IReadOnlyList<int> skipped))
+            {
+                if (skipped.Count > 0)
+                {
+                    Program.DiagnosticLog?.Warning($"Skipped {skipped.Count} unreadable monitor rule(s) at index {string.Join(", ", skipped)}.");
+                }
+
+                return rules;
+            }
+
+            Program.DiagnosticLog?.Warning($"Failed to load monitor rules from {FilePath}.");
+            return [];
         }
         catch (Exception exception)
         {

@@ -16,6 +16,7 @@ Connections and transactions are scoped explicitly. Database work runs outside r
 
 - Schema changes require versioned migrations and an architecture decision when cross-module contracts change.
 - `AtomicFileStore.CommitAll` stages every write to a temp file first, backs up existing destinations, replaces atomically, and rolls every already-replaced file back when any step fails, for every exception type (not only IO), continuing the rollback on per-file failures. Backups that a failed rollback could not restore are kept on disk and named in the thrown aggregate. A rollback that succeeds consumes its backup because its content became the restored file.
+- `TolerantJsonLoader` isolates faults per part of the document: `TryLoad` binds positional-record constructor parameters (or plain properties for parameterless types) individually so one unreadable property degrades to its default and is named in the skipped list; `TryLoadList` skips unreadable array elements by index; `TryLoadDictionary` skips unreadable entries by key. A strict read is always attempted first, and unreadable documents return false rather than throwing.
 - Hidden ports are part of the persisted settings snapshot. `PortVisibility.NormalizeHidden` is the single normalization used by capture and restore, so hidden ports survive restarts.
 
 ## Test Strategy

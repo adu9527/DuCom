@@ -33,6 +33,10 @@ public static class UpdateFlow
             return;
         }
 
+        // Runs regardless of AutoCheckUpdates: a stale staged package must not be
+        // installable, and dropping it never prompts anything on its own.
+        await AppUpdateService.Instance.ValidateStagedPackageAsync();
+
         if (!viewModel.AutoCheckUpdates || UpdateWindow.IsOpen)
         {
             return;

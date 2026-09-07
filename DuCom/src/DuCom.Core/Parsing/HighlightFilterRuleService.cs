@@ -42,12 +42,20 @@ public sealed class HighlightFilterRuleService
                 document.RootElement.GetArrayLength() > 0 &&
                 document.RootElement[0].TryGetProperty("rules", out _))
             {
-                HighlightFilterRuleProjectDto[]? projects = JsonSerializer.Deserialize<HighlightFilterRuleProjectDto[]>(json, JsonOptions);
-                return projects?.Select(ToProject).ToArray() ?? [];
+                if (!TolerantJsonLoader.TryLoadList(json, JsonOptions, out List<HighlightFilterRuleProjectDto> projects, out _) )
+                {
+                    return [];
+                }
+
+                return projects.Select(ToProject).ToArray();
             }
 
-            HighlightFilterRuleDto[]? dtos = JsonSerializer.Deserialize<HighlightFilterRuleDto[]>(json, JsonOptions);
-            return dtos is { Length: > 0 }
+            if (!TolerantJsonLoader.TryLoadList(json, JsonOptions, out List<HighlightFilterRuleDto> dtos, out _))
+            {
+                return [];
+            }
+
+            return dtos is { Count: > 0 }
                 ? [new HighlightFilterRuleProject(Guid.NewGuid(), "default", dtos.Select(ToModel).ToArray())]
                 : [];
         }

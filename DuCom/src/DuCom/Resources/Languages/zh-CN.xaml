@@ -276,6 +276,8 @@
     <system:String x:Key="Update.Check">检查更新</system:String>
     <system:String x:Key="Update.Download">下载更新</system:String>
     <system:String x:Key="Update.ApplyAndRestart">一键替换并重启</system:String>
+    <system:String x:Key="Update.Rollback">回滚到上一版本</system:String>
+    <system:String x:Key="Update.Rollback.Confirmation">确定回滚到上一版本吗？当前程序会备份为 .pre-rollback.bak，回滚后自动重启。</system:String>
     <system:String x:Key="Update.SkipVersion">跳过此版本</system:String>
     <system:String x:Key="Update.Close">关闭</system:String>
     <system:String x:Key="Update.OpenReleasePage">打开发布页</system:String>

@@ -60,8 +60,9 @@ public sealed class ShortcutManager
         try
         {
             string json = File.ReadAllText(path);
-            ShortcutConfiguration? configuration = JsonSerializer.Deserialize<ShortcutConfiguration>(json, JsonOptions);
-            if (configuration is null || configuration.Version < 1)
+            if (!TolerantJsonLoader.TryLoad<ShortcutConfiguration>(json, JsonOptions, out ShortcutConfiguration? configuration, out _) ||
+                configuration is null ||
+                configuration.Version < 1)
             {
                 ResetAllToDefaults();
                 return false;

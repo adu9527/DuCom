@@ -55,6 +55,9 @@ public partial class UpdateViewModel : ObservableObject
     public partial bool CanSkip { get; private set; }
 
     [ObservableProperty]
+    public partial bool CanRollback { get; private set; }
+
+    [ObservableProperty]
     public partial bool IsProgressVisible { get; private set; }
 
     public string ReleasePageUrl => _service.ReleasePageUrl;
@@ -94,6 +97,20 @@ public partial class UpdateViewModel : ObservableObject
     private static void ApplyAndRestart() => AppUpdateService.Instance.ApplyAndRestart();
 
     [RelayCommand]
+    private static void RollbackAndRestart()
+    {
+        if (!ThemedMessageDialog.Confirm(
+                Application.Current?.MainWindow,
+                GetResourceString("Update.Rollback.Confirmation"),
+                GetResourceString("Update.Title")))
+        {
+            return;
+        }
+
+        AppUpdateService.Instance.RollbackToBackupAndRestart();
+    }
+
+    [RelayCommand]
     private void SkipVersion()
     {
         _service.SkipCurrentVersion();
@@ -120,6 +137,7 @@ public partial class UpdateViewModel : ObservableObject
         CanDownload = _service.Phase is (UpdatePhase.Available or UpdatePhase.Failed) && _service.HasPendingUpdate;
         CanApply = _service.Phase == UpdatePhase.ReadyToInstall;
         CanSkip = _service.Phase == UpdatePhase.Available;
+        CanRollback = _service.CanRollbackPortable;
         IsProgressVisible = _service.Phase == UpdatePhase.Downloading;
         IsIndeterminate = _service.IsDownloadProgressIndeterminate;
         ProgressValue = _service.DownloadProgress * 100d;

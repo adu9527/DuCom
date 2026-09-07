@@ -8,6 +8,7 @@ namespace DuCom.Core.Updates;
 public sealed class GitHubReleaseClient : IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly TimeSpan MetadataTimeout = TimeSpan.FromSeconds(30);
 
     private readonly HttpClient _httpClient;
     private readonly bool _ownsHttpClient;
@@ -37,7 +38,23 @@ public sealed class GitHubReleaseClient : IDisposable
 
     public async Task<GitHubRelease?> GetLatestReleaseAsync(CancellationToken cancellationToken = default)
     {
-        using HttpResponseMessage response = await _httpClient.GetAsync(_latestReleaseUrl, cancellationToken).ConfigureAwait(false);
+        // The shared client has no overall timeout (see CreateHttpClient): a portable exe is
+        // tens of megabytes, so the download stream must not be cut off. Metadata calls get
+        // an explicit short deadline instead, and a deadline hit surfaces as a failure (not
+        // as a silent cancellation).
+        using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(MetadataTimeout);
+        HttpResponseMessage response;
+        try
+        {
+            response = await _httpClient.GetAsync(_latestReleaseUrl, deadline.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new HttpRequestException($"The request to '{_latestReleaseUrl}' timed out.");
+        }
+
+        using HttpResponseMessage _ = response;
         if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             return null;
@@ -102,7 +119,9 @@ public sealed class GitHubReleaseClient : IDisposable
     {
         HttpClient client = new()
         {
-            Timeout = TimeSpan.FromSeconds(30),
+            // No overall timeout: it would include reading the (large) download body.
+            // Short calls apply their own deadline; downloads run until cancelled.
+            Timeout = Timeout.InfiniteTimeSpan,
         };
         client.DefaultRequestHeaders.UserAgent.ParseAdd("DuCom-Updater");
         client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");

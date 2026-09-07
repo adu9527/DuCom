@@ -8,7 +8,10 @@ namespace DuCom;
 
 public static class Program
 {
+    private const string SingleInstanceMutexName = @"Local\DuCom.Application.SingleInstance";
+
     private static DiagnosticFileLog? _log;
+    private static Mutex? _singleInstanceMutex;
 
     internal static DiagnosticFileLog? DiagnosticLog => _log;
 
@@ -16,6 +19,11 @@ public static class Program
     public static int Main(string[] args)
     {
         VelopackApp.Build().Run();
+        if (!TryAcquireSingleInstanceLock())
+        {
+            return 0;
+        }
+
         string logDirectory = SystemLogAccess.DirectoryPath;
         DiagnosticFileLog.PruneDirectory(logDirectory);
         string logFileName = $"ducom-{DateTime.Now:yyyyMMdd-HHmmss}-{Environment.ProcessId}.log";
@@ -41,7 +49,52 @@ public static class Program
         {
             _log.Dispose();
             _log = null;
+            ReleaseSingleInstanceLock();
         }
+    }
+
+    /// <summary>
+    /// A second instance cannot coexist with the first: the portable self-update swap
+    /// would fail while another process still has the executable loaded. Fail-open when
+    /// the mutex itself misbehaves so the mutex can never brick startup.
+    /// </summary>
+    private static bool TryAcquireSingleInstanceLock()
+    {
+        try
+        {
+            _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out bool createdNew);
+            if (createdNew)
+            {
+                return true;
+            }
+
+            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex = null;
+            System.Windows.MessageBox.Show(
+                "DuCom 已在运行。\nDuCom is already running.",
+                "DuCom",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private static void ReleaseSingleInstanceLock()
+    {
+        try
+        {
+            _singleInstanceMutex?.ReleaseMutex();
+        }
+        catch
+        {
+        }
+
+        _singleInstanceMutex?.Dispose();
+        _singleInstanceMutex = null;
     }
 
     private static void ShowStartupFailure(string logPath)

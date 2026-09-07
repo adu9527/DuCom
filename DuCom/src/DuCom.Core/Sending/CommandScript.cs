@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DuCom.Core.Persistence;
 
 namespace DuCom.Core.Sending;
 
@@ -134,23 +135,26 @@ public static class CommandScriptSerializer
     }
 
     /// <summary>
-    /// Parses groups. Unparsable or future-version content throws <see cref="JsonException"/>/
-    /// returns empty; individual bad commands are skipped instead of failing the file.
+    /// Parses groups. Unparsable content degrades to warnings; individual bad groups or
+    /// commands are skipped or defaulted instead of failing the whole file.
     /// </summary>
     public static IReadOnlyList<CommandGroup> Deserialize(string json, out IReadOnlyList<string> warnings)
     {
         List<string> warningList = [];
         CommandGroupDocument? collection;
-        try
+        if (!TolerantJsonLoader.TryLoad<CommandGroupDocument>(json, Options, out CommandGroupDocument? tolerant, out IReadOnlyList<string> skipped))
         {
-            collection = JsonSerializer.Deserialize<CommandGroupDocument>(json, Options);
-        }
-        catch (JsonException exception)
-        {
-            warningList.Add(exception.Message);
+            warningList.Add("document is not readable JSON");
             warnings = warningList;
             return [];
         }
+
+        if (skipped.Count > 0)
+        {
+            warningList.Add($"unreadable section(s) skipped: {string.Join(", ", skipped)}");
+        }
+
+        collection = tolerant;
 
         List<CommandGroup> groups = [];
         if (collection is null || !VersionSupported(collection.Version))

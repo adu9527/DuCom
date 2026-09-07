@@ -27,8 +27,7 @@ public static class SendHistoryFileService
 
         try
         {
-            List<string>? entries = JsonSerializer.Deserialize<List<string>>(File.ReadAllText(FilePath), JsonOptions);
-            if (entries is not null)
+            if (TolerantJsonLoader.TryLoadList<string>(File.ReadAllText(FilePath), JsonOptions, out List<string> entries, out _))
             {
                 history.Replace(entries);
             }

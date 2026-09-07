@@ -912,43 +912,12 @@
                                 </Style.Triggers>
                             </Style>
                         </Grid.Style>
+                        <!-- The backdrop fills and crops independently; foreground content always remains in the safe area. -->
                         <Viewbox HorizontalAlignment="Stretch"
                                  VerticalAlignment="Stretch"
                                  Stretch="UniformToFill"
                                  StretchDirection="Both">
                             <Canvas Width="800" Height="500">
-                                <Canvas.Resources>
-                                    <Storyboard x:Key="CoverAnimation" RepeatBehavior="Forever">
-                                        <DoubleAnimation Storyboard.TargetName="PixelSignal"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         From="0.35" To="1" Duration="0:0:1.6"
-                                                         AutoReverse="True" RepeatBehavior="Forever" />
-                                        <DoubleAnimation Storyboard.TargetName="PixelCursor"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         From="0" To="1" Duration="0:0:0.55"
-                                                         AutoReverse="True" RepeatBehavior="Forever" />
-                                        <DoubleAnimation Storyboard.TargetName="PixelNode"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         From="0.25" To="0.85" BeginTime="0:0:0.4" Duration="0:0:2.2"
-                                                         AutoReverse="True" RepeatBehavior="Forever" />
-                                    </Storyboard>
-                                </Canvas.Resources>
-                                <Canvas.Style>
-                                    <Style TargetType="Canvas">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
-                                                <DataTrigger.EnterActions>
-                                                    <BeginStoryboard x:Name="CoverAnimationController"
-                                                                     Storyboard="{StaticResource CoverAnimation}" />
-                                                </DataTrigger.EnterActions>
-                                                <DataTrigger.ExitActions>
-                                                    <RemoveStoryboard BeginStoryboardName="CoverAnimationController" />
-                                                </DataTrigger.ExitActions>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Canvas.Style>
-
                                 <Rectangle Width="800" Height="500" Fill="#101217" />
                                 <Rectangle Width="800" Height="500" Opacity="0.75">
                                     <Rectangle.Fill>
@@ -960,15 +929,91 @@
                                     </Rectangle.Fill>
                                 </Rectangle>
 
-                                <!-- Pixel grid and corner framing. -->
                                 <Path Data="M0,40 H800 M0,80 H800 M0,120 H800 M0,160 H800 M0,200 H800 M0,240 H800 M0,280 H800 M0,320 H800 M0,360 H800 M0,400 H800 M0,440 H800 M40,0 V500 M80,0 V500 M120,0 V500 M160,0 V500 M200,0 V500 M240,0 V500 M280,0 V500 M320,0 V500 M360,0 V500 M400,0 V500 M440,0 V500 M480,0 V500 M520,0 V500 M560,0 V500 M600,0 V500 M640,0 V500 M680,0 V500 M720,0 V500 M760,0 V500"
-                                      Stroke="#223041" StrokeThickness="1" Opacity="0.22" />
+                                      Stroke="#223C52" StrokeThickness="1" Opacity="0.24" />
+                                <Rectangle Width="800" Height="2" Canvas.Top="-8" Fill="#42A5F5">
+                                    <Rectangle.Effect>
+                                        <BlurEffect Radius="8" />
+                                    </Rectangle.Effect>
+                                    <Rectangle.Style>
+                                        <Style TargetType="Rectangle">
+                                            <Setter Property="Opacity" Value="0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
+                                                    <DataTrigger.EnterActions>
+                                                        <BeginStoryboard x:Name="BackdropScanAnimation">
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="(Canvas.Top)"
+                                                                                 From="-8" To="508" Duration="0:0:4.8"
+                                                                                 RepeatBehavior="Forever" />
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                 From="0.08" To="0.32" Duration="0:0:2.4"
+                                                                                 AutoReverse="True" RepeatBehavior="Forever" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.EnterActions>
+                                                    <DataTrigger.ExitActions>
+                                                        <RemoveStoryboard BeginStoryboardName="BackdropScanAnimation" />
+                                                    </DataTrigger.ExitActions>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Rectangle.Style>
+                                </Rectangle>
+                                <Rectangle Canvas.Left="-40" Canvas.Top="112" Width="260" Height="260" Opacity="0.16">
+                                    <Rectangle.Fill>
+                                        <RadialGradientBrush>
+                                            <GradientStop Color="#1976D2" Offset="0" />
+                                            <GradientStop Color="Transparent" Offset="1" />
+                                        </RadialGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                                <Rectangle Canvas.Left="580" Canvas.Top="62" Width="260" Height="260" Opacity="0.12">
+                                    <Rectangle.Fill>
+                                        <RadialGradientBrush>
+                                            <GradientStop Color="#26C6DA" Offset="0" />
+                                            <GradientStop Color="Transparent" Offset="1" />
+                                        </RadialGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+                            </Canvas>
+                        </Viewbox>
+
+                        <Viewbox HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 Stretch="Uniform"
+                                 StretchDirection="Both">
+                            <Canvas Width="800" Height="500">
+
+                                <!-- Pixel grid and corner framing. -->
                                 <Path Data="M28,92 V48 H72 M28,48 H116 V56 H132 M772,408 V452 H728 M772,452 H684 V444 H668"
                                       Stroke="#3B82B5" StrokeThickness="4" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.7" />
                                 <Path Data="M28,112 H76 V104 H108 V120 H148 M772,388 H724 V396 H692 V380 H652"
                                       Stroke="#304A61" StrokeThickness="4" Opacity="0.65" />
 
-                                <Canvas x:Name="PixelNode" Opacity="0.45">
+                                <Canvas>
+                                    <Canvas.Style>
+                                        <Style TargetType="Canvas">
+                                            <Setter Property="Opacity" Value="0.45" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
+                                                    <DataTrigger.EnterActions>
+                                                        <BeginStoryboard x:Name="PixelNodeAnimation">
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                 From="0.25" To="0.85"
+                                                                                 BeginTime="0:0:0.4" Duration="0:0:2.2"
+                                                                                 AutoReverse="True" RepeatBehavior="Forever" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.EnterActions>
+                                                    <DataTrigger.ExitActions>
+                                                        <RemoveStoryboard BeginStoryboardName="PixelNodeAnimation" />
+                                                    </DataTrigger.ExitActions>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Canvas.Style>
                                     <Rectangle Canvas.Left="68" Canvas.Top="44" Width="8" Height="8" Fill="#62C8FF" />
                                     <Rectangle Canvas.Left="128" Canvas.Top="52" Width="6" Height="6" Fill="#3B82B5" />
                                     <Rectangle Canvas.Left="720" Canvas.Top="86" Width="8" Height="8" Fill="#62C8FF" />
@@ -977,7 +1022,37 @@
                                     <Rectangle Canvas.Left="704" Canvas.Top="438" Width="8" Height="8" Fill="#62C8FF" />
                                 </Canvas>
 
+                                <Border Canvas.Left="174" Canvas.Top="148" Width="452" Height="116"
+                                        BorderBrush="#24516F" BorderThickness="2" CornerRadius="0" Opacity="0.72">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Opacity" Value="0.55" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
+                                                    <DataTrigger.EnterActions>
+                                                        <BeginStoryboard x:Name="TitleFrameAnimation">
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                 From="0.38" To="0.9" Duration="0:0:2"
+                                                                                 AutoReverse="True" RepeatBehavior="Forever" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.EnterActions>
+                                                    <DataTrigger.ExitActions>
+                                                        <RemoveStoryboard BeginStoryboardName="TitleFrameAnimation" />
+                                                    </DataTrigger.ExitActions>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                </Border>
+                                <Rectangle Canvas.Left="166" Canvas.Top="140" Width="24" Height="6" Fill="#42A5F5" />
+                                <Rectangle Canvas.Left="610" Canvas.Top="266" Width="24" Height="6" Fill="#42A5F5" />
+
                                 <!-- Block title assembled from square pixel runs. -->
+                                <Canvas Canvas.Left="203" Canvas.Top="179" Opacity="0.32">
+                                    <Path Fill="#087AC1" Data="M0,0 H40 V10 H50 V60 H40 V70 H0 Z M10,10 V60 H35 V50 H40 V20 H35 V10 Z M68,0 H78 V55 H88 V60 H108 V55 H118 V0 H128 V58 H118 V68 H108 V70 H88 V68 H78 V58 H68 Z M146,10 H156 V0 H196 V10 H206 V20 H196 V10 H156 V60 H196 V50 H206 V60 H196 V70 H156 V60 H146 Z M224,10 H234 V0 H274 V10 H284 V60 H274 V70 H234 V60 H224 Z M234,10 V60 H274 V10 Z M302,0 H312 V10 H322 V20 H332 V10 H342 V0 H352 V70 H342 V25 H332 V35 H322 V25 H312 V70 H302 Z" />
+                                </Canvas>
                                 <Canvas Canvas.Left="198" Canvas.Top="174">
                                     <Path Fill="#F4F8FC" Data="M0,0 H40 V10 H50 V60 H40 V70 H0 Z M10,10 V60 H35 V50 H40 V20 H35 V10 Z M68,0 H78 V55 H88 V60 H108 V55 H118 V0 H128 V58 H118 V68 H108 V70 H88 V68 H78 V58 H68 Z" />
                                     <Path Fill="#42A5F5" Data="M146,10 H156 V0 H196 V10 H206 V20 H196 V10 H156 V60 H196 V50 H206 V60 H196 V70 H156 V60 H146 Z M224,10 H234 V0 H274 V10 H284 V60 H274 V70 H234 V60 H224 Z M234,10 V60 H274 V10 Z M302,0 H312 V10 H322 V20 H332 V10 H342 V0 H352 V70 H342 V25 H332 V35 H322 V25 H312 V70 H302 Z" />
@@ -997,19 +1072,148 @@
                                     </StackPanel>
                                 </Grid>
 
+                                <!-- Pixel equalizers stay inside the foreground safe area. -->
+                                <StackPanel Canvas.Left="70" Canvas.Top="196" Height="96" VerticalAlignment="Bottom" Orientation="Horizontal">
+                                    <Rectangle Width="8" Height="26" Margin="0,0,6,0" VerticalAlignment="Bottom" Fill="#22506E" />
+                                    <Rectangle Width="8" Height="54" Margin="0,0,6,0" VerticalAlignment="Bottom" Fill="#2D739D" />
+                                    <Rectangle Width="8" Height="34" Margin="0,0,6,0" VerticalAlignment="Bottom" Fill="#42A5F5" />
+                                    <Rectangle Width="8" Height="70" VerticalAlignment="Bottom" Fill="#90CAF9">
+                                        <Rectangle.Style>
+                                            <Style TargetType="Rectangle">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
+                                                        <DataTrigger.EnterActions>
+                                                            <BeginStoryboard x:Name="LeftMeterAnimation">
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetProperty="Height" From="18" To="82" Duration="0:0:0.8" AutoReverse="True" RepeatBehavior="Forever" />
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </DataTrigger.EnterActions>
+                                                        <DataTrigger.ExitActions><RemoveStoryboard BeginStoryboardName="LeftMeterAnimation" /></DataTrigger.ExitActions>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Rectangle.Style>
+                                    </Rectangle>
+                                </StackPanel>
+                                <StackPanel Canvas.Left="684" Canvas.Top="196" Height="96" VerticalAlignment="Bottom" Orientation="Horizontal">
+                                    <Rectangle Width="8" Height="64" Margin="0,0,6,0" VerticalAlignment="Bottom" Fill="#90CAF9">
+                                        <Rectangle.Style>
+                                            <Style TargetType="Rectangle">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
+                                                        <DataTrigger.EnterActions>
+                                                            <BeginStoryboard x:Name="RightMeterAnimation">
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetProperty="Height" From="76" To="16" BeginTime="0:0:0.2" Duration="0:0:0.9" AutoReverse="True" RepeatBehavior="Forever" />
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </DataTrigger.EnterActions>
+                                                        <DataTrigger.ExitActions><RemoveStoryboard BeginStoryboardName="RightMeterAnimation" /></DataTrigger.ExitActions>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Rectangle.Style>
+                                    </Rectangle>
+                                    <Rectangle Width="8" Height="30" Margin="0,0,6,0" VerticalAlignment="Bottom" Fill="#42A5F5" />
+                                    <Rectangle Width="8" Height="50" Margin="0,0,6,0" VerticalAlignment="Bottom" Fill="#2D739D" />
+                                    <Rectangle Width="8" Height="22" VerticalAlignment="Bottom" Fill="#22506E" />
+                                </StackPanel>
+
                                 <!-- Stepped serial data stream. -->
-                                <Canvas x:Name="PixelSignal" Canvas.Top="340" Opacity="0.72">
+                                <Canvas Canvas.Top="340">
+                                    <Canvas.Style>
+                                        <Style TargetType="Canvas">
+                                            <Setter Property="Opacity" Value="0.72" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
+                                                    <DataTrigger.EnterActions>
+                                                        <BeginStoryboard x:Name="PixelSignalAnimation">
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                 From="0.35" To="1" Duration="0:0:1.6"
+                                                                                 AutoReverse="True" RepeatBehavior="Forever" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </DataTrigger.EnterActions>
+                                                    <DataTrigger.ExitActions>
+                                                        <RemoveStoryboard BeginStoryboardName="PixelSignalAnimation" />
+                                                    </DataTrigger.ExitActions>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Canvas.Style>
                                     <Path Data="M40,56 H96 V48 H136 V64 H184 V40 H232 V52 H280 V24 H328 V48 H376 V36 H424 V60 H472 V44 H520 V20 H568 V52 H616 V40 H664 V56 H760"
                                           Stroke="#42A5F5" StrokeThickness="6" StrokeLineJoin="Miter" />
                                     <Path Data="M40,70 H118 V66 H174 V74 H246 V64 H316 V72 H392 V62 H452 V70 H540 V60 H608 V68 H682 V62 H760"
                                           Stroke="#234E6B" StrokeThickness="4" Opacity="0.75" />
                                     <Rectangle Canvas.Left="274" Canvas.Top="18" Width="12" Height="12" Fill="#90CAF9" />
                                     <Rectangle Canvas.Left="514" Canvas.Top="14" Width="12" Height="12" Fill="#90CAF9" />
+                                    <Rectangle Canvas.Left="40" Canvas.Top="49" Width="18" Height="18" Fill="#E3F5FF">
+                                        <Rectangle.Style>
+                                            <Style TargetType="Rectangle">
+                                                <Setter Property="Opacity" Value="0.85" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
+                                                        <DataTrigger.EnterActions>
+                                                            <BeginStoryboard x:Name="DataPacketOneAnimation">
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetProperty="(Canvas.Left)" From="40" To="742" Duration="0:0:3.2" RepeatBehavior="Forever" />
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </DataTrigger.EnterActions>
+                                                        <DataTrigger.ExitActions><RemoveStoryboard BeginStoryboardName="DataPacketOneAnimation" /></DataTrigger.ExitActions>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Rectangle.Style>
+                                    </Rectangle>
+                                    <Rectangle Canvas.Left="40" Canvas.Top="65" Width="12" Height="12" Fill="#42A5F5">
+                                        <Rectangle.Style>
+                                            <Style TargetType="Rectangle">
+                                                <Setter Property="Opacity" Value="0.75" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
+                                                        <DataTrigger.EnterActions>
+                                                            <BeginStoryboard x:Name="DataPacketTwoAnimation">
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetProperty="(Canvas.Left)" From="40" To="748" BeginTime="0:0:1.1" Duration="0:0:4.1" RepeatBehavior="Forever" />
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </DataTrigger.EnterActions>
+                                                        <DataTrigger.ExitActions><RemoveStoryboard BeginStoryboardName="DataPacketTwoAnimation" /></DataTrigger.ExitActions>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Rectangle.Style>
+                                    </Rectangle>
                                 </Canvas>
 
                                 <StackPanel Canvas.Left="40" Canvas.Top="458" Orientation="Horizontal">
                                     <TextBlock FontFamily="Consolas" FontSize="11" Foreground="#486176" Text="SYS://SERIAL_LINK" />
-                                    <Rectangle x:Name="PixelCursor" Width="8" Height="12" Margin="8,0,0,0" Fill="#42A5F5" />
+                                    <Rectangle Width="8" Height="12" Margin="8,0,0,0" Fill="#42A5F5">
+                                        <Rectangle.Style>
+                                            <Style TargetType="Rectangle">
+                                                <Setter Property="Opacity" Value="1" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
+                                                        <DataTrigger.EnterActions>
+                                                            <BeginStoryboard x:Name="PixelCursorAnimation">
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                                     From="0" To="1" Duration="0:0:0.55"
+                                                                                     AutoReverse="True" RepeatBehavior="Forever" />
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </DataTrigger.EnterActions>
+                                                        <DataTrigger.ExitActions>
+                                                            <RemoveStoryboard BeginStoryboardName="PixelCursorAnimation" />
+                                                        </DataTrigger.ExitActions>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Rectangle.Style>
+                                    </Rectangle>
                                 </StackPanel>
                                 <TextBlock Canvas.Right="40" Canvas.Top="458" FontFamily="Consolas" FontSize="11" Foreground="#486176" Text="READY  8N1  TX/RX" />
                             </Canvas>

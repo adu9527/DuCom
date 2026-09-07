@@ -7,7 +7,8 @@ public sealed record GitHubReleaseAsset(
     [property: JsonPropertyName("browser_download_url")] string BrowserDownloadUrl,
     [property: JsonPropertyName("size")] long Size,
     [property: JsonPropertyName("state")] string? State = null,
-    [property: JsonPropertyName("content_type")] string? ContentType = null);
+    [property: JsonPropertyName("content_type")] string? ContentType = null,
+    [property: JsonPropertyName("digest")] string? Digest = null);
 
 public sealed record GitHubRelease(
     [property: JsonPropertyName("tag_name")] string TagName,

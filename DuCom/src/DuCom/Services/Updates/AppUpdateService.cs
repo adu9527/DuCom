@@ -64,6 +64,9 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
 
     public bool UsesVelopack => _updateManager is { IsInstalled: true };
 
+    /// <summary>True when the portable channel has a backed-up executable ready to restore.</summary>
+    public bool CanRollbackPortable => _updateManager is not { IsInstalled: true } && _stager.HasRollbackBackup;
+
     public bool HasPendingUpdate => _updateInfo is not null || _latestRelease is not null;
 
     private AppUpdateService()
@@ -80,10 +83,25 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
         }
 
         _updateManager = manager;
+        foreach (string marker in _stager.ConsumeApplyMarkers())
+        {
+            Program.DiagnosticLog?.Warning($"Previous update apply did not complete ({marker}). The staged package is kept for retry.");
+        }
+
         if (_stager.HasStagedPackage)
         {
-            Phase = UpdatePhase.ReadyToInstall;
-            LatestVersionTag = ReadStagedPackageVersion() ?? string.Empty;
+            Version? stagedVersion = UpdateVersion.TryParse(ReadStagedPackageVersion());
+            if (stagedVersion is not null && stagedVersion <= _currentVersion)
+            {
+                // The staged package is not newer than what is already running (for example
+                // the user updated through the installer meanwhile); it is stale, drop it.
+                _stager.DiscardStagedPackage();
+            }
+            else
+            {
+                Phase = UpdatePhase.ReadyToInstall;
+                LatestVersionTag = ReadStagedPackageVersion() ?? string.Empty;
+            }
         }
     }
 
@@ -195,15 +213,12 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
                     IsDownloadProgressIndeterminate = totalBytes <= 0;
                     DownloadProgress = totalBytes > 0 ? Math.Clamp(received / (double)totalBytes, 0d, 1d) : 0d;
                 })), cancellationToken).ConfigureAwait(true);
-                File.WriteAllText(Path.Combine(_stager.StagingDirectory, "staged-version.txt"), LatestVersionTag);
+                _stager.WriteStagedVersionMarker(LatestVersionTag);
             }
 
+            // Both channels stop at ReadyToInstall and ask the user before restarting:
+            // a serial tool must never be killed mid-transfer by a silent self-update.
             Phase = UpdatePhase.ReadyToInstall;
-            if (_updateManager is { IsInstalled: true })
-            {
-                // Installed builds update fully automatically: apply and restart right away.
-                ApplyAndRestart();
-            }
         }
         catch (OperationCanceledException)
         {
@@ -218,6 +233,45 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Drops the staged portable package when a newer release has been published since it
+    /// was downloaded, so the user can never install a version older than the latest one.
+    /// Network failures keep the staged package (fail-soft).
+    /// </summary>
+    public async Task ValidateStagedPackageAsync(CancellationToken cancellationToken = default)
+    {
+        if (Phase != UpdatePhase.ReadyToInstall || _updateManager is { IsInstalled: true })
+        {
+            return;
+        }
+
+        Version? stagedVersion = UpdateVersion.TryParse(ReadStagedPackageVersion());
+        if (stagedVersion is null)
+        {
+            return;
+        }
+
+        try
+        {
+            GitHubRelease? latest = await _releaseClient.GetLatestReleaseAsync(cancellationToken).ConfigureAwait(true);
+            Version? latestVersion = latest is null ? null : UpdateVersion.TryParse(latest.TagName);
+            if (latestVersion is not null && latestVersion > stagedVersion)
+            {
+                _stager.DiscardStagedPackage();
+                Phase = UpdatePhase.Idle;
+                Program.DiagnosticLog?.Information($"Discarded staged update {UpdateVersion.ToDisplayString(stagedVersion)} because {UpdateVersion.ToDisplayString(latestVersion)} is available.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Warning($"Staged-update validation failed. {exception.Message}");
+        }
+    }
+
     public void ApplyAndRestart()
     {
         if (Phase != UpdatePhase.ReadyToInstall)
@@ -225,6 +279,7 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
             return;
         }
 
+        BackupUserDataBeforeUpdate();
         if (_updateManager is { IsInstalled: true } manager)
         {
             manager.ApplyUpdatesAndRestart(_updateInfo!.TargetFullRelease, []);
@@ -233,6 +288,53 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
 
         _stager.ApplyStagedUpdate();
         System.Windows.Application.Current.Shutdown();
+    }
+
+    /// <summary>
+    /// Restores the portable executable backed up by the last update and restarts. The
+    /// user confirms through the UI before this is called (UpdateViewModel.RollbackAndRestart).
+    /// </summary>
+    public void RollbackToBackupAndRestart()
+    {
+        if (!CanRollbackPortable)
+        {
+            return;
+        }
+
+        BackupUserDataBeforeUpdate();
+        try
+        {
+            _stager.ApplyRollback();
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Warning($"Portable rollback failed. {exception.Message}");
+            LastError = exception.Message;
+            return;
+        }
+
+        // Any staged update is now obsolete relative to the rolled-back executable.
+        _stager.DiscardStagedPackage();
+        Phase = UpdatePhase.Idle;
+        System.Windows.Application.Current.Shutdown();
+    }
+
+    /// <summary>
+    /// Updates are the moment persisted-data formats change most often, so a user-data
+    /// backup is forced right before the swap. A failed backup does not block the update:
+    /// the swap itself never touches the user-data directory.
+    /// </summary>
+    private static void BackupUserDataBeforeUpdate()
+    {
+        try
+        {
+            string path = UserDataBackupService.CreateBackup();
+            Program.DiagnosticLog?.Information($"Pre-update user-data backup created. Path={path}");
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Warning("Pre-update user-data backup failed; applying the update anyway.", exception);
+        }
     }
 
     public void SkipCurrentVersion()
@@ -247,7 +349,7 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
     {
         try
         {
-            string marker = Path.Combine(_stager.StagingDirectory, "staged-version.txt");
+            string marker = _stager.StagedVersionMarkerPath;
             return File.Exists(marker) ? File.ReadAllText(marker).Trim() : null;
         }
         catch

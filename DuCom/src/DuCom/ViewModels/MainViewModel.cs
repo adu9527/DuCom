@@ -18,6 +18,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DuCom.Core.Ports;
 using DuCom.Core.Parsing;
+using DuCom.Core.Persistence;
 using DuCom.Core.Sending;
 using DuCom.Core.Diagnostics;
 using DuCom.Services;
@@ -2385,10 +2386,26 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             return;
         }
 
-        ConfigurationSnapshot? snapshot = JsonSerializer.Deserialize<ConfigurationSnapshot>(File.ReadAllText(dialog.FileName), ConfigurationJsonOptions);
-        if (snapshot is not null)
+        try
         {
-            ApplyConfiguration(snapshot);
+            string json = File.ReadAllText(dialog.FileName);
+            if (TolerantJsonLoader.TryLoad<ConfigurationSnapshot>(json, ConfigurationJsonOptions, out ConfigurationSnapshot? snapshot, out IReadOnlyList<string> skipped))
+            {
+                if (skipped.Count > 0)
+                {
+                    Program.DiagnosticLog?.Warning($"Import skipped {skipped.Count} unreadable settings field(s): {string.Join(", ", skipped)}");
+                }
+
+                ApplyConfiguration(snapshot!);
+            }
+            else
+            {
+                Program.DiagnosticLog?.Warning($"Failed to import settings from {dialog.FileName}.");
+            }
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Warning($"Failed to import settings from {dialog.FileName}.", exception);
         }
     }
 
@@ -2897,7 +2914,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         SkippedUpdateVersion,
         ShowMemoryMonitor,
         Math.Clamp(MemoryRefreshInterval, 1, 60),
-        Math.Clamp(SystemMemoryRefreshInterval, 1, 60));
+        Math.Clamp(SystemMemoryRefreshInterval, 1, 60),
+        CurrentSettingsSchemaVersion);
 
     private void ApplyConfiguration(ConfigurationSnapshot snapshot)
     {
@@ -3063,9 +3081,19 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private void LoadSettings()
     {
-        ConfigurationSnapshot? snapshot = AppSettingsService.Load<ConfigurationSnapshot>();
+        ConfigurationSnapshot? snapshot = AppSettingsService.LoadWithReport<ConfigurationSnapshot>(out IReadOnlyList<string> skippedFields);
         if (snapshot is not null)
         {
+            if (snapshot.SchemaVersion > CurrentSettingsSchemaVersion)
+            {
+                Program.DiagnosticLog?.Warning($"Settings were written by a newer DuCom (schema {snapshot.SchemaVersion} > {CurrentSettingsSchemaVersion}); unreadable values fall back to defaults.");
+            }
+
+            if (skippedFields.Count > 0)
+            {
+                Program.DiagnosticLog?.Warning($"Skipped {skippedFields.Count} unreadable settings field(s): {string.Join(", ", skippedFields)}");
+            }
+
             ApplyConfiguration(snapshot);
             Program.DiagnosticLog?.Information($"Loaded settings from {AppSettingsService.SettingsFilePath}.");
         }
@@ -3192,6 +3220,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>Settings schema version this build writes and understands; bump when persisted fields change shape.</summary>
+    internal const int CurrentSettingsSchemaVersion = 1;
+
     private sealed record ConfigurationSnapshot(
         int BaudRate,
         int DataBits,
@@ -3269,7 +3300,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         string? SkippedUpdateVersion = null,
         bool ShowMemoryMonitor = true,
         int MemoryRefreshInterval = 2,
-        int SystemMemoryRefreshInterval = 5);
+        int SystemMemoryRefreshInterval = 5,
+        int SchemaVersion = CurrentSettingsSchemaVersion);
 
     private static string[] NormalizePortNames(IEnumerable<string>? portNames) => [.. (portNames ?? [])
         .Where(name => !string.IsNullOrWhiteSpace(name))

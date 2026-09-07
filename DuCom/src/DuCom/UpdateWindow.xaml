@@ -109,6 +109,11 @@
             </TextBlock>
             <Button MinWidth="96"
                     Margin="20,0,0,0"
+                    Command="{Binding RollbackAndRestartCommand}"
+                    Content="{DynamicResource Update.Rollback}"
+                    Visibility="{Binding CanRollback, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <Button MinWidth="96"
+                    Margin="12,0,0,0"
                     Command="{Binding CheckCommand}"
                     Content="{DynamicResource Update.Check}"
                     IsEnabled="{Binding CanCheck}" />

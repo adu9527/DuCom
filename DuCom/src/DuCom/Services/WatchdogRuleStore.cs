@@ -25,7 +25,18 @@ public static class WatchdogRuleStore
         try
         {
             string json = File.ReadAllText(FilePath);
-            return JsonSerializer.Deserialize<List<WatchdogRule>>(json, JsonOptions) ?? [];
+            if (TolerantJsonLoader.TryLoadList<WatchdogRule>(json, JsonOptions, out List<WatchdogRule> rules, out IReadOnlyList<int> skipped))
+            {
+                if (skipped.Count > 0)
+                {
+                    Program.DiagnosticLog?.Warning($"Skipped {skipped.Count} unreadable watchdog rule(s) at index {string.Join(", ", skipped)}.");
+                }
+
+                return rules;
+            }
+
+            Program.DiagnosticLog?.Warning($"Failed to load watchdog rules from {FilePath}.");
+            return [];
         }
         catch (Exception exception)
         {

@@ -22,7 +22,9 @@ public static class Com0ComPreferencesService
                 return string.Empty;
             }
 
-            return JsonSerializer.Deserialize<Com0ComPreferences>(File.ReadAllText(FilePath))?.SetupcPath ?? string.Empty;
+            return TolerantJsonLoader.TryLoad<Com0ComPreferences>(File.ReadAllText(FilePath), JsonOptions, out Com0ComPreferences? preferences, out _) && preferences is not null
+                ? preferences.SetupcPath
+                : string.Empty;
         }
         catch (Exception exception)
         {

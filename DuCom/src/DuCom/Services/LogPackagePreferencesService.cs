@@ -29,8 +29,13 @@ internal static class LogPackagePreferencesService
     {
         try
         {
-            return File.Exists(FilePath)
-                ? JsonSerializer.Deserialize<LogPackagePreferences>(File.ReadAllText(FilePath), JsonOptions) ?? new()
+            if (!File.Exists(FilePath))
+            {
+                return new();
+            }
+
+            return TolerantJsonLoader.TryLoad<LogPackagePreferences>(File.ReadAllText(FilePath), JsonOptions, out LogPackagePreferences? preferences, out _) && preferences is not null
+                ? preferences
                 : new();
         }
         catch (Exception exception)

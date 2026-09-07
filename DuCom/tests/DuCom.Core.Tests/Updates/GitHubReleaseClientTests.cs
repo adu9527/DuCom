@@ -44,7 +44,7 @@ public sealed class GitHubReleaseClientTests
           "draft": false,
           "prerelease": false,
           "assets": [
-            { "name": "DuCom.exe", "browser_download_url": "https://example.com/DuCom.exe", "size": 12345 }
+            { "name": "DuCom.exe", "browser_download_url": "https://example.com/DuCom.exe", "size": 12345, "digest": "sha256:5d41a5f04e63b0c3d1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1" }
           ]
         }
         """;
@@ -60,6 +60,7 @@ public sealed class GitHubReleaseClientTests
         GitHubReleaseAsset asset = Assert.Single(release.Assets);
         Assert.Equal("DuCom.exe", asset.Name);
         Assert.Equal(12345, asset.Size);
+        Assert.StartsWith("sha256:", asset.Digest);
     }
 
     [Fact]

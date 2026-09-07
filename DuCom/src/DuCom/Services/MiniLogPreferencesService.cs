@@ -78,19 +78,14 @@ public static class MiniLogPreferencesService
             return new(StringComparer.OrdinalIgnoreCase);
         }
 
-        try
+        if (TolerantJsonLoader.TryLoadDictionary<MiniLogPreferences>(File.ReadAllText(FilePath), new(), out Dictionary<string, MiniLogPreferences> stored, out _))
         {
-            Dictionary<string, MiniLogPreferences>? stored =
-                JsonSerializer.Deserialize<Dictionary<string, MiniLogPreferences>>(File.ReadAllText(FilePath));
-            return stored is null
-                ? new(StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, MiniLogPreferences>(stored, StringComparer.OrdinalIgnoreCase);
+            return new(stored, StringComparer.OrdinalIgnoreCase);
         }
-        catch (JsonException)
-        {
-            // Saving the first per-port entry upgrades the previous global format.
-            return new(StringComparer.OrdinalIgnoreCase);
-        }
+
+        // Not a readable per-port dictionary: saving the first per-port entry upgrades the
+        // previous global format.
+        return new(StringComparer.OrdinalIgnoreCase);
     }
 }
 
@@ -139,7 +134,9 @@ public static class FloatSendGlobalPreferencesService
                     return new();
                 }
 
-                return JsonSerializer.Deserialize<FloatSendGlobalPreferences>(json) ?? new();
+                return TolerantJsonLoader.TryLoad<FloatSendGlobalPreferences>(json, JsonOptions, out FloatSendGlobalPreferences? preferences, out _) && preferences is not null
+                    ? preferences
+                    : new();
             }
         }
         catch (Exception exception)

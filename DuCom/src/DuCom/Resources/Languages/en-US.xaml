@@ -276,6 +276,8 @@
     <system:String x:Key="Update.Check">Check for updates</system:String>
     <system:String x:Key="Update.Download">Download update</system:String>
     <system:String x:Key="Update.ApplyAndRestart">Replace and restart</system:String>
+    <system:String x:Key="Update.Rollback">Roll back to previous version</system:String>
+    <system:String x:Key="Update.Rollback.Confirmation">Roll back to the previous version? The current executable is kept as .pre-rollback.bak and the app restarts.</system:String>
     <system:String x:Key="Update.SkipVersion">Skip this version</system:String>
     <system:String x:Key="Update.Close">Close</system:String>
     <system:String x:Key="Update.OpenReleasePage">Open release page</system:String>
