@@ -87,6 +87,12 @@ public partial class App : Application, IDisposable
         {
             Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => RunEditorSmokeTest(MainWindow));
         }
+        else
+        {
+            Dispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                () => _ = Services.Updates.UpdateFlow.RunAutomaticCheckAsync());
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)

@@ -108,6 +108,17 @@
                                 </Border>
                                 <Border Style="{DynamicResource Style.SettingsCard}">
                                     <StackPanel>
+                                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.Update}" />
+                                        <CheckBox Content="{DynamicResource Settings.AutoCheckUpdates}" IsChecked="{Binding AutoCheckUpdates}" />
+                                        <TextBlock Margin="0,6,0,0" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Settings.AutoCheckUpdates.Description}" TextWrapping="Wrap" />
+                                        <Button Margin="0,12,0,0"
+                                                HorizontalAlignment="Left"
+                                                Command="{Binding CheckForUpdatesCommand}"
+                                                Content="{DynamicResource Settings.CheckForUpdates}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                    <StackPanel>
                                         <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.PrivateMemoryMonitor}" />
                                         <TextBlock Margin="0,6,0,12" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Settings.PrivateMemoryMonitor.Description}" TextWrapping="Wrap" />
                                         <CheckBox x:Name="PrivateMemoryMonitorCheckBox" Content="{DynamicResource Settings.PrivateMemoryMonitor.Enabled}" IsChecked="{Binding PrivateMemoryMonitorEnabled}" />

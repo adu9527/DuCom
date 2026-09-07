@@ -117,6 +117,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         LoadMonitorRules();
         LoadShortcuts();
         LoadSettings();
+        Services.Updates.AppUpdateService.Instance.AttachSettings(
+            () => SkippedUpdateVersion,
+            value => SkippedUpdateVersion = value);
         PluginManager = new PluginManagerViewModel(this);
         LoadHighlightFilterRules();
         SendHistoryFileService.LoadInto(_sendHistory);
@@ -652,6 +655,11 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     [ObservableProperty]
     public partial bool CloseToTaskbar { get; set; }
+
+    [ObservableProperty]
+    public partial bool AutoCheckUpdates { get; set; } = true;
+
+    public string? SkippedUpdateVersion { get; set; }
 
     [ObservableProperty]
     public partial int NewBaudRate { get; set; }
@@ -1538,6 +1546,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             AutoBackupPeriodDays = 7;
             PreventSleep = false;
             CloseToTaskbar = false;
+            AutoCheckUpdates = true;
+            SkippedUpdateVersion = null;
             SearchOpacity = 1d;
             DefaultNewline = NewlinePolicy.None;
             IsSidebarVisible = true;
@@ -1829,7 +1839,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             values?.FilterEnabled ?? true,
             values?.SendMode ?? DefaultSendMode,
             values?.Newline ?? DefaultNewline,
-            values?.HighlightRuleProjectId ?? HighlightRuleProjects.FirstOrDefault()?.Id);
+            values is { HighlightRuleChoiceMade: true } ? values.HighlightRuleProjectId
+                : values?.HighlightRuleProjectId ?? HighlightRuleProjects.FirstOrDefault()?.Id);
     }
 
     private async Task<SessionViewModel> RebuildClosedSessionAsync(SessionViewModel session)
@@ -1874,6 +1885,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase));
         SerialPortSettings? settings = session?.WorkspaceSession.Settings;
         _portOverrides.TryGetValue(portName, out PortSettingSnapshot? previous);
+        Guid? highlightProjectId = session?.HighlightRuleProjectId ?? previous?.HighlightRuleProjectId;
         _portOverrides[portName] = new PortSettingSnapshot(
             settings?.BaudRate ?? previous?.BaudRate ?? BaudRate,
             settings?.DataBits ?? previous?.DataBits ?? DataBits,
@@ -1898,7 +1910,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             SendPrefix,
             session?.FollowEnd ?? previous?.FollowEnd,
             session?.FilterEnabled ?? previous?.FilterEnabled,
-            AutoReconnect: session?.AutoReconnect ?? previous?.AutoReconnect);
+            AutoReconnect: session?.AutoReconnect ?? previous?.AutoReconnect,
+            HighlightRuleProjectId: highlightProjectId,
+            HighlightRuleChoiceMade: highlightProjectId is null &&
+                (session is not null || previous?.HighlightRuleChoiceMade == true));
         MarkSettingsDirty();
     }
 
@@ -1957,6 +1972,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private void RememberPortOverride(string portName, SerialPortSettings settings)
     {
+        _portOverrides.TryGetValue(portName, out PortSettingSnapshot? previous);
         _portOverrides[portName] = new PortSettingSnapshot(
             settings.BaudRate,
             settings.DataBits,
@@ -1981,7 +1997,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             SendPrefix,
             FollowEnd: Sessions.FirstOrDefault(item => string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase))?.FollowEnd,
             FilterEnabled: Sessions.FirstOrDefault(item => string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase))?.FilterEnabled,
-            AutoReconnect: Sessions.FirstOrDefault(item => string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase))?.AutoReconnect);
+            AutoReconnect: Sessions.FirstOrDefault(item => string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase))?.AutoReconnect,
+            HighlightRuleProjectId: previous?.HighlightRuleProjectId,
+            HighlightRuleChoiceMade: previous?.HighlightRuleChoiceMade ?? false);
         MarkSettingsDirty();
     }
 
@@ -2255,6 +2273,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         AboutWindow window = new() { Owner = Application.Current.MainWindow };
         window.ShowDialog();
+    }
+
+    [RelayCommand]
+    private static void CheckForUpdates()
+    {
+        Services.Updates.UpdateFlow.EnsureDownloadPromptSubscription();
+        UpdateWindow.Show(Application.Current.MainWindow);
     }
 
     [RelayCommand]
@@ -2720,7 +2745,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         SelectedSession is { IsOpen: true, IsInRightPane: false } ? SelectedSession.PortName : null,
         SelectedRightSession is { IsOpen: true, IsInRightPane: true } ? SelectedRightSession.PortName : null,
         LogPackageOutputDirectory,
-        LogPackagePluginEnabled);
+        LogPackagePluginEnabled,
+        AutoCheckUpdates,
+        SkippedUpdateVersion);
 
     private void ApplyConfiguration(ConfigurationSnapshot snapshot)
     {
@@ -2803,6 +2830,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             TelnetUsername = snapshot.TelnetUsername ?? string.Empty;
             LogPackageOutputDirectory = snapshot.LogPackageOutputDirectory ?? string.Empty;
             LogPackagePluginEnabled = snapshot.LogPackagePluginEnabled;
+            AutoCheckUpdates = snapshot.AutoCheckUpdates;
+            SkippedUpdateVersion = snapshot.SkippedUpdateVersion;
             if (!string.IsNullOrWhiteSpace(snapshot.Language))
             {
                 ((App)Application.Current).ApplyLanguage(snapshot.Language);
@@ -2869,7 +2898,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
                 FollowEnd: session.FollowEnd,
                 FilterEnabled: session.FilterEnabled,
                 AutoReconnect: session.AutoReconnect,
-                HighlightRuleProjectId: session.HighlightRuleProjectId);
+                HighlightRuleProjectId: session.HighlightRuleProjectId,
+                HighlightRuleChoiceMade: session.HighlightRuleProjectId is null);
         }
 
         return result;
@@ -3075,7 +3105,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         string? SelectedSessionPort = null,
         string? SelectedRightSessionPort = null,
         string? LogPackageOutputDirectory = null,
-        bool LogPackagePluginEnabled = true);
+        bool LogPackagePluginEnabled = true,
+        bool AutoCheckUpdates = true,
+        string? SkippedUpdateVersion = null);
 
     private static string[] NormalizePortNames(IEnumerable<string>? portNames) => [.. (portNames ?? [])
         .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -3109,7 +3141,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         bool? FollowEnd = null,
         bool? FilterEnabled = null,
         bool? AutoReconnect = null,
-        Guid? HighlightRuleProjectId = null);
+        Guid? HighlightRuleProjectId = null,
+        bool HighlightRuleChoiceMade = false);
 
     private sealed record PortSessionPreferences(
         ReceiveDisplayMode ReceiveMode,
@@ -3590,6 +3623,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         SystemPowerService.SetPreventSleep(value);
     }
     partial void OnCloseToTaskbarChanged(bool value) => MarkSettingsDirty();
+
+    partial void OnAutoCheckUpdatesChanged(bool value) => MarkSettingsDirty();
 
     partial void OnWordWrapChanged(bool value) => MarkSettingsDirty();
 

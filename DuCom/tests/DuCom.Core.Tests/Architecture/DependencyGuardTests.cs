@@ -63,6 +63,7 @@ public sealed class DependencyGuardTests
     private static readonly string[] ApprovedApplicationSourceLinks =
     [
         "Behaviors\\CoalescedActionGate.cs",
+        "Services\\SerialWarningAggregator.cs",
         "Services\\Shortcuts\\ShortcutModifiers.cs",
         "Services\\Shortcuts\\ShortcutKeyGesture.cs",
         "Services\\Shortcuts\\ShortcutAction.cs",

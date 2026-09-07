@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using DuCom.Core.Diagnostics;
+using Velopack;
 
 namespace DuCom;
 
@@ -13,6 +14,7 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        VelopackApp.Build().Run();
         string logDirectory = Path.Combine(AppContext.BaseDirectory, "Logs", "System_log");
         string logFileName = $"ducom-{DateTime.Now:yyyyMMdd-HHmmss}-{Environment.ProcessId}.log";
         _log = new DiagnosticFileLog(logDirectory, logFileName);

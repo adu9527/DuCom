@@ -72,7 +72,7 @@ public partial class SessionViewModel : ObservableObject, IAsyncDisposable
             HighlightRuleProjects.Add(project);
         }
 
-        HighlightRuleProjectId = HighlightRuleProjects.Any(project => project.Id == highlightRuleProjectId)
+        HighlightRuleProjectId = highlightRuleProjectId is null || HighlightRuleProjects.Any(project => project.Id == highlightRuleProjectId)
             ? highlightRuleProjectId
             : HighlightRuleProjects.FirstOrDefault()?.Id;
         _session.Warning += OnSessionWarning;

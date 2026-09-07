@@ -9,6 +9,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="System.Management" />
+    <PackageReference Include="Velopack" />
     <PackageReference Include="WPF-UI" />
   </ItemGroup>
 
@@ -16,6 +17,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <Version>0.0.0.3</Version>
     <ApplicationIcon>..\..\..\Image\DuCom_256x256.ico</ApplicationIcon>
     <StartupObject>DuCom.Program</StartupObject>
     <DuComBuildDate>$([System.DateTime]::Now.ToString('yyyy-MM-dd'))</DuComBuildDate>

@@ -17,6 +17,12 @@ public partial class AboutWindow : FluentWindow, IDisposable
 
     private void Close_Click(object sender, System.Windows.RoutedEventArgs e) => Close();
 
+    private void CheckUpdates_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        DuCom.Services.Updates.UpdateFlow.EnsureDownloadPromptSubscription();
+        UpdateWindow.Show(this);
+    }
+
     private void GitHub_Click(object sender, System.Windows.RoutedEventArgs e) =>
         Process.Start(new ProcessStartInfo(_viewModel.GitHubUrl) { UseShellExecute = true });
 

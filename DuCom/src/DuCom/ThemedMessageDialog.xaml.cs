@@ -10,6 +10,13 @@ public enum ThemedMessageDialogKind
     Error,
 }
 
+public enum ThemedMessageDialogChoice
+{
+    Primary,
+    Secondary,
+    Dismissed,
+}
+
 public partial class ThemedMessageDialog : FluentWindow
 {
     private ThemedMessageDialog()
@@ -27,6 +34,37 @@ public partial class ThemedMessageDialog : FluentWindow
         dialog.SecondaryButton.Content = GetResourceString(secondaryResourceKey, "No");
         dialog.SecondaryButton.Visibility = Visibility.Visible;
         return dialog.ShowDialog() == true;
+    }
+
+    /// <summary>Shows a two-button dialog that also distinguishes a title-bar dismissal from the secondary button.</summary>
+    public static ThemedMessageDialogChoice ShowChoice(
+        Window? owner,
+        string message,
+        string title,
+        ThemedMessageDialogKind kind,
+        string primaryResourceKey,
+        string? secondaryResourceKey)
+    {
+        ThemedMessageDialog dialog = Create(owner, message, title, kind);
+        dialog.PrimaryButton.Content = GetResourceString(primaryResourceKey, "OK");
+        if (secondaryResourceKey is not null)
+        {
+            dialog.SecondaryButton.Content = GetResourceString(secondaryResourceKey, "No");
+            dialog.SecondaryButton.Visibility = Visibility.Visible;
+        }
+
+        ThemedMessageDialogChoice choice = ThemedMessageDialogChoice.Dismissed;
+        dialog.Closed += OnClosed;
+        dialog.ShowDialog();
+        dialog.Closed -= OnClosed;
+        return choice;
+
+        void OnClosed(object? sender, EventArgs e) => choice = dialog.DialogResult switch
+        {
+            true => ThemedMessageDialogChoice.Primary,
+            false => ThemedMessageDialogChoice.Secondary,
+            _ => ThemedMessageDialogChoice.Dismissed,
+        };
     }
 
     public static void Show(Window? owner, string message, string title, ThemedMessageDialogKind kind)
