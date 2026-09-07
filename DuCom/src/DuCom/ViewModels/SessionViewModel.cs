@@ -637,6 +637,13 @@ public partial class SessionViewModel : ObservableObject, IAsyncDisposable
 
     private void OnSessionWarning(object? sender, SessionWarningEventArgs e)
     {
+        Dispatcher dispatcher = Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+        if (!dispatcher.CheckAccess())
+        {
+            _ = dispatcher.BeginInvoke(() => OnSessionWarning(sender, e), DispatcherPriority.Background);
+            return;
+        }
+
         Warnings.Insert(0, e.Warning);
         while (Warnings.Count > MaximumWarnings)
         {

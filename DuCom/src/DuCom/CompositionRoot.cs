@@ -10,7 +10,8 @@ internal sealed class CompositionRoot : IAsyncDisposable
 
     public CompositionRoot()
     {
-        _mainViewModel = new MainViewModel(
+        MainViewModel? mainViewModel = null;
+        mainViewModel = new MainViewModel(
             new WindowsPortDiscovery(),
             options => new SerialWorkspaceSession(
                 options.PortSettings,
@@ -24,7 +25,9 @@ internal sealed class CompositionRoot : IAsyncDisposable
                 options.LogFileNameFormat,
                 options.SendPrefixEnabled,
                 options.SendPrefix,
-                options.TimestampFormat));
+                options.TimestampFormat,
+                () => Math.Max(1, mainViewModel!.PrivateMemoryThresholdMiB) * 1024L * 1024L));
+        _mainViewModel = mainViewModel;
         PrivateMemoryMonitorService memoryMonitor = new(
             () => _mainViewModel.PrivateMemoryMonitorEnabled,
             () => Math.Max(1, _mainViewModel.PrivateMemoryThresholdMiB),

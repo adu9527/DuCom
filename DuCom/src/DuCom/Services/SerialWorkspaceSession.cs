@@ -11,6 +11,7 @@ namespace DuCom.Services;
 internal sealed class SerialWorkspaceSession : IWorkspaceSession
 {
     private readonly SerialSession _session;
+    private readonly SerialWarningAggregator _warningAggregator;
 
     public SerialWorkspaceSession(
         SerialPortSettings settings,
@@ -24,15 +25,20 @@ internal sealed class SerialWorkspaceSession : IWorkspaceSession
         string logFileNameFormat,
         bool sendPrefixEnabled,
         string sendPrefix,
-        string timestampFormat)
+        string timestampFormat,
+        Func<long> memoryThresholdBytes)
     {
         ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(memoryThresholdBytes);
         SerialPortTransport transport = new(settings);
-        transport.Warning += (_, warning) =>
+        _warningAggregator = new SerialWarningAggregator(memoryThresholdBytes, (warning, count, highMemory) =>
         {
-            Program.DiagnosticLog?.Warning($"Port warning. Port={settings.PortName}; {warning.Warning}");
-            Warning?.Invoke(this, new SessionWarningEventArgs(ResolveWarningText(warning.Warning)));
-        };
+            string countSuffix = count > 1 ? $" x{count}" : string.Empty;
+            string memorySuffix = highMemory ? "; HighMemoryWarningAggregation=True" : string.Empty;
+            Program.DiagnosticLog?.Warning($"Port warning. Port={settings.PortName}; {warning}{countSuffix}{memorySuffix}");
+            Warning?.Invoke(this, new SessionWarningEventArgs($"{ResolveWarningText(warning)}{countSuffix}"));
+        });
+        transport.Warning += (_, warning) => _warningAggregator.Report(warning.Warning);
         _session = new SerialSession(
             transport,
             settings,
@@ -81,7 +87,11 @@ internal sealed class SerialWorkspaceSession : IWorkspaceSession
 
     public SessionTapHub DisplayTaps => _session.DisplayTaps;
 
-    public ValueTask DisposeAsync() => _session.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        _warningAggregator.Dispose();
+        await _session.DisposeAsync();
+    }
 
     /// <summary>
     /// Maps the stable transport warning keys (for example <c>SerialWarning.Frame</c>) to
