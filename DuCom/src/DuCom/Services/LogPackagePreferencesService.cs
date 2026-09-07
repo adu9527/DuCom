@@ -35,7 +35,7 @@ internal static class LogPackagePreferencesService
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to load log package preferences. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Failed to load log package preferences.", exception);
             return new();
         }
     }
@@ -48,7 +48,7 @@ internal static class LogPackagePreferencesService
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to save log package preferences. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Failed to save log package preferences.", exception);
         }
     }
 }

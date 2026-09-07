@@ -114,7 +114,7 @@ public partial class LogFilterWindow : FluentWindow
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Log filter window flush failed. Port={PortName}; {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Log filter window flush failed. Port={PortName}.", exception);
         }
 
         lock (_pendingGate)
@@ -308,7 +308,7 @@ public partial class LogFilterWindow : FluentWindow
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to save filtered log. Port={PortName}; {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Failed to save filtered log. Port={PortName}.", exception);
             ThemedMessageDialog.Show(
                 this,
                 (string?)TryFindResource("LogFilter.SaveFailed") ?? "Failed to save the filtered log.",

@@ -385,17 +385,7 @@
                     </TabItem>
 
                     <TabItem>
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <StackPanel>
-                                <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.HighlightFilter}" />
-                                <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.HighlightFilter.Description}" />
-                            </StackPanel>
-                            <local:HighlightFilterRulesControl Grid.Row="1" DataContext="{Binding HighlightFilterSettings}" />
-                        </Grid>
+                        <local:HighlightFilterRulesControl DataContext="{Binding HighlightFilterSettings}" />
                     </TabItem>
 
                     <TabItem>
@@ -405,7 +395,10 @@
                                 <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Menu.Tools.Plugins}" />
                                 <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Plugins.Description}" />
                             </StackPanel>
-                            <local:PluginManagerControl Grid.Row="1" DataContext="{Binding PluginManager}" />
+                            <local:PluginManagerControl Grid.Row="1"
+                                                        HorizontalAlignment="Stretch"
+                                                        VerticalAlignment="Stretch"
+                                                        DataContext="{Binding PluginManager}" />
                         </Grid>
                     </TabItem>
 
@@ -493,11 +486,18 @@
                                                 Value="{Binding SearchOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource PercentageValueConverter}}" />
                                         <TextBlock Margin="0,18,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogFontFamily}" />
                                         <ComboBox ItemsSource="{Binding LogFontFamilies}" SelectedItem="{Binding LogFontFamily}" />
-                                        <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.FontPreview}" />
-                                        <Border Padding="12,9" Background="{DynamicResource Brush.LogSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="{DynamicResource Radius.Small}">
-                                            <TextBlock FontFamily="{Binding LogFontFamily}" FontSize="{Binding LogFontSize}" Foreground="{DynamicResource Brush.LogText}" Text="[15:42:18.237] Device boot complete 设备启动完成" />
-                                 </Border>
-                                <Button Margin="0,0,0,12"
+                                         <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.FontPreview}" />
+                                         <Border Padding="12,9" Background="{DynamicResource Brush.LogSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="{DynamicResource Radius.Small}">
+                                             <TextBlock FontFamily="{Binding LogFontFamily}" FontSize="{Binding LogFontSize}" Foreground="{DynamicResource Brush.LogText}" Text="[15:42:18.237] Device boot complete 设备启动完成" />
+                                         </Border>
+                                         <CheckBox Margin="0,18,0,0"
+                                                   Content="{DynamicResource Settings.ShowCoverPage}"
+                                                   IsChecked="{Binding ShowCoverPage}" />
+                                         <CheckBox Margin="0,10,0,0"
+                                                   Content="{DynamicResource Settings.CoverPageAnimation}"
+                                                   IsChecked="{Binding CoverPageAnimationEnabled}"
+                                                   IsEnabled="{Binding ShowCoverPage}" />
+                                 <Button Margin="0,18,0,12"
                                         HorizontalAlignment="Left"
                                         Command="{Binding RestoreAppearanceDefaultsCommand}"
                                         Content="{DynamicResource Settings.RestoreDefaults}" />

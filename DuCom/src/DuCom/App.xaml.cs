@@ -242,7 +242,7 @@ public partial class App : Application, IDisposable
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to read startup theme from settings. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Failed to read startup theme from settings.", exception);
             return "Dark";
         }
     }

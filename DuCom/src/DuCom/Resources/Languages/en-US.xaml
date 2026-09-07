@@ -126,6 +126,9 @@
     <system:String x:Key="Settings.ResetOpacity">Reset opacity</system:String>
     <system:String x:Key="Settings.LogFontFamily">Log font</system:String>
     <system:String x:Key="Settings.FontPreview">Font preview</system:String>
+    <system:String x:Key="Settings.ShowCoverPage">Show cover page</system:String>
+    <system:String x:Key="Settings.CoverPageAnimation">Cover page animation</system:String>
+    <system:String x:Key="Cover.Subtitle">SERIAL COMMUNICATION · DEBUG</system:String>
     <system:String x:Key="Settings.PrivateMemoryMonitor">Private memory warning</system:String>
     <system:String x:Key="Settings.PrivateMemoryMonitor.Description">Periodically checks process private memory independently of the content Watchdog. Start evaluation at 1024 MiB; this warning is disabled by default.</system:String>
     <system:String x:Key="Settings.PrivateMemoryMonitor.Enabled">Enable private memory threshold warning</system:String>
@@ -243,6 +246,7 @@
     <system:String x:Key="Menu.Tools.HighlightFilter">Highlight rules</system:String>
     <system:String x:Key="Menu.Tools.LogFilter">Log filter</system:String>
     <system:String x:Key="Menu.View.FloatSend">Float send</system:String>
+    <system:String x:Key="Menu.View.BottomSend">Show bottom send panel</system:String>
     <system:String x:Key="Menu.Tools.VirtualPort">Virtual port</system:String>
     <system:String x:Key="Menu.Tools.Ascii">ASCII table</system:String>
     <system:String x:Key="Menu.Tools.References">References</system:String>
@@ -302,6 +306,11 @@
     <system:String x:Key="Feedback.CopyGroup">Copy group ID</system:String>
     <system:String x:Key="Feedback.GitHubHint">Use GitHub for reproducible bug reports, feature proposals, code contributions, and release discussions.</system:String>
     <system:String x:Key="Feedback.OpenGitHub">Open GitHub</system:String>
+    <system:String x:Key="Feedback.SystemLog">System log</system:String>
+    <system:String x:Key="Feedback.SystemLogHint">When DuCom crashes or behaves unexpectedly, the system log can help the developer find the cause faster.</system:String>
+    <system:String x:Key="Feedback.SystemLogNote">You can send this log to the developer.</system:String>
+    <system:String x:Key="Feedback.ViewSystemLog">View system log</system:String>
+    <system:String x:Key="Feedback.SystemLogUnavailable">The system log could not be created for this run. Check whether the application directory is writable.</system:String>
     <system:String x:Key="Tools.Title">Tool center</system:String>
     <system:String x:Key="Tools.Action">Action</system:String>
     <system:String x:Key="Tools.Name">Name</system:String>
@@ -409,6 +418,13 @@
     <system:String x:Key="Tools.PrivateMemoryMonitor.Running">Running · current {0} MiB / threshold {1} MiB</system:String>
     <system:String x:Key="Tools.PrivateMemoryMonitor.Exceeded">Threshold exceeded · current {0} MiB / threshold {1} MiB</system:String>
     <system:String x:Key="Tools.PrivateMemoryMonitor.Warning">Explicit warning only. The process remains running; inspect the diagnostic log and runtime metrics.</system:String>
+    <system:String x:Key="Tools.TitleBarMemoryMonitor.Title">Title bar memory monitor</system:String>
+    <system:String x:Key="Tools.TitleBarMemoryMonitor.Show">Show memory monitor in the title bar</system:String>
+    <system:String x:Key="Tools.TitleBarMemoryMonitor.ProcessInterval">Process memory refresh interval</system:String>
+    <system:String x:Key="Tools.TitleBarMemoryMonitor.SystemInterval">System memory refresh interval</system:String>
+    <system:String x:Key="MemoryMonitor.ProcessTooltip">Working set: {0} MB · Private: {1} MB · GC: {2} MB</system:String>
+    <system:String x:Key="MemoryMonitor.SystemTooltip">Used {0} GB / Total {1} GB · Available {2} GB</system:String>
+    <system:String x:Key="Common.Seconds">seconds</system:String>
     <system:String x:Key="Tools.ReferenceTitle">DuCom references</system:String>
     <system:String x:Key="Tools.ReferenceDescription">Open project architecture, testing, reference behavior, and development documents.</system:String>
     <system:String x:Key="Tools.TelnetTitle">Local Telnet TCP service</system:String>

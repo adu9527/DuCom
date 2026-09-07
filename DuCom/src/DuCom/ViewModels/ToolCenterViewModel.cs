@@ -52,6 +52,9 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
             BackgroundImagePlaybackMode = _mainViewModel.BackgroundImagePlaybackMode;
             BackgroundImageIntervalSeconds = _mainViewModel.BackgroundImageIntervalSeconds;
             BackgroundImageOpacity = _mainViewModel.BackgroundImageOpacity;
+            ShowMemoryMonitor = _mainViewModel.ShowMemoryMonitor;
+            MemoryRefreshInterval = _mainViewModel.MemoryRefreshInterval;
+            SystemMemoryRefreshInterval = _mainViewModel.SystemMemoryRefreshInterval;
         }
 
         RefreshShortcutRows();
@@ -335,6 +338,15 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
 
     [ObservableProperty]
     public partial bool IsPrivateMemoryWarningVisible { get; private set; }
+
+    [ObservableProperty]
+    public partial bool ShowMemoryMonitor { get; set; } = true;
+
+    [ObservableProperty]
+    public partial int MemoryRefreshInterval { get; set; } = 2;
+
+    [ObservableProperty]
+    public partial int SystemMemoryRefreshInterval { get; set; } = 5;
 
     [ObservableProperty]
     public partial bool IsCom0ComAvailable { get; private set; }
@@ -684,7 +696,7 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to save com0com path. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Failed to save com0com path.", exception);
         }
     }
 
@@ -984,6 +996,44 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
     {
         UpdateMonitor();
         RefreshMonitorValues();
+    }
+
+    partial void OnShowMemoryMonitorChanged(bool value)
+    {
+        if (_mainViewModel is not null)
+        {
+            _mainViewModel.ShowMemoryMonitor = value;
+        }
+    }
+
+    partial void OnMemoryRefreshIntervalChanged(int value)
+    {
+        int clamped = Math.Clamp(value, 1, 60);
+        if (value != clamped)
+        {
+            MemoryRefreshInterval = clamped;
+            return;
+        }
+
+        if (_mainViewModel is not null)
+        {
+            _mainViewModel.MemoryRefreshInterval = clamped;
+        }
+    }
+
+    partial void OnSystemMemoryRefreshIntervalChanged(int value)
+    {
+        int clamped = Math.Clamp(value, 1, 60);
+        if (value != clamped)
+        {
+            SystemMemoryRefreshInterval = clamped;
+            return;
+        }
+
+        if (_mainViewModel is not null)
+        {
+            _mainViewModel.SystemMemoryRefreshInterval = clamped;
+        }
     }
 
     private void UpdateMonitor()

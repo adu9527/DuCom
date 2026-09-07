@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows;
+using DuCom.Services;
 using Wpf.Ui.Controls;
 
 namespace DuCom;
@@ -18,6 +19,10 @@ public partial class FeedbackWindow : FluentWindow
 
     private void GitHub_Click(object sender, RoutedEventArgs e) =>
         Process.Start(new ProcessStartInfo(GitHubUrl) { UseShellExecute = true });
+
+    private void OpenSystemLog_Click(object sender, RoutedEventArgs e) => SystemLogAccess.OpenCurrent();
+
+    private void TitleBar_CloseClicked(object sender, RoutedEventArgs e) => Close();
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }

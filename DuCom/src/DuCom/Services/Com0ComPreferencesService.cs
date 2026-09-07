@@ -26,7 +26,7 @@ public static class Com0ComPreferencesService
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to load com0com preferences. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Failed to load com0com preferences.", exception);
             return string.Empty;
         }
     }

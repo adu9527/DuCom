@@ -13,49 +13,78 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="12" />
+            <RowDefinition Height="20" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Padding="12,10" Style="{DynamicResource Style.SettingsCard}">
-            <Grid>
-                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="8" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                <WrapPanel>
-                    <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.Project}" />
-                    <ComboBox Width="180" DisplayMemberPath="Name" ItemsSource="{Binding Projects}" SelectedIndex="{Binding SelectedProjectIndex}" />
-                    <TextBlock Margin="12,0,8,0" VerticalAlignment="Center" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.ProjectName}" />
-                    <TextBox Width="180" Text="{Binding EditingProjectName, UpdateSourceTrigger=PropertyChanged}" />
-                    <Button Margin="8,0,0,0" Command="{Binding AddProjectCommand}" Content="{DynamicResource HighlightFilter.NewProject}" />
+        <!-- 页面标题 + 项目控制区 -->
+        <StackPanel>
+            <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.HighlightFilter}" />
+            <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.HighlightFilter.Description}" />
+
+            <Border Padding="16,14" Style="{DynamicResource Style.SettingsCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="24" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.Project}" />
+                        <ComboBox DisplayMemberPath="Name" ItemsSource="{Binding Projects}" SelectedIndex="{Binding SelectedProjectIndex}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.ProjectName}" />
+                        <TextBox Text="{Binding EditingProjectName, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <WrapPanel VerticalAlignment="Center">
+                    <Button Command="{Binding AddProjectCommand}" Content="{DynamicResource HighlightFilter.NewProject}" />
                     <Button Margin="8,0,0,0" Command="{Binding CopyDefaultProjectCommand}" Content="{DynamicResource HighlightFilter.CopyDefaultProject}" />
                     <Button Margin="8,0,0,0" Command="{Binding DeleteProjectCommand}" Content="{DynamicResource HighlightFilter.DeleteProject}" />
                 </WrapPanel>
-                <StackPanel Grid.Row="2" HorizontalAlignment="Right" Orientation="Horizontal">
+                <StackPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal">
                     <Button Command="{Binding ResetCommand}" Content="{DynamicResource HighlightFilter.Reset}" />
                     <Button Margin="8,0,0,0" Command="{Binding SaveCommand}" Content="{DynamicResource HighlightFilter.Save}" />
                     <ui:Button Margin="8,0,0,0" Appearance="Primary" Command="{Binding ApplyCommand}" Content="{DynamicResource HighlightFilter.Apply}" />
                 </StackPanel>
             </Grid>
-        </Border>
+        </StackPanel>
 
+        <!-- 主内容区 -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250" />
-                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="16" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Border Padding="10" Style="{DynamicResource Style.SettingsCard}">
+
+            <!-- 左侧：规则列表 -->
+            <Border Padding="12" Style="{DynamicResource Style.SettingsCard}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="10" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock Margin="0,0,0,8" FontSize="16" FontWeight="SemiBold" Text="{DynamicResource HighlightFilter.RuleList}" />
-                    <ListBox Grid.Row="1" MinHeight="220" ItemsSource="{Binding Rules}" SelectedIndex="{Binding SelectedIndex}">
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="{DynamicResource HighlightFilter.RuleList}" />
+                    <ListBox Grid.Row="2"
+                             ItemsSource="{Binding Rules}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             SelectedIndex="{Binding SelectedIndex}">
                         <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource Style.EditorListItem}" /></ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Grid>
+                                <Grid Margin="0,2">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
@@ -63,59 +92,69 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <CheckBox VerticalAlignment="Center" Command="{Binding DataContext.ToggleRuleEnabledCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" IsChecked="{Binding IsEnabled, Mode=OneWay}" />
-                                    <Ellipse Grid.Column="1" Width="10" Height="10" Margin="8,0" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{Binding Model, Converter={StaticResource RuleKindToBrushConverter}}" Visibility="{Binding Kind, Converter={StaticResource RuleKindToVisibilityConverter}}" />
-                                    <TextBlock Grid.Column="1" Margin="26,0,0,0" VerticalAlignment="Center" Opacity="{Binding IsEnabled, Converter={StaticResource EnabledToOpacityConverter}}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    <Ellipse Grid.Column="1" Width="9" Height="9" Margin="8,0" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{Binding Model, Converter={StaticResource RuleKindToBrushConverter}}" Visibility="{Binding Kind, Converter={StaticResource RuleKindToVisibilityConverter}}" />
+                                    <TextBlock Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center" Opacity="{Binding IsEnabled, Converter={StaticResource EnabledToOpacityConverter}}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                                     <Button Grid.Column="2" Margin="4,0" Command="{Binding DataContext.DuplicateRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource Style.IconButton}" ToolTip="{DynamicResource HighlightFilter.DuplicateRule}">
-                                        <ui:SymbolIcon FontSize="14" Symbol="Copy24" />
+                                        <ui:SymbolIcon FontSize="13" Symbol="Copy24" />
                                     </Button>
                                     <Button Grid.Column="3"
-                                            Margin="8,0,0,0"
+                                            Margin="6,0,0,0"
                                             Command="{Binding DataContext.DeleteRuleItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"
                                             Style="{StaticResource Style.IconButton}"
                                             ToolTip="{DynamicResource HighlightFilter.DeleteRule}">
-                                        <ui:SymbolIcon FontSize="14" Symbol="Dismiss24" />
+                                        <ui:SymbolIcon FontSize="13" Symbol="Dismiss24" />
                                     </Button>
                                 </Grid>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
-                    <WrapPanel Grid.Row="2" Margin="0,8,0,0">
-                        <Button Margin="0,0,8,8" Command="{Binding AddRuleCommand}" Content="{DynamicResource HighlightFilter.AddRule}" />
-                        <Button Margin="0,0,8,8" Command="{Binding DeleteRuleCommand}" Content="{DynamicResource HighlightFilter.DeleteRule}" />
-                        <Button Margin="0,0,8,8" Command="{Binding MoveUpCommand}" Content="{DynamicResource HighlightFilter.MoveUp}" />
-                        <Button Margin="0,0,8,8" Command="{Binding MoveDownCommand}" Content="{DynamicResource HighlightFilter.MoveDown}" />
+                    <WrapPanel Grid.Row="3" Margin="0,10,0,0">
+                        <Button Padding="10,5" Command="{Binding AddRuleCommand}" Content="{DynamicResource HighlightFilter.AddRule}" />
+                        <Button Margin="8,0,0,0" Padding="10,5" Command="{Binding DeleteRuleCommand}" Content="{DynamicResource HighlightFilter.DeleteRule}" />
+                        <Button Margin="8,0,0,0" Padding="10,5" Command="{Binding MoveUpCommand}" Content="{DynamicResource HighlightFilter.MoveUp}" />
+                        <Button Margin="8,0,0,0" Padding="10,5" Command="{Binding MoveDownCommand}" Content="{DynamicResource HighlightFilter.MoveDown}" />
                     </WrapPanel>
                 </Grid>
             </Border>
 
-            <Border Grid.Column="2" Padding="10" Style="{DynamicResource Style.SettingsCard}">
+            <!-- 右侧：规则编辑器 -->
+            <Border Grid.Column="2" Padding="14,12" Style="{DynamicResource Style.SettingsCard}">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                    <TextBlock Margin="0,0,0,8" FontSize="16" FontWeight="SemiBold" Text="{DynamicResource HighlightFilter.Editor}" />
-                    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" IsEnabled="{Binding IsRuleSelected}">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="10" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="{DynamicResource HighlightFilter.Editor}" />
+                    <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" IsEnabled="{Binding IsRuleSelected}">
                         <StackPanel>
                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.Name}" />
-                            <TextBox Text="{Binding EditingName, UpdateSourceTrigger=PropertyChanged}" />
-                            <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.Kind}" />
-                            <ComboBox DisplayMemberPath="DisplayName" ItemsSource="{Binding KindOptions}" SelectedItem="{Binding SelectedKindOption}" />
-                            <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.Mode}" />
-                            <ComboBox DisplayMemberPath="DisplayName" ItemsSource="{Binding ModeOptions}" SelectedItem="{Binding SelectedModeOption}" />
-                            <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.Pattern}" />
-                            <TextBox Text="{Binding EditingPattern, UpdateSourceTrigger=PropertyChanged}" />
-                            <WrapPanel Margin="0,12,0,0"><CheckBox Margin="0,0,16,8" Content="{DynamicResource HighlightFilter.CaseSensitive}" IsChecked="{Binding EditingIsCaseSensitive}" /><CheckBox Content="{DynamicResource HighlightFilter.Enabled}" IsChecked="{Binding EditingIsEnabled}" /></WrapPanel>
-                            <Separator Margin="0,12" />
-                            <WrapPanel Margin="0,0,0,10"><CheckBox Margin="0,0,16,8" Content="{DynamicResource HighlightFilter.Bold}" IsChecked="{Binding EditingBold}" /><CheckBox Content="{DynamicResource HighlightFilter.Italic}" IsChecked="{Binding EditingItalic}" /></WrapPanel>
+                            <TextBox Margin="0,4,0,0" Text="{Binding EditingName, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <TextBlock Margin="0,14,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.Kind}" />
+                            <ComboBox Margin="0,4,0,0" DisplayMemberPath="DisplayName" ItemsSource="{Binding KindOptions}" SelectedItem="{Binding SelectedKindOption}" />
+
+                            <TextBlock Margin="0,14,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.Mode}" />
+                            <ComboBox Margin="0,4,0,0" DisplayMemberPath="DisplayName" ItemsSource="{Binding ModeOptions}" SelectedItem="{Binding SelectedModeOption}" />
+
+                            <TextBlock Margin="0,14,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.Pattern}" />
+                            <TextBox Margin="0,4,0,0" Text="{Binding EditingPattern, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <WrapPanel Margin="0,14,0,0"><CheckBox Margin="0,0,18,6" Content="{DynamicResource HighlightFilter.CaseSensitive}" IsChecked="{Binding EditingIsCaseSensitive}" /><CheckBox Content="{DynamicResource HighlightFilter.Enabled}" IsChecked="{Binding EditingIsEnabled}" /></WrapPanel>
+
+                            <Separator Margin="0,14,0,8" />
+
+                            <WrapPanel Margin="0,0,0,8"><CheckBox Margin="0,0,18,6" Content="{DynamicResource HighlightFilter.Bold}" IsChecked="{Binding EditingBold}" /><CheckBox Content="{DynamicResource HighlightFilter.Italic}" IsChecked="{Binding EditingItalic}" /></WrapPanel>
+
                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.ForegroundColor}" />
-                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="10" /><ColumnDefinition Width="64" /></Grid.ColumnDefinitions><TextBox Text="{Binding EditingForegroundHex, UpdateSourceTrigger=PropertyChanged}" /><Button Grid.Column="2" Width="64" Height="42" Padding="0" Click="ForegroundColorButton_Click" ToolTip="{DynamicResource HighlightFilter.ColorPicker.Open}"><Border Margin="3" Background="{Binding EditingForegroundHex, Converter={StaticResource HexToBrushConverter}}" BorderBrush="{DynamicResource Brush.PanelBorderStrong}" BorderThickness="2" CornerRadius="6" /></Button></Grid>
-                            <TextBlock Margin="0,14,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.PreviewText}" />
-                            <TextBox Text="{Binding PreviewText, UpdateSourceTrigger=PropertyChanged}" />
-                            <Border MinHeight="52" Margin="0,8,0,0" Padding="12,10" Background="{DynamicResource Brush.LogSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="6">
+                            <Grid Margin="0,4,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="10" /><ColumnDefinition Width="64" /></Grid.ColumnDefinitions><TextBox Text="{Binding EditingForegroundHex, UpdateSourceTrigger=PropertyChanged}" /><Button Grid.Column="2" Width="64" Height="42" Padding="0" Click="ForegroundColorButton_Click" ToolTip="{DynamicResource HighlightFilter.ColorPicker.Open}"><Border Margin="3" Background="{Binding EditingForegroundHex, Converter={StaticResource HexToBrushConverter}}" BorderBrush="{DynamicResource Brush.PanelBorderStrong}" BorderThickness="2" CornerRadius="6" /></Button></Grid>
+
+                            <TextBlock Margin="0,16,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.PreviewText}" />
+                            <TextBox Margin="0,4,0,0" Text="{Binding PreviewText, UpdateSourceTrigger=PropertyChanged}" />
+
+                            <Border MinHeight="56" Margin="0,10,0,0" Padding="14,12" Background="{DynamicResource Brush.LogSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="6">
                                 <controls:StyledRunsTextBlock FontFamily="Cascadia Mono, Consolas" FontSize="14" Runs="{Binding PreviewRuns}" TextWrapping="Wrap" />
                             </Border>
                         </StackPanel>
                     </ScrollViewer>
-                    <Grid Grid.Row="2" Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Foreground="{DynamicResource Brush.Danger}" Text="{Binding ErrorMessage}" TextWrapping="Wrap" /><TextBlock Grid.Column="1" Margin="12,0,0,0" Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding ChangeStatus}" /></Grid>
+                    <Grid Grid.Row="3" Margin="0,10,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Foreground="{DynamicResource Brush.Danger}" Text="{Binding ErrorMessage}" TextWrapping="Wrap" /><TextBlock Grid.Column="1" Margin="12,0,0,0" Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding ChangeStatus}" /></Grid>
                 </Grid>
             </Border>
         </Grid>

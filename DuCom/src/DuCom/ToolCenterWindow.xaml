@@ -51,6 +51,53 @@
                                            Visibility="{Binding IsPrivateMemoryWarningVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             </StackPanel>
                         </Border>
+                        <Border Margin="0,14,0,0" Padding="16" Style="{DynamicResource Style.SettingsCard}">
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Tools.TitleBarMemoryMonitor.Title}" />
+                                <CheckBox Content="{DynamicResource Tools.TitleBarMemoryMonitor.Show}"
+                                          IsChecked="{Binding ShowMemoryMonitor}" />
+                                <Grid Margin="0,14,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="100" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="10" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock VerticalAlignment="Center" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Tools.TitleBarMemoryMonitor.ProcessInterval}" />
+                                    <ui:NumberBox Grid.Column="2"
+                                                  Height="32"
+                                                  Maximum="60"
+                                                  Minimum="1"
+                                                  MaxDecimalPlaces="0"
+                                                  SmallChange="1"
+                                                  SpinButtonPlacementMode="Inline"
+                                                  Background="{DynamicResource Brush.InputSurface}"
+                                                  BorderBrush="{DynamicResource Brush.InputBorder}"
+                                                  Foreground="{DynamicResource Brush.TextPrimary}"
+                                                  Value="{Binding MemoryRefreshInterval, Mode=TwoWay}" />
+                                    <TextBlock Grid.Column="3" Margin="8,0,0,0" VerticalAlignment="Center" Text="{DynamicResource Common.Seconds}" />
+                                    <TextBlock Grid.Row="2" VerticalAlignment="Center" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Tools.TitleBarMemoryMonitor.SystemInterval}" />
+                                    <ui:NumberBox Grid.Row="2"
+                                                  Grid.Column="2"
+                                                  Height="32"
+                                                  Maximum="60"
+                                                  Minimum="1"
+                                                  MaxDecimalPlaces="0"
+                                                  SmallChange="1"
+                                                  SpinButtonPlacementMode="Inline"
+                                                  Background="{DynamicResource Brush.InputSurface}"
+                                                  BorderBrush="{DynamicResource Brush.InputBorder}"
+                                                  Foreground="{DynamicResource Brush.TextPrimary}"
+                                                  Value="{Binding SystemMemoryRefreshInterval, Mode=TwoWay}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="3" Margin="8,0,0,0" VerticalAlignment="Center" Text="{DynamicResource Common.Seconds}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
                      </StackPanel>
                     <Grid Grid.Row="1" Margin="28,16,28,16">
                     <Grid.RowDefinitions>

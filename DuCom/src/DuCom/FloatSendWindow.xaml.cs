@@ -142,7 +142,7 @@ public partial class FloatSendWindow : FluentWindow
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Float send window flush failed. Port={PortName}; {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Float send window flush failed. Port={PortName}.", exception);
         }
 
         lock (_pendingGate)
@@ -328,7 +328,7 @@ public partial class FloatSendWindow : FluentWindow
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to save float send log. Port={PortName}; {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Failed to save float send log. Port={PortName}.", exception);
             ThemedMessageDialog.Show(
                 this,
                 (string?)TryFindResource("FloatSend.SaveFailed") ?? "Failed to save the float send log.",
@@ -436,7 +436,7 @@ public partial class FloatSendWindow : FluentWindow
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Float send failed. Port={PortName}; {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Float send failed. Port={PortName}.", exception);
             ThemedMessageDialog.Show(
                 this,
                 (string?)TryFindResource("FloatSend.SendFailed") ?? "Send failed.",

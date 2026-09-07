@@ -41,6 +41,53 @@ public sealed class DiagnosticFileLog : IDisposable
 
     public string FilePath => _activePath;
 
+    public bool IsAvailable => _writer is not null;
+
+    public static void PruneDirectory(
+        string directoryPath,
+        string searchPattern = "ducom-*.log*",
+        int retainedFileCount = 20,
+        TimeSpan? maximumAge = null,
+        long maximumTotalBytes = 100L * 1024 * 1024)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(searchPattern);
+        ArgumentOutOfRangeException.ThrowIfNegative(retainedFileCount);
+        ArgumentOutOfRangeException.ThrowIfNegative(maximumTotalBytes);
+        if (!Directory.Exists(directoryPath))
+        {
+            return;
+        }
+
+        try
+        {
+            DateTime cutoffUtc = DateTime.UtcNow - (maximumAge ?? TimeSpan.FromDays(30));
+            FileInfo[] files = [.. new DirectoryInfo(directoryPath)
+                .EnumerateFiles(searchPattern, SearchOption.TopDirectoryOnly)
+                .OrderByDescending(file => file.LastWriteTimeUtc)];
+            long retainedBytes = 0;
+            for (int index = 0; index < files.Length; index++)
+            {
+                FileInfo file = files[index];
+                bool retain = index < retainedFileCount &&
+                    file.LastWriteTimeUtc >= cutoffUtc &&
+                    retainedBytes + file.Length <= maximumTotalBytes;
+                if (retain)
+                {
+                    retainedBytes += file.Length;
+                }
+                else
+                {
+                    file.Delete();
+                }
+            }
+        }
+        catch
+        {
+            // Cleanup failure must not prevent diagnostic logging from starting.
+        }
+    }
+
     public void Information(string message) => Write("INFO", message, null);
 
     public void Warning(string message, Exception? exception = null) => Write("WARN", message, exception);

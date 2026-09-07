@@ -29,7 +29,7 @@ public static class WatchdogRuleStore
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to load watchdog rules from {FilePath}. {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Failed to load watchdog rules from {FilePath}.", exception);
             return [];
         }
     }
@@ -42,7 +42,7 @@ public static class WatchdogRuleStore
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to save watchdog rules to {FilePath}. {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Failed to save watchdog rules to {FilePath}.", exception);
         }
     }
 }

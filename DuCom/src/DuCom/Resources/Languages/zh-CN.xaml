@@ -126,6 +126,9 @@
     <system:String x:Key="Settings.ResetOpacity">重置透明度</system:String>
     <system:String x:Key="Settings.LogFontFamily">日志字体</system:String>
     <system:String x:Key="Settings.FontPreview">字体预览</system:String>
+    <system:String x:Key="Settings.ShowCoverPage">显示封面页</system:String>
+    <system:String x:Key="Settings.CoverPageAnimation">封面页动画效果</system:String>
+    <system:String x:Key="Cover.Subtitle">串口通信 · 调试</system:String>
     <system:String x:Key="Settings.PrivateMemoryMonitor">私有内存告警</system:String>
     <system:String x:Key="Settings.PrivateMemoryMonitor.Description">定期检查进程私有内存，与内容看门狗相互独立。建议从 1024 MiB 开始评估，此告警默认关闭。</system:String>
     <system:String x:Key="Settings.PrivateMemoryMonitor.Enabled">启用私有内存阈值告警</system:String>
@@ -243,6 +246,7 @@
     <system:String x:Key="Menu.Tools.HighlightFilter">高亮规则</system:String>
     <system:String x:Key="Menu.Tools.LogFilter">日志过滤</system:String>
     <system:String x:Key="Menu.View.FloatSend">浮窗发送</system:String>
+    <system:String x:Key="Menu.View.BottomSend">显示底部发送框</system:String>
     <system:String x:Key="Menu.Tools.VirtualPort">虚拟串口</system:String>
     <system:String x:Key="Menu.Tools.Ascii">ASCII 表</system:String>
     <system:String x:Key="Menu.Tools.References">参考资料</system:String>
@@ -302,6 +306,11 @@
     <system:String x:Key="Feedback.CopyGroup">复制群号</system:String>
     <system:String x:Key="Feedback.GitHubHint">适合提交可复现的问题、功能建议、代码贡献和版本讨论。</system:String>
     <system:String x:Key="Feedback.OpenGitHub">打开 GitHub</system:String>
+    <system:String x:Key="Feedback.SystemLog">系统日志</system:String>
+    <system:String x:Key="Feedback.SystemLogHint">遇到异常、崩溃或运行问题时，系统日志可以帮助开发者更快定位原因。</system:String>
+    <system:String x:Key="Feedback.SystemLogNote">可以将此日志反馈给开发者。</system:String>
+    <system:String x:Key="Feedback.ViewSystemLog">查看系统日志</system:String>
+    <system:String x:Key="Feedback.SystemLogUnavailable">本次运行未能创建系统日志，请检查程序目录是否可写。</system:String>
     <system:String x:Key="Tools.Title">工具中心</system:String>
     <system:String x:Key="Tools.Action">操作</system:String>
     <system:String x:Key="Tools.Name">名称</system:String>
@@ -409,6 +418,13 @@
     <system:String x:Key="Tools.PrivateMemoryMonitor.Running">运行中 · 当前 {0} MiB / 阈值 {1} MiB</system:String>
     <system:String x:Key="Tools.PrivateMemoryMonitor.Exceeded">已超过阈值 · 当前 {0} MiB / 阈值 {1} MiB</system:String>
     <system:String x:Key="Tools.PrivateMemoryMonitor.Warning">仅显式警告，进程继续运行；请检查诊断日志和运行指标。</system:String>
+    <system:String x:Key="Tools.TitleBarMemoryMonitor.Title">标题栏内存监视</system:String>
+    <system:String x:Key="Tools.TitleBarMemoryMonitor.Show">在标题栏显示内存监视</system:String>
+    <system:String x:Key="Tools.TitleBarMemoryMonitor.ProcessInterval">进程内存刷新间隔</system:String>
+    <system:String x:Key="Tools.TitleBarMemoryMonitor.SystemInterval">系统内存刷新间隔</system:String>
+    <system:String x:Key="MemoryMonitor.ProcessTooltip">工作集：{0} MB · 私有：{1} MB · GC：{2} MB</system:String>
+    <system:String x:Key="MemoryMonitor.SystemTooltip">已用 {0} GB / 总计 {1} GB · 可用 {2} GB</system:String>
+    <system:String x:Key="Common.Seconds">秒</system:String>
     <system:String x:Key="Tools.ReferenceTitle">DuCom 参考资料</system:String>
     <system:String x:Key="Tools.ReferenceDescription">打开项目内的架构、测试、行为参照与开发文档。</system:String>
     <system:String x:Key="Tools.TelnetTitle">本地 Telnet TCP 服务</system:String>

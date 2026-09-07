@@ -55,6 +55,27 @@ public sealed class DiagnosticFileLogTests
         Assert.Contains("new segment", ReadShared(activePath));
     }
 
+    [Fact]
+    public void PruneDirectoryRetainsOnlyNewestFilesWithinLimits()
+    {
+        using TemporaryDirectory directory = new();
+        string oldest = Path.Combine(directory.Path, "ducom-20260101-1.log");
+        string middle = Path.Combine(directory.Path, "ducom-20260102-2.log");
+        string newest = Path.Combine(directory.Path, "ducom-20260103-3.log");
+        File.WriteAllText(oldest, "oldest");
+        File.WriteAllText(middle, "middle");
+        File.WriteAllText(newest, "newest");
+        File.SetLastWriteTimeUtc(oldest, DateTime.UtcNow.AddMinutes(-3));
+        File.SetLastWriteTimeUtc(middle, DateTime.UtcNow.AddMinutes(-2));
+        File.SetLastWriteTimeUtc(newest, DateTime.UtcNow.AddMinutes(-1));
+
+        DiagnosticFileLog.PruneDirectory(directory.Path, retainedFileCount: 2, maximumAge: TimeSpan.FromDays(1));
+
+        Assert.False(File.Exists(oldest));
+        Assert.True(File.Exists(middle));
+        Assert.True(File.Exists(newest));
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

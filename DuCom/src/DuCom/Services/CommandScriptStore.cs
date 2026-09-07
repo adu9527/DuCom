@@ -39,7 +39,7 @@ public static class CommandScriptStore
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to load command scripts from {FilePath}. {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Failed to load command scripts from {FilePath}.", exception);
             // Preserve the unreadable user file for recovery, but keep the UI usable.
             return DefaultDuComData.MergeCommandGroups([], out _);
         }
@@ -54,7 +54,7 @@ public static class CommandScriptStore
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to save command scripts to {FilePath}. {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Failed to save command scripts to {FilePath}.", exception);
             return false;
         }
     }

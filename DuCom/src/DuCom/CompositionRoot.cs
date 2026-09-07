@@ -7,6 +7,7 @@ namespace DuCom;
 internal sealed class CompositionRoot : IAsyncDisposable
 {
     private readonly MainViewModel _mainViewModel;
+    private readonly UiResponsivenessMonitor _uiResponsivenessMonitor;
 
     public CompositionRoot()
     {
@@ -34,9 +35,15 @@ internal sealed class CompositionRoot : IAsyncDisposable
             (name, exception) => Program.DiagnosticLog?.Error($"Background service '{name}' failed.", exception));
         _mainViewModel.AttachPrivateMemoryMonitor(memoryMonitor);
         memoryMonitor.Start();
+        _uiResponsivenessMonitor = new UiResponsivenessMonitor(System.Windows.Application.Current.Dispatcher);
+        _uiResponsivenessMonitor.Start();
     }
 
     public MainWindow CreateMainWindow() => new(_mainViewModel);
 
-    public ValueTask DisposeAsync() => _mainViewModel.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await _uiResponsivenessMonitor.DisposeAsync().ConfigureAwait(false);
+        await _mainViewModel.DisposeAsync().ConfigureAwait(false);
+    }
 }

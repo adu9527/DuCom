@@ -218,7 +218,7 @@ public partial class SearchViewModel : ObservableObject
         string.IsNullOrEmpty(request.Pattern);
 
     private static void OnSnapshotProviderError(Exception exception) =>
-        Program.DiagnosticLog?.Warning($"Search snapshot provider failed. {exception.Message}");
+        Program.DiagnosticLog?.Warning("Search snapshot provider failed.", exception);
 
     private async Task ApplyResultAsync(SearchResult result, int? expectedGeneration = null)
     {

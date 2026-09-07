@@ -4,9 +4,10 @@
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  Title="{DynamicResource Feedback.Title}"
                  Width="620"
-                 Height="540"
+                 Height="680"
                  MinWidth="620"
                  MinHeight="540"
+                 MaxHeight="760"
                  Icon="/Assets/DuCom.ico"
                  ExtendsContentIntoTitleBar="True"
                  ResizeMode="NoResize"
@@ -19,7 +20,12 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <ui:TitleBar FontSize="16" Title="{DynamicResource Feedback.Title}" ShowMaximize="False" ShowMinimize="False" />
+        <ui:TitleBar FontSize="16"
+                     Title="{DynamicResource Feedback.Title}"
+                     ShowClose="True"
+                     ShowMaximize="False"
+                     ShowMinimize="False"
+                     CloseClicked="TitleBar_CloseClicked" />
 
         <StackPanel Grid.Row="1" Margin="32,20,32,20">
             <TextBlock FontSize="32" FontWeight="SemiBold" Text="{DynamicResource Feedback.Heading}" />
@@ -29,41 +35,85 @@
                        Text="{DynamicResource Feedback.Description}" />
         </StackPanel>
 
-        <StackPanel Grid.Row="2" Margin="32,0">
-            <Border Margin="0,0,0,12" Style="{DynamicResource Style.SettingsCard}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="{DynamicResource Feedback.QQGroup}" />
-                        <TextBlock Margin="0,6,0,0" FontFamily="Cascadia Mono, Consolas" FontSize="18" Text="1107820408" />
-                        <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Feedback.QQHint}" />
-                    </StackPanel>
-                    <Button Grid.Column="1" MinWidth="96" Margin="20,0,0,0" Click="CopyQQ_Click" Content="{DynamicResource Feedback.CopyGroup}" />
-                </Grid>
-            </Border>
+        <ScrollViewer Grid.Row="2"
+                      Margin="0,0,8,0"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="32,0,24,4">
+                <Border Margin="0,0,0,12" Style="{DynamicResource Style.SettingsCard}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="{DynamicResource Feedback.QQGroup}" />
+                            <TextBlock Margin="0,6,0,0" FontFamily="Cascadia Mono, Consolas" FontSize="18" Text="1107820408" />
+                            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Feedback.QQHint}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" MinWidth="96" Margin="20,0,0,0" Click="CopyQQ_Click" Content="{DynamicResource Feedback.CopyGroup}" />
+                    </Grid>
+                </Border>
 
-            <Border Style="{DynamicResource Style.SettingsCard}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock FontSize="16" FontWeight="SemiBold" Text="GitHub" />
-                        <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Feedback.GitHubHint}" />
-                        <TextBlock Margin="0,6,0,0">
-                            <Hyperlink Click="GitHub_Click" NavigateUri="https://github.com/adu9527/DuCom">
-                                <Run Text="https://github.com/adu9527/DuCom" />
-                            </Hyperlink>
-                        </TextBlock>
-                    </StackPanel>
-                    <Button Grid.Column="1" MinWidth="96" Margin="20,0,0,0" Click="GitHub_Click" Content="{DynamicResource Feedback.OpenGitHub}" />
-                </Grid>
-            </Border>
-        </StackPanel>
+                <Border Margin="0,0,0,12" Style="{DynamicResource Style.SettingsCard}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="GitHub" />
+                            <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Feedback.GitHubHint}" />
+                            <TextBlock Margin="0,6,0,0">
+                                <Hyperlink Click="GitHub_Click" NavigateUri="https://github.com/adu9527/DuCom">
+                                    <Run Text="https://github.com/adu9527/DuCom" />
+                                </Hyperlink>
+                            </TextBlock>
+                        </StackPanel>
+                        <Button Grid.Column="1" MinWidth="96" Margin="20,0,0,0" Click="GitHub_Click" Content="{DynamicResource Feedback.OpenGitHub}" />
+                    </Grid>
+                </Border>
+
+                <Border Style="{DynamicResource Style.SettingsCard}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="42"
+                                Height="42"
+                                Margin="0,1,16,0"
+                                VerticalAlignment="Top"
+                                Background="{DynamicResource Brush.AccentSoft}"
+                                CornerRadius="21">
+                            <ui:SymbolIcon HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           FontSize="20"
+                                           Symbol="DocumentText24" />
+                        </Border>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock FontSize="16" FontWeight="SemiBold" Text="{DynamicResource Feedback.SystemLog}" />
+                            <TextBlock Margin="0,6,0,0"
+                                       TextWrapping="Wrap"
+                                       Style="{DynamicResource Style.MutedText}"
+                                       Text="{DynamicResource Feedback.SystemLogHint}" />
+                            <TextBlock Margin="0,8,0,0"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       Text="{DynamicResource Feedback.SystemLogNote}" />
+                        </StackPanel>
+                        <ui:Button Grid.Column="2"
+                                   MinWidth="126"
+                                   Margin="20,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Appearance="Primary"
+                                   Click="OpenSystemLog_Click"
+                                   Content="{DynamicResource Feedback.ViewSystemLog}" />
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
 
         <Button Grid.Row="3"
                 MinWidth="96"

@@ -233,7 +233,7 @@ public partial class ShortcutsSettingsViewModel : ObservableObject
         {
             rollback();
             EditingErrorMessage = Resource("Shortcut.SaveFailed").Replace("{0}", exception.Message, StringComparison.Ordinal);
-            Program.DiagnosticLog?.Warning($"Failed to save shortcuts. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Failed to save shortcuts.", exception);
             RefreshShortcutRows();
             return false;
         }

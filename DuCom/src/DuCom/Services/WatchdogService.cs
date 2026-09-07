@@ -93,7 +93,7 @@ public sealed class WatchdogService : IDisposable
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Watchdog send failed. Rule={trigger.Fired.Rule.Name}; {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Watchdog send failed. Rule={trigger.Fired.Rule.Name}.", exception);
             PostHint(trigger.PortName, GetResourceString("Watchdog.SendFailed")
                 .Replace("{0}", trigger.Fired.Rule.Name, StringComparison.Ordinal));
         }

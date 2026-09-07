@@ -35,7 +35,7 @@ public static class SendHistoryFileService
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to load send history from {FilePath}. {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Failed to load send history from {FilePath}.", exception);
         }
     }
 

@@ -92,8 +92,12 @@
                                       Header="{DynamicResource Log.Follow}"
                                       IsCheckable="True"
                                       IsChecked="{Binding SelectedSession.FollowEnd, Mode=OneWay}" />
-                            <MenuItem Command="{Binding ToggleFloatSendCommand}" Header="{DynamicResource Menu.View.FloatSend}" />
-                            <Separator />
+                             <MenuItem Command="{Binding ToggleFloatSendCommand}" Header="{DynamicResource Menu.View.FloatSend}" />
+                             <MenuItem Command="{Binding ToggleBottomSendCommand}"
+                                       Header="{DynamicResource Menu.View.BottomSend}"
+                                       IsCheckable="True"
+                                       IsChecked="{Binding IsBottomSendVisible, Mode=OneWay}" />
+                             <Separator />
                             <MenuItem Command="{Binding ToggleSidebarCommand}"
                                       Header="{DynamicResource Menu.Tools.Sidebar}"
                                       IsCheckable="True"
@@ -166,6 +170,53 @@
                         Visibility="{Binding LogPackagePluginEnabled, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </StackPanel>
             </ui:TitleBar.Header>
+            <ui:TitleBar.TrailingContent>
+                <StackPanel Margin="0,0,12,0"
+                            VerticalAlignment="Center"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
+                            Orientation="Horizontal"
+                            Visibility="{Binding ShowMemoryMonitor, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Border Padding="8,4"
+                            Background="{DynamicResource Brush.PanelRaised}"
+                            BorderBrush="{DynamicResource Brush.PanelBorder}"
+                            BorderThickness="2"
+                            CornerRadius="10">
+                        <StackPanel Orientation="Horizontal">
+                            <StackPanel Orientation="Horizontal" ToolTip="{Binding ElementName=ProcessMemoryTooltip, Path=Text}">
+                                <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="#1D9E75" />
+                                <TextBlock x:Name="ProcessMemoryText"
+                                           Margin="6,0,0,0"
+                                           VerticalAlignment="Center"
+                                           FontSize="12"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                           Text="-- MB" />
+                                <TextBlock x:Name="ProcessMemoryTooltip" Visibility="Collapsed" />
+                            </StackPanel>
+                            <Border Width="2"
+                                    Height="12"
+                                    Margin="8,0"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource Brush.PanelBorder}" />
+                            <StackPanel Orientation="Horizontal" ToolTip="{Binding ElementName=SystemMemoryTooltip, Path=Text}">
+                                <Ellipse x:Name="SystemMemoryDot"
+                                         Width="6"
+                                         Height="6"
+                                         VerticalAlignment="Center"
+                                         Fill="{DynamicResource Brush.Success}" />
+                                <TextBlock x:Name="SystemMemoryText"
+                                           Margin="6,0,0,0"
+                                           VerticalAlignment="Center"
+                                           FontSize="12"
+                                           FontWeight="Medium"
+                                           Foreground="{DynamicResource Brush.Success}"
+                                           Text="--%" />
+                                <TextBlock x:Name="SystemMemoryTooltip" Visibility="Collapsed" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ui:TitleBar.TrailingContent>
         </ui:TitleBar>
 
         <Grid Grid.Row="1" Margin="6,0,6,6">
@@ -843,21 +894,126 @@
 
                     </Grid>
 
-                    <Grid Panel.ZIndex="20">
+                    <Grid x:Name="CoverPageGrid"
+                          ClipToBounds="True"
+                          IsHitTestVisible="False"
+                          Panel.ZIndex="20">
                         <Grid.Style>
                             <Style TargetType="Grid">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSessions}" Value="False">
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding HasSessions}" Value="False" />
+                                            <Condition Binding="{Binding ShowCoverPage}" Value="True" />
+                                        </MultiDataTrigger.Conditions>
                                         <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
+                                    </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </Grid.Style>
-                        <Image HorizontalAlignment="Stretch"
-                               VerticalAlignment="Stretch"
-                               Source="/Assets/DuCom.png"
-                               Stretch="Uniform" />
+                        <Viewbox HorizontalAlignment="Stretch"
+                                 VerticalAlignment="Stretch"
+                                 Stretch="UniformToFill"
+                                 StretchDirection="Both">
+                            <Canvas Width="800" Height="500">
+                                <Canvas.Resources>
+                                    <Storyboard x:Key="CoverAnimation" RepeatBehavior="Forever">
+                                        <DoubleAnimation Storyboard.TargetName="PixelSignal"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0.35" To="1" Duration="0:0:1.6"
+                                                         AutoReverse="True" RepeatBehavior="Forever" />
+                                        <DoubleAnimation Storyboard.TargetName="PixelCursor"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0" To="1" Duration="0:0:0.55"
+                                                         AutoReverse="True" RepeatBehavior="Forever" />
+                                        <DoubleAnimation Storyboard.TargetName="PixelNode"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0.25" To="0.85" BeginTime="0:0:0.4" Duration="0:0:2.2"
+                                                         AutoReverse="True" RepeatBehavior="Forever" />
+                                    </Storyboard>
+                                </Canvas.Resources>
+                                <Canvas.Style>
+                                    <Style TargetType="Canvas">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CoverPageAnimationEnabled}" Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard x:Name="CoverAnimationController"
+                                                                     Storyboard="{StaticResource CoverAnimation}" />
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <RemoveStoryboard BeginStoryboardName="CoverAnimationController" />
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Canvas.Style>
+
+                                <Rectangle Width="800" Height="500" Fill="#101217" />
+                                <Rectangle Width="800" Height="500" Opacity="0.75">
+                                    <Rectangle.Fill>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#18202B" Offset="0" />
+                                            <GradientStop Color="#101217" Offset="0.46" />
+                                            <GradientStop Color="#0B1018" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Rectangle.Fill>
+                                </Rectangle>
+
+                                <!-- Pixel grid and corner framing. -->
+                                <Path Data="M0,40 H800 M0,80 H800 M0,120 H800 M0,160 H800 M0,200 H800 M0,240 H800 M0,280 H800 M0,320 H800 M0,360 H800 M0,400 H800 M0,440 H800 M40,0 V500 M80,0 V500 M120,0 V500 M160,0 V500 M200,0 V500 M240,0 V500 M280,0 V500 M320,0 V500 M360,0 V500 M400,0 V500 M440,0 V500 M480,0 V500 M520,0 V500 M560,0 V500 M600,0 V500 M640,0 V500 M680,0 V500 M720,0 V500 M760,0 V500"
+                                      Stroke="#223041" StrokeThickness="1" Opacity="0.22" />
+                                <Path Data="M28,92 V48 H72 M28,48 H116 V56 H132 M772,408 V452 H728 M772,452 H684 V444 H668"
+                                      Stroke="#3B82B5" StrokeThickness="4" StrokeStartLineCap="Square" StrokeEndLineCap="Square" Opacity="0.7" />
+                                <Path Data="M28,112 H76 V104 H108 V120 H148 M772,388 H724 V396 H692 V380 H652"
+                                      Stroke="#304A61" StrokeThickness="4" Opacity="0.65" />
+
+                                <Canvas x:Name="PixelNode" Opacity="0.45">
+                                    <Rectangle Canvas.Left="68" Canvas.Top="44" Width="8" Height="8" Fill="#62C8FF" />
+                                    <Rectangle Canvas.Left="128" Canvas.Top="52" Width="6" Height="6" Fill="#3B82B5" />
+                                    <Rectangle Canvas.Left="720" Canvas.Top="86" Width="8" Height="8" Fill="#62C8FF" />
+                                    <Rectangle Canvas.Left="750" Canvas.Top="112" Width="4" Height="4" Fill="#42759A" />
+                                    <Rectangle Canvas.Left="88" Canvas.Top="406" Width="6" Height="6" Fill="#42759A" />
+                                    <Rectangle Canvas.Left="704" Canvas.Top="438" Width="8" Height="8" Fill="#62C8FF" />
+                                </Canvas>
+
+                                <!-- Block title assembled from square pixel runs. -->
+                                <Canvas Canvas.Left="198" Canvas.Top="174">
+                                    <Path Fill="#F4F8FC" Data="M0,0 H40 V10 H50 V60 H40 V70 H0 Z M10,10 V60 H35 V50 H40 V20 H35 V10 Z M68,0 H78 V55 H88 V60 H108 V55 H118 V0 H128 V58 H118 V68 H108 V70 H88 V68 H78 V58 H68 Z" />
+                                    <Path Fill="#42A5F5" Data="M146,10 H156 V0 H196 V10 H206 V20 H196 V10 H156 V60 H196 V50 H206 V60 H196 V70 H156 V60 H146 Z M224,10 H234 V0 H274 V10 H284 V60 H274 V70 H234 V60 H224 Z M234,10 V60 H274 V10 Z M302,0 H312 V10 H322 V20 H332 V10 H342 V0 H352 V70 H342 V25 H332 V35 H322 V25 H312 V70 H302 Z" />
+                                    <Rectangle Canvas.Left="362" Canvas.Top="60" Width="10" Height="10" Fill="#90CAF9" />
+                                </Canvas>
+
+                                <Grid Canvas.Top="274" Width="800">
+                                    <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                                        <Rectangle Width="8" Height="8" Margin="0,0,12,0" VerticalAlignment="Center" Fill="#42A5F5" />
+                                        <Rectangle Width="54" Height="4" Margin="0,0,16,0" VerticalAlignment="Center" Fill="#304A61" />
+                                        <TextBlock Margin="0,0,16,0" VerticalAlignment="Center"
+                                                   FontFamily="Consolas, Microsoft YaHei UI" FontSize="14"
+                                                   FontWeight="Bold" Foreground="#8295A8"
+                                                   Text="{DynamicResource Cover.Subtitle}" />
+                                        <Rectangle Width="54" Height="4" Margin="0,0,12,0" VerticalAlignment="Center" Fill="#304A61" />
+                                        <Rectangle Width="8" Height="8" VerticalAlignment="Center" Fill="#42A5F5" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Stepped serial data stream. -->
+                                <Canvas x:Name="PixelSignal" Canvas.Top="340" Opacity="0.72">
+                                    <Path Data="M40,56 H96 V48 H136 V64 H184 V40 H232 V52 H280 V24 H328 V48 H376 V36 H424 V60 H472 V44 H520 V20 H568 V52 H616 V40 H664 V56 H760"
+                                          Stroke="#42A5F5" StrokeThickness="6" StrokeLineJoin="Miter" />
+                                    <Path Data="M40,70 H118 V66 H174 V74 H246 V64 H316 V72 H392 V62 H452 V70 H540 V60 H608 V68 H682 V62 H760"
+                                          Stroke="#234E6B" StrokeThickness="4" Opacity="0.75" />
+                                    <Rectangle Canvas.Left="274" Canvas.Top="18" Width="12" Height="12" Fill="#90CAF9" />
+                                    <Rectangle Canvas.Left="514" Canvas.Top="14" Width="12" Height="12" Fill="#90CAF9" />
+                                </Canvas>
+
+                                <StackPanel Canvas.Left="40" Canvas.Top="458" Orientation="Horizontal">
+                                    <TextBlock FontFamily="Consolas" FontSize="11" Foreground="#486176" Text="SYS://SERIAL_LINK" />
+                                    <Rectangle x:Name="PixelCursor" Width="8" Height="12" Margin="8,0,0,0" Fill="#42A5F5" />
+                                </StackPanel>
+                                <TextBlock Canvas.Right="40" Canvas.Top="458" FontFamily="Consolas" FontSize="11" Foreground="#486176" Text="READY  8N1  TX/RX" />
+                            </Canvas>
+                        </Viewbox>
                     </Grid>
 
                 </Grid>

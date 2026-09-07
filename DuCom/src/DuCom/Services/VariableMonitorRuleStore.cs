@@ -28,7 +28,7 @@ public static class VariableMonitorRuleStore
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to load monitor rules from {FilePath}. {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Failed to load monitor rules from {FilePath}.", exception);
             return [];
         }
     }
@@ -41,7 +41,7 @@ public static class VariableMonitorRuleStore
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to save monitor rules to {FilePath}. {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Failed to save monitor rules to {FilePath}.", exception);
         }
     }
 }

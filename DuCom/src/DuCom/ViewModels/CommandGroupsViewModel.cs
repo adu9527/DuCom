@@ -475,7 +475,7 @@ public partial class CommandGroupsViewModel : ObservableObject, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to export command group. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Failed to export command group.", exception);
             CommandMessage = GetResourceString("Commands.ExportFailed");
         }
     }
@@ -522,7 +522,7 @@ public partial class CommandGroupsViewModel : ObservableObject, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to import command group. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Failed to import command group.", exception);
             CommandMessage = GetResourceString("Commands.ImportFailed");
         }
     }

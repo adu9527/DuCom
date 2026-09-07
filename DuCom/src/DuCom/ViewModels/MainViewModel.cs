@@ -450,6 +450,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     public partial bool IsSidebarVisible { get; set; } = true;
 
     [ObservableProperty]
+    public partial bool IsBottomSendVisible { get; set; } = true;
+
+    [ObservableProperty]
     public partial bool IsChineseLanguage { get; private set; }
 
     [ObservableProperty]
@@ -475,6 +478,12 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     [ObservableProperty]
     public partial bool ShowVirtualPorts { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool ShowCoverPage { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool CoverPageAnimationEnabled { get; set; }
 
     [ObservableProperty]
     public partial PortSortMode PortSortMode { get; set; } = PortSortMode.NameAscending;
@@ -649,6 +658,15 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     [ObservableProperty]
     public partial int PrivateMemoryThresholdMiB { get; set; } = 1024;
+
+    [ObservableProperty]
+    public partial bool ShowMemoryMonitor { get; set; } = true;
+
+    [ObservableProperty]
+    public partial int MemoryRefreshInterval { get; set; } = 2;
+
+    [ObservableProperty]
+    public partial int SystemMemoryRefreshInterval { get; set; } = 5;
 
     [ObservableProperty]
     public partial long PrivateMemoryBytes { get; private set; }
@@ -906,7 +924,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Automatic reconnect failed. Port={session.PortName}; {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Automatic reconnect failed. Port={session.PortName}.", exception);
         }
     }
 
@@ -1191,7 +1209,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             StatusMessage = GetResourceString("Status.SendFailed")
                 .Replace("{0}", exception.Message, StringComparison.Ordinal);
-            Program.DiagnosticLog?.Warning($"Send failed. Port={session.PortName}; {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Send failed. Port={session.PortName}.", exception);
             NotifyCommandStates();
             return;
         }
@@ -1205,7 +1223,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             }
             catch (Exception exception)
             {
-                Program.DiagnosticLog?.Warning($"Failed to save send history. {exception.Message}");
+                Program.DiagnosticLog?.Warning("Failed to save send history.", exception);
             }
         }
 
@@ -1528,7 +1546,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Automatic user-data backup failed. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Automatic user-data backup failed.", exception);
         }
     }
 
@@ -1569,6 +1587,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             DisplayBudgetMegabytes = 64;
             PrivateMemoryMonitorEnabled = false;
             PrivateMemoryThresholdMiB = 1024;
+            ShowMemoryMonitor = true;
+            MemoryRefreshInterval = 2;
+            SystemMemoryRefreshInterval = 5;
             LogFileNameFormat = "{Port}-{yyyy}-{MM}-{dd} {HH}-{mm}-{ss}.{fff}";
             FreezeAfterSend = false;
             SendPrefixEnabled = true;
@@ -1586,6 +1607,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             SearchOpacity = 1d;
             DefaultNewline = NewlinePolicy.None;
             IsSidebarVisible = true;
+            IsBottomSendVisible = true;
             ShowHiddenPorts = false;
             ShowSerialPorts = true;
             ShowVirtualPorts = true;
@@ -1733,6 +1755,8 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         SearchOpacity = 1d;
         LogFontSize = 14;
         LogFontFamily = "Cascadia Mono";
+        ShowCoverPage = true;
+        CoverPageAnimationEnabled = false;
     }
 
     [RelayCommand]
@@ -2391,19 +2415,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     [RelayCommand]
-    private static void OpenDiagnosticFolder()
-    {
-        string path = Path.Combine(AppContext.BaseDirectory, "Logs", "System_log");
-        Directory.CreateDirectory(path);
-        string? currentLogPath = Program.DiagnosticLog?.FilePath;
-        if (!string.IsNullOrWhiteSpace(currentLogPath) && File.Exists(currentLogPath))
-        {
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{currentLogPath}\"") { UseShellExecute = true });
-            return;
-        }
-
-        Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-    }
+    private static void OpenDiagnosticFolder() => SystemLogAccess.OpenCurrent();
 
     [RelayCommand]
     private static void OpenDocumentation()
@@ -2503,6 +2515,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     [RelayCommand]
     private void ToggleSidebar() => IsSidebarVisible = !IsSidebarVisible;
+
+    [RelayCommand]
+    private void ToggleBottomSend() => IsBottomSendVisible = !IsBottomSendVisible;
 
     [RelayCommand]
     private void ToggleFollowEnd()
@@ -2689,7 +2704,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             StatusMessage = GetResourceString("Status.PortCommandFailed")
                 .Replace("{0}", exception.Message, StringComparison.Ordinal);
-            Program.DiagnosticLog?.Warning($"Port command failed. Port={session.PortName}; {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Port command failed. Port={session.PortName}.", exception);
         }
 
         NotifyCommandStates();
@@ -2719,7 +2734,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         catch (Exception exception) when (exception is IOException or InvalidOperationException or TimeoutException or OperationCanceledException)
         {
             StatusMessage = GetResourceString("Status.SendFailed").Replace("{0}", exception.Message, StringComparison.Ordinal);
-            Program.DiagnosticLog?.Warning($"Send failed. Port={session.PortName}; {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Send failed. Port={session.PortName}.", exception);
         }
     }
 
@@ -2764,7 +2779,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to save send history. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Failed to save send history.", exception);
         }
     }
 
@@ -2848,10 +2863,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         ShowPortType,
         SearchOpacity,
         IsSidebarVisible,
+        IsBottomSendVisible,
         PortSortMode,
         ShowHiddenPorts,
         ShowSerialPorts,
         ShowVirtualPorts,
+        ShowCoverPage,
+        CoverPageAnimationEnabled,
         BackgroundImageEnabled,
         BackgroundImagePath,
         BackgroundImageFolderPath,
@@ -2876,7 +2894,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         LogPackageOutputDirectory,
         LogPackagePluginEnabled,
         AutoCheckUpdates,
-        SkippedUpdateVersion);
+        SkippedUpdateVersion,
+        ShowMemoryMonitor,
+        Math.Clamp(MemoryRefreshInterval, 1, 60),
+        Math.Clamp(SystemMemoryRefreshInterval, 1, 60));
 
     private void ApplyConfiguration(ConfigurationSnapshot snapshot)
     {
@@ -2916,6 +2937,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             DisplayBudgetMegabytes = snapshot.DisplayBudgetMegabytes;
             PrivateMemoryMonitorEnabled = snapshot.PrivateMemoryMonitorEnabled;
             PrivateMemoryThresholdMiB = Math.Clamp(snapshot.PrivateMemoryThresholdMiB, 1, 1_048_576);
+            ShowMemoryMonitor = snapshot.ShowMemoryMonitor;
+            MemoryRefreshInterval = Math.Clamp(snapshot.MemoryRefreshInterval, 1, 60);
+            SystemMemoryRefreshInterval = Math.Clamp(snapshot.SystemMemoryRefreshInterval, 1, 60);
             LogFileNameFormat = snapshot.LogFileNameFormat;
             FreezeAfterSend = snapshot.FreezeAfterSend;
             SendPrefixEnabled = snapshot.SendPrefixEnabled;
@@ -2940,10 +2964,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             ShowPortType = snapshot.ShowPortType;
             SearchOpacity = Math.Clamp(snapshot.SearchOpacity, 0.2d, 1d);
             IsSidebarVisible = snapshot.IsSidebarVisible;
+            IsBottomSendVisible = snapshot.IsBottomSendVisible;
             PortSortMode = snapshot.PortSortMode;
             ShowHiddenPorts = snapshot.ShowHiddenPorts;
             ShowSerialPorts = snapshot.ShowSerialPorts;
             ShowVirtualPorts = snapshot.ShowVirtualPorts;
+            ShowCoverPage = snapshot.ShowCoverPage;
+            CoverPageAnimationEnabled = snapshot.CoverPageAnimationEnabled;
             BackgroundImageEnabled = snapshot.BackgroundImageEnabled;
             BackgroundImagePath = snapshot.BackgroundImagePath ?? string.Empty;
             BackgroundImageFolderPath = snapshot.BackgroundImageFolderPath ?? string.Empty;
@@ -3107,7 +3134,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to load highlight/filter rules. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Failed to load highlight/filter rules.", exception);
         }
     }
 
@@ -3161,7 +3188,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to save settings. {exception.Message}");
+            Program.DiagnosticLog?.Warning("Failed to save settings.", exception);
         }
     }
 
@@ -3208,10 +3235,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         bool ShowPortType = true,
         double SearchOpacity = 1d,
         bool IsSidebarVisible = true,
+        bool IsBottomSendVisible = true,
         PortSortMode PortSortMode = PortSortMode.NameAscending,
         bool ShowHiddenPorts = false,
         bool ShowSerialPorts = true,
         bool ShowVirtualPorts = true,
+        bool ShowCoverPage = true,
+        bool CoverPageAnimationEnabled = false,
         bool BackgroundImageEnabled = false,
         string? BackgroundImagePath = null,
         string? BackgroundImageFolderPath = null,
@@ -3236,7 +3266,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         string? LogPackageOutputDirectory = null,
         bool LogPackagePluginEnabled = true,
         bool AutoCheckUpdates = true,
-        string? SkippedUpdateVersion = null);
+        string? SkippedUpdateVersion = null,
+        bool ShowMemoryMonitor = true,
+        int MemoryRefreshInterval = 2,
+        int SystemMemoryRefreshInterval = 5);
 
     private static string[] NormalizePortNames(IEnumerable<string>? portNames) => [.. (portNames ?? [])
         .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -3743,6 +3776,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         MarkSettingsDirty();
     }
     partial void OnPrivateMemoryThresholdMiBChanged(int value) => MarkSettingsDirty();
+    partial void OnShowMemoryMonitorChanged(bool value) => MarkSettingsDirty();
+    partial void OnMemoryRefreshIntervalChanged(int value) => MarkSettingsDirty();
+    partial void OnSystemMemoryRefreshIntervalChanged(int value) => MarkSettingsDirty();
     partial void OnLogFileNameFormatChanged(string value)
     {
         OnPropertyChanged(nameof(LogFileNamePreview));
@@ -3777,11 +3813,16 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     partial void OnShowTabsChanged(bool value) => MarkSettingsDirty();
 
+    partial void OnShowCoverPageChanged(bool value) => MarkSettingsDirty();
+
+    partial void OnCoverPageAnimationEnabledChanged(bool value) => MarkSettingsDirty();
+
     partial void OnLogFontSizeChanged(double value) => MarkSettingsDirty();
     partial void OnLogFontFamilyChanged(string value) => MarkSettingsDirty();
     partial void OnShowPortTypeChanged(bool value) => MarkSettingsDirty();
     partial void OnSearchOpacityChanged(double value) => MarkSettingsDirty();
     partial void OnIsSidebarVisibleChanged(bool value) => MarkSettingsDirty();
+    partial void OnIsBottomSendVisibleChanged(bool value) => MarkSettingsDirty();
     partial void OnPortSortModeChanged(PortSortMode value) => MarkSettingsDirty();
     partial void OnShowHiddenPortsChanged(bool value) => MarkSettingsDirty();
 

@@ -26,7 +26,18 @@
                 <RowDefinition Height="*" />
                 <RowDefinition Height="4" />
                 <RowDefinition Height="64" />
-                <RowDefinition Height="4" />
+                <RowDefinition>
+                    <RowDefinition.Style>
+                        <Style TargetType="RowDefinition">
+                            <Setter Property="Height" Value="4" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DataContext.IsBottomSendVisible, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                                    <Setter Property="Height" Value="0" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </RowDefinition.Style>
+                </RowDefinition>
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
@@ -292,10 +303,30 @@
             <GridSplitter Grid.Row="3"
                           Height="4"
                           HorizontalAlignment="Stretch"
-                          ResizeDirection="Rows"
-                          Style="{StaticResource Style.Splitter}" />
+                          ResizeDirection="Rows">
+                <GridSplitter.Style>
+                    <Style BasedOn="{StaticResource Style.Splitter}" TargetType="GridSplitter">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.IsBottomSendVisible, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </GridSplitter.Style>
+            </GridSplitter>
 
             <Grid Grid.Row="4" Margin="0,0,0,0">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DataContext.IsBottomSendVisible, RelativeSource={RelativeSource AncestorType=Window}}" Value="False">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="8" />

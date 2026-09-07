@@ -32,7 +32,7 @@ public sealed class AppSettingsService
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Failed to load settings from {path}. {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Failed to load settings from {path}.", exception);
             return null;
         }
     }

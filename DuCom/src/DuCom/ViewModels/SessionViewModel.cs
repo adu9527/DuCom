@@ -410,7 +410,7 @@ public partial class SessionViewModel : ObservableObject, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            Program.DiagnosticLog?.Warning($"Timed send failed. Port={PortName}; {exception.Message}");
+            Program.DiagnosticLog?.Warning($"Timed send failed. Port={PortName}.", exception);
         }
         finally
         {
