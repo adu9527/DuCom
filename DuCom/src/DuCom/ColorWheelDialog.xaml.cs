@@ -20,7 +20,7 @@ public partial class ColorWheelDialog : FluentWindow
         InitializeComponent();
         Color initial = ParseColor(initialHex) ?? Colors.White;
         RgbToHsv(initial, out _hue, out _saturation, out _brightness);
-        BrightnessSlider.Value = _brightness;
+        BrightnessSlider.Value = _brightness * 100d;
         RenderWheel();
         UpdateSelectionMarker();
         UpdateSelectedColor();
@@ -77,7 +77,7 @@ public partial class ColorWheelDialog : FluentWindow
 
     private void BrightnessSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        _brightness = e.NewValue;
+        _brightness = e.NewValue / 100d;
         if (IsLoaded)
         {
             RenderWheel();

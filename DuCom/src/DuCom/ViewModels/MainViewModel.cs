@@ -595,7 +595,42 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     public partial string LogDirectory { get; set; } = GetDefaultLogDirectory();
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLogPackageOutputFollowingLogDirectory))]
+    [NotifyPropertyChangedFor(nameof(LogPackageOutputDirectoryDisplay))]
     public partial string LogPackageOutputDirectory { get; set; } = string.Empty;
+
+    public bool IsLogPackageOutputFollowingLogDirectory
+    {
+        get => string.IsNullOrWhiteSpace(LogPackageOutputDirectory);
+        set
+        {
+            if (value == IsLogPackageOutputFollowingLogDirectory)
+            {
+                return;
+            }
+
+            if (value)
+            {
+                LogPackageOutputDirectory = string.Empty;
+            }
+            else
+            {
+                LogPackageOutputDirectory = LogDirectory;
+            }
+        }
+    }
+
+    public string LogPackageOutputDirectoryDisplay
+    {
+        get => IsLogPackageOutputFollowingLogDirectory ? LogDirectory : LogPackageOutputDirectory;
+        set
+        {
+            if (!IsLogPackageOutputFollowingLogDirectory && value != LogPackageOutputDirectory)
+            {
+                LogPackageOutputDirectory = value;
+            }
+        }
+    }
 
     [ObservableProperty]
     public partial bool LogPackagePluginEnabled { get; set; } = true;
@@ -1196,7 +1231,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     private bool CanSend() => SelectedSession is { IsOpen: true, IsBusy: false };
 
     [RelayCommand]
-    private void ClearDisplay() => SelectedSession?.ClearDisplay();
+    private void ClearDisplay() => ClearActiveDisplay();
 
     [RelayCommand]
     private void FormatJson()
@@ -1596,25 +1631,50 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     [RelayCommand]
-    private async Task RestoreCurrentPortDefaultsAsync()
+    private async Task RestoreTransportDefaultsAsync()
     {
         SessionViewModel? session = _portSettingsTargetSession;
-        if (session is null || session.IsBusy)
+        if (session is null)
+        {
+            RestoreDefaultBaudRates();
+            _isLoadingSettings = true;
+            try
+            {
+                BaudRate = 1_152_000;
+                DataBits = 8;
+                StopBits = StopBits.One;
+                Parity = Parity.None;
+                Handshake = Handshake.None;
+                EncodingName = Encoding.UTF8.WebName;
+            }
+            finally
+            {
+                _isLoadingSettings = false;
+            }
+
+            ApplyDefaultSettingsToEditor();
+            OnPropertyChanged(nameof(SerialParameterBaudRate));
+            MarkSettingsDirty();
+            return;
+        }
+
+        if (session.IsBusy)
         {
             return;
         }
 
         _portSettingsApplyTimer.Stop();
         _portSettingsApplyPending = false;
+        RestoreDefaultBaudRates();
         SerialPortSettings current = session.WorkspaceSession.Settings;
         SerialPortSettings defaults = current with
         {
-            BaudRate = BaudRate,
-            DataBits = DataBits,
-            StopBits = StopBits,
-            Parity = Parity,
-            Handshake = Handshake,
-            EncodingName = EncodingName,
+            BaudRate = 1_152_000,
+            DataBits = 8,
+            StopBits = StopBits.One,
+            Parity = Parity.None,
+            Handshake = Handshake.None,
+            EncodingName = Encoding.UTF8.WebName,
             DtrEnable = false,
             RtsEnable = false,
             DiscardNull = false,
@@ -1626,32 +1686,57 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
 
         ApplySessionSettingsToEditor(defaults);
+        OnPropertyChanged(nameof(SerialParameterBaudRate));
+        RememberPortOverride(session.PortName);
+    }
+
+    [RelayCommand]
+    private void RestoreReceiveAndLogDefaults()
+    {
+        ReceiveMode = ReceiveDisplayMode.Str;
+        TimestampEnabled = true;
+        TimestampFormat = "HH:mm:ss.fff";
+        LoggingEnabled = true;
+        LogPackageOutputDirectory = string.Empty;
+        LogRotationMegabytes = 40;
+        LogRotationEnabled = true;
+        DisplayBudgetMegabytes = 64;
+        LogFileNameFormat = "{Port}-{yyyy}-{MM}-{dd} {HH}-{mm}-{ss}.{fff}";
+        SendPrefixEnabled = true;
+        SendPrefix = "TX > ";
+    }
+
+    [RelayCommand]
+    private void RestoreSendDefaults()
+    {
+        DefaultSendMode = SendMode.Str;
+        DefaultNewline = NewlinePolicy.None;
 
         _isLoadingSettings = true;
         try
         {
-            SerialParameterReceiveMode = ReceiveMode;
-            SerialParameterTimestampEnabled = TimestampEnabled;
-            SerialParameterLoggingEnabled = LoggingEnabled;
-            SerialParameterFollowEnd = true;
-            SerialParameterFilterEnabled = true;
-            SerialParameterSendMode = DefaultSendMode;
-            SerialParameterNewline = DefaultNewline;
+            SerialParameterSendMode = SendMode.Str;
+            SerialParameterNewline = NewlinePolicy.None;
+            SerialParameterInterpretSendEscapes = false;
+            SerialParameterTimedSendEnabled = false;
+            SerialParameterTimedSendIntervalMilliseconds = 1000;
         }
         finally
         {
             _isLoadingSettings = false;
         }
-
-        session.ReceiveMode = ReceiveMode;
-        session.TimestampEnabled = TimestampEnabled;
-        session.LoggingEnabled = LoggingEnabled;
-        session.FollowEnd = true;
-        session.FilterEnabled = true;
-        session.SendMode = DefaultSendMode;
-        session.Newline = DefaultNewline;
-        RememberPortOverride(session.PortName);
     }
+
+    [RelayCommand]
+    private void RestoreAppearanceDefaults()
+    {
+        SearchOpacity = 1d;
+        LogFontSize = 14;
+        LogFontFamily = "Cascadia Mono";
+    }
+
+    [RelayCommand]
+    private void ResetSearchOpacity() => SearchOpacity = 1d;
 
     internal void NotifyAutoScrollPaused()
     {
@@ -1703,8 +1788,21 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     partial void OnSelectedSessionChanged(SessionViewModel? value)
     {
+        if (value is not null)
+        {
+            _activeLogSession = value;
+        }
+
         _sendHistoryNavigator.Reset();
         NotifyCommandStates();
+    }
+
+    partial void OnSelectedRightSessionChanged(SessionViewModel? value)
+    {
+        if (value is not null)
+        {
+            _activeLogSession = value;
+        }
     }
 
     /// <summary>Activates the session whose log surface the user is interacting with.</summary>
@@ -1724,6 +1822,48 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             return;
         }
+    }
+
+    internal SessionViewModel? ActiveSession => _activeLogSession ?? SelectedSession ?? SelectedRightSession;
+
+    internal void ClearActiveDisplay() => ActiveSession?.ClearDisplay();
+
+    internal void ToggleActiveFollowEnd()
+    {
+        if (ActiveSession is { } session)
+        {
+            session.FollowEnd = !session.FollowEnd;
+        }
+    }
+
+    internal void ToggleActiveReceiveMode()
+    {
+        if (ActiveSession is { } session)
+        {
+            session.ReceiveMode = session.ReceiveMode == ReceiveDisplayMode.Str ? ReceiveDisplayMode.Hex : ReceiveDisplayMode.Str;
+            RememberPortOverride(session.PortName);
+        }
+        else
+        {
+            ReceiveMode = ReceiveMode == ReceiveDisplayMode.Str ? ReceiveDisplayMode.Hex : ReceiveDisplayMode.Str;
+        }
+
+        StatusMessage = GetResourceString("Status.SessionSettingRequiresReopen");
+    }
+
+    internal void ToggleActiveTimestamp()
+    {
+        if (ActiveSession is { } session)
+        {
+            session.TimestampEnabled = !session.TimestampEnabled;
+            RememberPortOverride(session.PortName);
+        }
+        else
+        {
+            TimestampEnabled = !TimestampEnabled;
+        }
+
+        StatusMessage = GetResourceString("Status.SessionSettingRequiresReopen");
     }
 
     private void ApplySessionSettingsToEditor(SerialPortSettings settings)
@@ -2255,6 +2395,13 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     {
         string path = Path.Combine(AppContext.BaseDirectory, "Logs", "System_log");
         Directory.CreateDirectory(path);
+        string? currentLogPath = Program.DiagnosticLog?.FilePath;
+        if (!string.IsNullOrWhiteSpace(currentLogPath) && File.Exists(currentLogPath))
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{currentLogPath}\"") { UseShellExecute = true });
+            return;
+        }
+
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
     }
 
@@ -2360,50 +2507,28 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     [RelayCommand]
     private void ToggleFollowEnd()
     {
-        SessionViewModel? session = SelectedSession ?? SelectedRightSession;
-        if (session is not null)
-        {
-            session.FollowEnd = !session.FollowEnd;
-        }
+        ToggleActiveFollowEnd();
     }
 
     [RelayCommand]
     private void ToggleDefaultReceiveMode()
     {
-        if (SelectedSession is not null)
-        {
-            SelectedSession.ReceiveMode = SelectedSession.ReceiveMode == ReceiveDisplayMode.Str ? ReceiveDisplayMode.Hex : ReceiveDisplayMode.Str;
-            RememberPortOverride(SelectedSession.PortName);
-        }
-        else
-        {
-            ReceiveMode = ReceiveMode == ReceiveDisplayMode.Str ? ReceiveDisplayMode.Hex : ReceiveDisplayMode.Str;
-        }
-        StatusMessage = GetResourceString("Status.SessionSettingRequiresReopen");
+        ToggleActiveReceiveMode();
     }
 
     [RelayCommand]
     private void ToggleDefaultTimestamp()
     {
-        if (SelectedSession is not null)
-        {
-            SelectedSession.TimestampEnabled = !SelectedSession.TimestampEnabled;
-            RememberPortOverride(SelectedSession.PortName);
-        }
-        else
-        {
-            TimestampEnabled = !TimestampEnabled;
-        }
-        StatusMessage = GetResourceString("Status.SessionSettingRequiresReopen");
+        ToggleActiveTimestamp();
     }
 
     [RelayCommand]
     private void ToggleSelectedSendMode()
     {
-        if (SelectedSession is not null)
+        if (ActiveSession is { } session)
         {
-            SelectedSession.SendMode = SelectedSession.SendMode == SendMode.Str ? SendMode.Hex : SendMode.Str;
-            RememberPortOverride(SelectedSession.PortName);
+            session.SendMode = session.SendMode == SendMode.Str ? SendMode.Hex : SendMode.Str;
+            RememberPortOverride(session.PortName);
         }
     }
 
@@ -2600,7 +2725,11 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     [RelayCommand]
     private void ShowToolCenter(string page) =>
-        new ToolCenterWindow(page, ShortcutManager, CommandRunner, this, Telnet) { Owner = Application.Current.MainWindow }.Show();
+        new ToolCenterWindow(page, ShortcutManager, this, Telnet) { Owner = Application.Current.MainWindow }.Show();
+
+    [RelayCommand]
+    private void ShowCommandGroups() =>
+        new CommandGroupsWindow(CommandRunner, this) { Owner = Application.Current.MainWindow }.Show();
 
     internal IReadOnlyList<string> SendHistoryEntries => _sendHistory.Entries;
 
@@ -2659,7 +2788,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     [RelayCommand]
-    private void ShowPluginManager() => ShowToolCenter(ToolCenterPages.Plugins);
+    private void ShowPluginManager() => OpenSettingsCategory(4);
 
     private static void ApplyBackdrop(WindowBackdropType backdrop)
     {
@@ -3578,8 +3707,18 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     partial void OnLoggingEnabledChanged(bool value) => MarkSettingsDirty();
 
-    partial void OnLogDirectoryChanged(string value) => MarkSettingsDirty();
-    partial void OnLogPackageOutputDirectoryChanged(string value) => MarkSettingsDirty();
+    partial void OnLogDirectoryChanged(string value)
+    {
+        OnPropertyChanged(nameof(LogPackageOutputDirectoryDisplay));
+        MarkSettingsDirty();
+    }
+
+    partial void OnLogPackageOutputDirectoryChanged(string value)
+    {
+        OnPropertyChanged(nameof(IsLogPackageOutputFollowingLogDirectory));
+        OnPropertyChanged(nameof(LogPackageOutputDirectoryDisplay));
+        MarkSettingsDirty();
+    }
     partial void OnLogPackagePluginEnabledChanged(bool value)
     {
         MarkSettingsDirty();

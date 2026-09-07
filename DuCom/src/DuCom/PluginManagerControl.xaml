@@ -25,7 +25,18 @@
                 <StackPanel Margin="22,16,22,24">
                     <TextBlock FontSize="26" FontWeight="SemiBold" Text="{DynamicResource Plugins.BackgroundImage.Name}" />
                     <TextBlock Margin="0,6,0,0" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Plugins.BackgroundImage.Description}" TextWrapping="Wrap" />
-                    <ui:Button Margin="0,18,0,0" HorizontalAlignment="Left" Appearance="Primary" Command="{Binding ToggleBackgroundImageCommand}"><TextBlock><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="{DynamicResource Plugins.BackgroundImage.Enable}" /><Style.Triggers><DataTrigger Binding="{Binding BackgroundImageEnabled}" Value="True"><Setter Property="Text" Value="{DynamicResource Plugins.BackgroundImage.Disable}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></ui:Button>
+                    <ui:Button MinWidth="96" Margin="0,18,0,0" HorizontalAlignment="Left" Appearance="Primary" Command="{Binding ToggleBackgroundImageCommand}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="Content" Value="{DynamicResource Plugins.BackgroundImage.Enable}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding BackgroundImageEnabled}" Value="True">
+                                        <Setter Property="Content" Value="{DynamicResource Plugins.BackgroundImage.Disable}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
                     <Border Margin="0,18,0,0" Style="{DynamicResource Style.SettingsCard}"><StackPanel>
                         <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Plugins.BackgroundImage.Image}" /><TextBox IsReadOnly="True" Text="{Binding BackgroundImagePath}" TextWrapping="Wrap" />
                         <WrapPanel Margin="0,8,0,0"><Button Command="{Binding SelectBackgroundImageCommand}" Content="{DynamicResource Plugins.BackgroundImage.Select}" /><Button Margin="8,0,0,0" Command="{Binding SelectBackgroundImageFolderCommand}" Content="{DynamicResource Plugins.BackgroundImage.SelectFolder}" /><Button Margin="8,0,0,0" Command="{Binding ClearBackgroundImageCommand}" Content="{DynamicResource Plugins.BackgroundImage.Clear}" /></WrapPanel>
@@ -33,7 +44,7 @@
                         <TextBlock Margin="0,16,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Plugins.BackgroundImage.PlaybackMode}" /><ComboBox DisplayMemberPath="DisplayName" ItemsSource="{Binding PlaybackModes}" SelectedItem="{Binding SelectedPlaybackMode}" />
                         <TextBlock Margin="0,16,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Plugins.BackgroundImage.Interval}" /><TextBox Text="{Binding BackgroundImageIntervalSeconds, UpdateSourceTrigger=PropertyChanged}" />
                         <Button Margin="0,10,0,0" HorizontalAlignment="Left" Command="{Binding ShowNextBackgroundImageCommand}" Content="{DynamicResource Plugins.BackgroundImage.Next}" />
-                        <TextBlock Margin="0,16,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Plugins.BackgroundImage.Opacity}" /><Slider Minimum="0" Maximum="0.8" TickFrequency="0.05" Value="{Binding BackgroundImageOpacity}" /><TextBlock HorizontalAlignment="Right" Style="{DynamicResource Style.MutedText}" Text="{Binding BackgroundImageOpacity, StringFormat={}{0:P0}}" />
+                        <Grid Margin="0,16,0,4"><TextBlock VerticalAlignment="Center" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Plugins.BackgroundImage.Opacity}" /><Button HorizontalAlignment="Right" Command="{Binding ResetBackgroundImageOpacityCommand}" Content="{DynamicResource Settings.ResetOpacity}" /></Grid><Slider Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="False" Style="{StaticResource Style.PrecisionSlider}" Value="{Binding BackgroundImageOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource PercentageValueConverter}}" /><TextBlock HorizontalAlignment="Right" Style="{DynamicResource Style.MutedText}" Text="{Binding BackgroundImageOpacity, StringFormat={}{0:P0}}" />
                     </StackPanel></Border>
                     <Border MinHeight="180" Margin="0,18,0,0" Background="{DynamicResource Brush.ShellSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="8" ClipToBounds="True"><Grid><TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Plugins.BackgroundImage.Preview}" /><Image Opacity="{Binding BackgroundImageOpacity}" Source="{Binding BackgroundImageSource}" Stretch="UniformToFill" /></Grid></Border>
                 </StackPanel>
@@ -42,7 +53,18 @@
                 <StackPanel Margin="22,16,22,24">
                     <TextBlock FontSize="26" FontWeight="SemiBold" Text="{DynamicResource Plugins.LogPackage.Name}" />
                     <TextBlock Margin="0,6,0,0" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Plugins.LogPackage.Description}" TextWrapping="Wrap" />
-                    <ui:Button Margin="0,18,0,0" HorizontalAlignment="Left" Appearance="Primary" Command="{Binding ToggleLogPackageCommand}"><TextBlock><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="{DynamicResource Plugins.LogPackage.Enable}" /><Style.Triggers><DataTrigger Binding="{Binding LogPackagePluginEnabled}" Value="True"><Setter Property="Text" Value="{DynamicResource Plugins.LogPackage.Disable}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></ui:Button>
+                    <ui:Button MinWidth="96" Margin="0,18,0,0" HorizontalAlignment="Left" Appearance="Primary" Command="{Binding ToggleLogPackageCommand}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="Content" Value="{DynamicResource Plugins.LogPackage.Enable}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding LogPackagePluginEnabled}" Value="True">
+                                        <Setter Property="Content" Value="{DynamicResource Plugins.LogPackage.Disable}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
                     <Border Margin="0,18,0,0" Style="{DynamicResource Style.SettingsCard}"><StackPanel>
                         <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Plugins.LogPackage.Behavior}" />
                         <TextBlock Margin="0,8,0,0" Text="{DynamicResource Plugins.LogPackage.BehaviorDescription}" TextWrapping="Wrap" />

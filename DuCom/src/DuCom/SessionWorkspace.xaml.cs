@@ -59,6 +59,30 @@ public partial class SessionWorkspace : UserControl
         }
     }
 
+    private void Workspace_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (DataContext is SessionViewModel session)
+        {
+            ActivateLogSession(session);
+        }
+    }
+
+    private void ToggleConnection_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is SessionViewModel session)
+        {
+            ActivateLogSession(session);
+        }
+    }
+
+    private void SerialParameters_Click(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is SessionViewModel session)
+        {
+            ActivateLogSession(session);
+        }
+    }
+
     private void SendEditor_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (DataContext is not SessionViewModel session || sender is not TextBox editor)
@@ -281,7 +305,7 @@ public partial class SessionWorkspace : UserControl
         {
             Header = Application.Current.TryFindResource("Commands.EditParameters") as string ?? "Edit command parameters",
         };
-        editItem.Click += (_, _) => viewModel.ShowToolCenterCommand.Execute("commands");
+        editItem.Click += (_, _) => viewModel.ShowCommandGroupsCommand.Execute(null);
         menu.Items.Add(editItem);
 
         MenuItem sendItem = new()

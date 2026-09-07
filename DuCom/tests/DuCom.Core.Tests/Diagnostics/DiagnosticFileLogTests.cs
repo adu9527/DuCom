@@ -40,6 +40,21 @@ public sealed class DiagnosticFileLogTests
         Assert.Equal(new string('x', 128), File.ReadAllText($"{activePath}.1"));
     }
 
+    [Fact]
+    public void RotatesWhenActiveFileExceedsLimitDuringCurrentRun()
+    {
+        using TemporaryDirectory directory = new();
+        string activePath = Path.Combine(directory.Path, "ducom.log");
+        using DiagnosticFileLog log = new(directory.Path, "ducom.log", maximumFileBytes: 64, retainedFileCount: 2);
+
+        log.Information(new string('x', 128));
+        log.Information("new segment");
+
+        Assert.True(File.Exists($"{activePath}.1"));
+        Assert.Contains(new string('x', 128), File.ReadAllText($"{activePath}.1"));
+        Assert.Contains("new segment", ReadShared(activePath));
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

@@ -184,6 +184,9 @@ public partial class PluginManagerViewModel : ObservableObject
         OnPropertyChanged(nameof(BackgroundImageSource));
     }
 
+    [RelayCommand]
+    private void ResetBackgroundImageOpacity() => BackgroundImageOpacity = 0.18d;
+
     partial void OnBackgroundImageEnabledChanged(bool value)
     {
         if (_syncingFromMainViewModel)

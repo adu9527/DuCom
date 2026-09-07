@@ -1,0 +1,50 @@
+<ui:FluentWindow x:Class="DuCom.ThemedInputDialog"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Width="480"
+                 SizeToContent="Height"
+                 Icon="/Assets/DuCom.ico"
+                 MinWidth="420"
+                 MaxWidth="620"
+                 ExtendsContentIntoTitleBar="True"
+                 ResizeMode="NoResize"
+                 ShowInTaskbar="False"
+                 WindowBackdropType="Mica"
+                 WindowStartupLocation="CenterOwner">
+    <Grid Background="{DynamicResource Brush.ShellSurface}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar x:Name="DialogTitleBar" ShowClose="True" />
+        <Grid Grid.Row="1" Margin="22,18,22,20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="MessageText"
+                       FontSize="14"
+                       Foreground="{DynamicResource Brush.TextPrimary}"
+                       TextWrapping="Wrap" />
+            <TextBox x:Name="InputBox"
+                     Grid.Row="1"
+                     Margin="0,14,0,0"
+                     MaxLength="64"
+                     KeyDown="InputBox_KeyDown" />
+            <TextBlock x:Name="ErrorText"
+                       Grid.Row="2"
+                       Margin="0,8,0,0"
+                       FontSize="12"
+                       Foreground="{DynamicResource Brush.Danger}"
+                       TextWrapping="Wrap"
+                       Visibility="Collapsed" />
+            <StackPanel Grid.Row="3" Margin="0,20,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+                <Button x:Name="SecondaryButton" MinWidth="88" Margin="0,0,8,0" Click="SecondaryButton_Click" />
+                <ui:Button x:Name="PrimaryButton" MinWidth="88" Appearance="Primary" Click="PrimaryButton_Click" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

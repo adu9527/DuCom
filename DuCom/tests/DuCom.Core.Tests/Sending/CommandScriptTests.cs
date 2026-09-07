@@ -52,7 +52,7 @@ public class CommandScriptSerializerTests
     }
 
     [Fact]
-    public void Deserialize_EmptyPayloadSkipped_BadIdsRegenerated()
+    public void Deserialize_EmptyPayloadKept_BadIdsRegenerated()
     {
         string json = """
             {
@@ -73,9 +73,10 @@ public class CommandScriptSerializerTests
         IReadOnlyList<CommandGroup> groups = CommandScriptSerializer.Deserialize(json, out IReadOnlyList<string> warnings);
 
         CommandGroup group = Assert.Single(groups);
-        ScriptCommand command = Assert.Single(group.Commands);
-        Assert.Equal("valid", command.Name);
-        Assert.NotEqual(Guid.Empty, command.Id);
+        Assert.Equal(2, group.Commands.Count);
+        Assert.Equal("valid", group.Commands[1].Name);
+        Assert.Equal(string.Empty, group.Commands[0].Payload);
+        Assert.NotEqual(Guid.Empty, group.Commands[0].Id);
         Assert.NotEqual(Guid.Empty, group.Id);
         Assert.NotEmpty(warnings);
     }

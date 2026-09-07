@@ -24,11 +24,19 @@ public partial class ThemedMessageDialog : FluentWindow
         InitializeComponent();
     }
 
+    /// <summary>Test hook: when set, <see cref="Confirm"/> returns the mapped answer without opening a dialog.</summary>
+    internal static Func<string, bool>? AutoConfirmer { get; set; }
+
     public static bool Confirm(Window? owner, string message, string title)
         => Confirm(owner, message, title, "Dialog.Yes", "Dialog.No");
 
     public static bool Confirm(Window? owner, string message, string title, string primaryResourceKey, string secondaryResourceKey)
     {
+        if (AutoConfirmer is not null)
+        {
+            return AutoConfirmer(message);
+        }
+
         ThemedMessageDialog dialog = Create(owner, message, title, ThemedMessageDialogKind.Warning);
         dialog.PrimaryButton.Content = GetResourceString(primaryResourceKey, "Yes");
         dialog.SecondaryButton.Content = GetResourceString(secondaryResourceKey, "No");

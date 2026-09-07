@@ -15,20 +15,15 @@ public partial class ToolCenterWindow : FluentWindow, IAsyncDisposable
     public ToolCenterWindow(
         string page,
         ShortcutManager? shortcutManager = null,
-        CommandGroupRunnerHost? commandRunnerHost = null,
         MainViewModel? mainViewModel = null,
         TelnetBridgeService? telnetBridge = null)
     {
         InitializeComponent();
-        _viewModel = new ToolCenterViewModel(shortcutManager, commandRunnerHost, mainViewModel, telnetBridge);
+        _viewModel = new ToolCenterViewModel(shortcutManager, mainViewModel, telnetBridge);
         _viewModel.SelectedTabIndex = ToolCenterPages.IndexOf(page);
         DataContext = _viewModel;
-        PluginManagerHost.DataContext = mainViewModel?.PluginManager;
         Closed += OnClosed;
     }
-
-    private void CommandsGrid_CellEditEnding(object? sender, DataGridCellEditEndingEventArgs e) =>
-        Dispatcher.BeginInvoke(_viewModel.CommitScriptCommandEdits, System.Windows.Threading.DispatcherPriority.Background);
 
     private void SendHistory_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {

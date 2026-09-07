@@ -17,9 +17,10 @@
     </UserControl.InputBindings>
 
     <Border Background="{DynamicResource Brush.PanelSurface}"
-            BorderBrush="{DynamicResource Brush.PanelBorder}"
-            BorderThickness="1"
-            CornerRadius="{DynamicResource Radius.Medium}">
+             BorderBrush="{DynamicResource Brush.PanelBorder}"
+             BorderThickness="1"
+             CornerRadius="{DynamicResource Radius.Medium}"
+             GotKeyboardFocus="Workspace_GotKeyboardFocus">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
@@ -136,9 +137,10 @@
                     <WrapPanel>
                         <!-- Connection (primary, compact) -->
                         <Button MinWidth="74"
-                                 Margin="0,0,6,4"
-                                 Command="{Binding ToggleConnectionCommand}"
-                                 Style="{StaticResource Style.ToolbarPrimary}">
+                                  Margin="0,0,6,4"
+                                  Command="{Binding ToggleConnectionCommand}"
+                                  Click="ToggleConnection_Click"
+                                  Style="{StaticResource Style.ToolbarPrimary}">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <ui:SymbolIcon FontSize="15" Symbol="PlugConnected24" />
                                 <TextBlock Margin="5,0,0,0" VerticalAlignment="Center">
@@ -212,9 +214,10 @@
 
                         <!-- Port + send-config -->
                         <Button Margin="0,0,2,4"
-                                Style="{StaticResource Style.ToolbarButton}"
-                                Command="{Binding DataContext.OpenSerialParametersCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                CommandParameter="{Binding}"
+                                 Style="{StaticResource Style.ToolbarButton}"
+                                 Command="{Binding DataContext.OpenSerialParametersCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                 CommandParameter="{Binding}"
+                                 Click="SerialParameters_Click"
                                 ToolTip="{DynamicResource Settings.SerialParameters}"
                                 AutomationProperties.Name="{DynamicResource Settings.SerialParameters}">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

@@ -175,12 +175,8 @@ public static class CommandScriptSerializer
                     commandId = Guid.NewGuid();
                 }
 
-                if (commandDto.Payload.Length == 0)
-                {
-                    warningList.Add($"group '{dto.Name}' command '{commandDto.Name}': empty payload skipped");
-                    continue;
-                }
-
+                // Empty payloads are valid in-progress editor rows; dropping them here
+                // made freshly added commands vanish on the next load.
                 commands.Add(new ScriptCommand(
                     commandId,
                     commandDto.Name,

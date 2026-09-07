@@ -14,7 +14,7 @@ public sealed class DiagnosticFileLog : IDisposable
     public DiagnosticFileLog(
         string directoryPath,
         string fileName = "ducom.log",
-        long maximumFileBytes = 5 * 1024 * 1024,
+        long maximumFileBytes = 10 * 1024 * 1024,
         int retainedFileCount = 3)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
@@ -30,12 +30,7 @@ public sealed class DiagnosticFileLog : IDisposable
         {
             Directory.CreateDirectory(directoryPath);
             RotateIfRequired();
-            _writer = new StreamWriter(
-                new FileStream(_activePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite),
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
-            {
-                AutoFlush = true,
-            };
+            _writer = OpenWriter();
         }
         catch
         {
@@ -72,6 +67,12 @@ public sealed class DiagnosticFileLog : IDisposable
         {
             lock (_syncRoot)
             {
+                RotateDuringWriteIfRequired();
+                if (_writer is null)
+                {
+                    return;
+                }
+
                 _writer.Write(DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss.fff zzz", CultureInfo.InvariantCulture));
                 _writer.Write(" [");
                 _writer.Write(level);
@@ -90,6 +91,26 @@ public sealed class DiagnosticFileLog : IDisposable
         {
             // Diagnostic logging must never become an application failure source.
         }
+    }
+
+    private StreamWriter OpenWriter() => new(
+        new FileStream(_activePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite),
+        new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
+    {
+        AutoFlush = true,
+    };
+
+    private void RotateDuringWriteIfRequired()
+    {
+        if (_writer is null || _writer.BaseStream.Length < _maximumFileBytes)
+        {
+            return;
+        }
+
+        _writer.Dispose();
+        _writer = null;
+        RotateIfRequired();
+        _writer = OpenWriter();
     }
 
     private void RotateIfRequired()

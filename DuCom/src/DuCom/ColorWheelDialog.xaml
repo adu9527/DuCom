@@ -34,7 +34,13 @@
                          StrokeThickness="2" />
             </Canvas>
             <TextBlock Margin="0,14,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.ColorPicker.Brightness}" />
-            <Slider x:Name="BrightnessSlider" Minimum="0.05" Maximum="1" ValueChanged="BrightnessSlider_ValueChanged" />
+            <Slider x:Name="BrightnessSlider"
+                    Minimum="0"
+                    Maximum="100"
+                    TickFrequency="1"
+                    IsSnapToTickEnabled="False"
+                    Style="{StaticResource Style.PrecisionSlider}"
+                    ValueChanged="BrightnessSlider_ValueChanged" />
             <Grid Margin="0,12,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="44" />

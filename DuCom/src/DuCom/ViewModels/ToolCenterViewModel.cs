@@ -23,16 +23,12 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
     private readonly DispatcherTimer _monitorTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly TelnetBridgeService _telnetBridge;
     private readonly ShortcutManager _shortcutManager;
-    private readonly CommandGroupRunnerHost? _commandRunner;
     private readonly MainViewModel? _mainViewModel;
-    private List<CommandGroup> _commandGroups = [];
-    private bool _loadingCommandRows;
     private TimeSpan _lastCpuTime;
     private DateTimeOffset _lastSample = DateTimeOffset.Now;
 
     public ToolCenterViewModel(
         ShortcutManager? shortcutManager = null,
-        CommandGroupRunnerHost? commandRunnerHost = null,
         MainViewModel? mainViewModel = null,
         TelnetBridgeService? telnetBridge = null)
     {
@@ -42,7 +38,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
             _shortcutManager.RegisterDefaultActions();
         }
 
-        _commandRunner = commandRunnerHost;
         _mainViewModel = mainViewModel;
         _telnetBridge = telnetBridge ?? throw new ArgumentNullException(nameof(telnetBridge));
         if (_mainViewModel is not null)
@@ -57,11 +52,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
             BackgroundImagePlaybackMode = _mainViewModel.BackgroundImagePlaybackMode;
             BackgroundImageIntervalSeconds = _mainViewModel.BackgroundImageIntervalSeconds;
             BackgroundImageOpacity = _mainViewModel.BackgroundImageOpacity;
-        }
-        if (_commandRunner is not null)
-        {
-            _commandRunner.StateChanged += OnRunnerStateChanged;
-            _commandRunner.CommandStatusChanged += OnCommandStatusChanged;
         }
 
         RefreshShortcutRows();
@@ -84,8 +74,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
             TelnetBridgeStatus = GetResourceString("Tools.BridgeBound")
                 .Replace("{0}", BridgePortName, StringComparison.Ordinal);
         }
-        LoadCommandGroups();
-        RefreshCommandTargetPorts();
         RefreshSendHistoryList();
         LoadWatchdogRows();
         LoadMonitorRows();
@@ -390,15 +378,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
 
     public ObservableCollection<string> TelnetClients { get; } = [];
 
-    public IReadOnlyList<NewlinePolicy> NewlineOptions { get; } =
-        [NewlinePolicy.None, NewlinePolicy.Cr, NewlinePolicy.Lf, NewlinePolicy.CrLf];
-
-    public ObservableCollection<CommandGroupRow> CommandGroups { get; } = [];
-
-    public ObservableCollection<ScriptCommandRow> SelectedCommands { get; } = [];
-
-    public ObservableCollection<CommandTargetPortRow> CommandTargetPorts { get; } = [];
-
     public ObservableCollection<string> SendHistoryList { get; } = [];
 
     [ObservableProperty]
@@ -409,23 +388,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
     public ObservableCollection<MonitorRuleRow> MonitorRows { get; } = [];
 
     public ObservableCollection<MonitorValueRow> MonitorValues { get; } = [];
-
-    [ObservableProperty]
-    public partial CommandGroupRow? SelectedCommandGroup { get; set; }
-
-    [ObservableProperty]
-    public partial string NewGroupName { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial bool IsRunnerRunning { get; private set; }
-
-    [ObservableProperty]
-    public partial string CommandMessage { get; private set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial ScriptCommandRow? SelectedScriptCommand { get; set; }
-
-    partial void OnSelectedCommandGroupChanged(CommandGroupRow? value) => LoadSelectedCommands();
 
     partial void OnSendHistorySearchTextChanged(string value) => RefreshSendHistoryList();
 
@@ -458,378 +420,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
 
     private static string ReadCom0ComValue(IReadOnlyDictionary<string, string> options, string key, string fallback) =>
         options.TryGetValue(key, out string? value) && !string.IsNullOrWhiteSpace(value) ? value : fallback;
-
-    private void LoadSelectedCommands()
-    {
-        _loadingCommandRows = true;
-        try
-        {
-            SelectedCommands.Clear();
-            CommandGroup? group = FindGroup(SelectedCommandGroup?.GroupId);
-            if (group is null)
-            {
-                return;
-            }
-
-            foreach (ScriptCommand command in group.OrderedCommands())
-            {
-                SelectedCommands.Add(ScriptCommandRow.From(command));
-            }
-        }
-        finally
-        {
-            _loadingCommandRows = false;
-        }
-    }
-
-    private CommandGroup? FindGroup(Guid? id)
-    {
-        if (id is null)
-        {
-            return null;
-        }
-
-        return _commandGroups.FirstOrDefault(group => group.Id == id.Value);
-    }
-
-    private void LoadCommandGroups()
-    {
-        _commandGroups = [.. CommandScriptStore.Load()];
-        RebuildGroupRows();
-        IsRunnerRunning = _commandRunner?.IsRunning ?? false;
-    }
-
-    private void RebuildGroupRows()
-    {
-        Guid? keep = SelectedCommandGroup?.GroupId;
-        CommandGroups.Clear();
-        foreach (CommandGroup group in _commandGroups)
-        {
-            CommandGroups.Add(new CommandGroupRow(group.Id, group.Name, group.Commands.Count));
-        }
-
-        SelectedCommandGroup = CommandGroups.FirstOrDefault(row => row.GroupId == keep) ?? CommandGroups.FirstOrDefault();
-    }
-
-    [RelayCommand]
-    private void AddCommandGroup()
-    {
-        string name = NormalizeGroupName(NewGroupName);
-        int suffix = 1;
-        while (_commandGroups.Any(group => string.Equals(group.Name, name, StringComparison.OrdinalIgnoreCase)))
-        {
-            suffix++;
-            name = $"{NormalizeGroupName(NewGroupName)} ({suffix})";
-        }
-
-        NewGroupName = string.Empty;
-        _commandGroups.Add(CommandGroup.Create(name));
-        PersistGroups();
-        RebuildGroupRows();
-        SelectRow(name);
-    }
-
-    private void SelectRow(string name)
-    {
-        SelectedCommandGroup = CommandGroups.FirstOrDefault(row => row.Name == name);
-        if (SelectedCommandGroup is not null && string.Equals(SelectedCommandGroup.Name, name, StringComparison.Ordinal))
-        {
-            LoadSelectedCommands();
-        }
-    }
-
-    [RelayCommand]
-    private void RenameSelectedCommandGroup(string newName)
-    {
-        CommandGroup? group = FindGroup(SelectedCommandGroup?.GroupId);
-        if (group is null || string.IsNullOrWhiteSpace(newName))
-        {
-            return;
-        }
-
-        string normalized = NormalizeGroupName(newName);
-        _commandGroups[_commandGroups.IndexOf(group)] = group with { Name = normalized };
-        PersistGroups();
-        RebuildGroupRows();
-        SelectRow(normalized);
-    }
-
-    [RelayCommand]
-    private async Task DeleteSelectedCommandGroupAsync()
-    {
-        if (FindGroup(SelectedCommandGroup?.GroupId) is not { } group)
-        {
-            return;
-        }
-
-        await StopRunnerIfGroupAsync(group);
-        _commandGroups.Remove(group);
-        PersistGroups();
-        RebuildGroupRows();
-    }
-
-    [RelayCommand]
-    private void AddScriptCommand()
-    {
-        if (FindGroup(SelectedCommandGroup?.GroupId) is null)
-        {
-            return;
-        }
-
-        AppendEmptyCommand();
-    }
-
-    private void AppendEmptyCommand()
-    {
-        if (_loadingCommandRows)
-        {
-            return;
-        }
-
-        ScriptCommandRow row = ScriptCommandRow.From(ScriptCommand.Create(
-            $"CMD {SelectedCommands.Count + 1}",
-            order: NextOrderValue()));
-        SelectedCommands.Add(row);
-        CommitRowsToGroup();
-    }
-
-    private int NextOrderValue() =>
-        SelectedCommands.Count == 0 ? 0 : SelectedCommands.Max(row => row.OrderValue) + 1;
-
-    [RelayCommand]
-    private void DeleteScriptCommand(ScriptCommandRow? row)
-    {
-        if (row is null || !SelectedCommands.Remove(row))
-        {
-            return;
-        }
-
-        CommitRowsToGroup();
-    }
-
-    /// <summary>Called by the view after grid edits commit so storage stays in sync.</summary>
-    public void CommitScriptCommandEdits()
-    {
-        if (_loadingCommandRows)
-        {
-            return;
-        }
-
-        CommitRowsToGroup();
-    }
-
-    private void CommitRowsToGroup()
-    {
-        CommandGroup? group = FindGroup(SelectedCommandGroup?.GroupId);
-        if (group is null)
-        {
-            return;
-        }
-
-        List<ScriptCommand> commands = SelectedCommands.Select((row, index) => row.ToCommand(index)).ToList();
-        _commandGroups[_commandGroups.IndexOf(group)] = group with { Commands = commands };
-        PersistGroups();
-        if (SelectedCommandGroup is not null)
-        {
-            SelectedCommandGroup.CommandCount = commands.Count;
-        }
-    }
-
-    private async Task StopRunnerIfGroupAsync(CommandGroup group)
-    {
-        if (_commandRunner is { RunningGroup.Id: var runningId } && runningId == group.Id)
-        {
-            await _commandRunner.StopAsync();
-        }
-    }
-
-    private static string NormalizeGroupName(string raw) => string.IsNullOrWhiteSpace(raw) ? "Project" : raw.Trim();
-
-    [RelayCommand]
-    private async Task StartSelectedCommandGroupAsync()
-    {
-        if (_commandRunner is null)
-        {
-            return;
-        }
-
-        if (FindGroup(SelectedCommandGroup?.GroupId) is not { } group || group.Commands.Count == 0)
-        {
-            StatusTextKey = "Status.CommandRunNoSession";
-            return;
-        }
-
-        // Opening a port is asynchronous; the host re-validates the live session itself.
-        if (!_commandRunner.Start(group))
-        {
-            return;
-        }
-
-        IsRunnerRunning = true;
-    }
-
-    private void RefreshCommandTargetPorts()
-    {
-        if (_mainViewModel is null)
-        {
-            return;
-        }
-
-        Dictionary<string, CommandTargetPortRow> existing = CommandTargetPorts.ToDictionary(row => row.PortName, StringComparer.OrdinalIgnoreCase);
-        string[] names = [.. _mainViewModel.AvailablePorts.Select(port => port.PortName)
-            .Concat(_mainViewModel.Sessions.Select(session => session.PortName))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(name => name, StringComparer.Ordinal)];
-
-        CommandTargetPorts.Clear();
-        foreach (string name in names)
-        {
-            bool isOpen = _mainViewModel.Sessions.Any(session =>
-                session.IsOpen && string.Equals(session.PortName, name, StringComparison.OrdinalIgnoreCase));
-            CommandTargetPortRow row = existing.TryGetValue(name, out CommandTargetPortRow? current)
-                ? current
-                : new CommandTargetPortRow(name, OnCommandTargetSelectionChanged);
-            bool isSelected = existing.ContainsKey(name)
-                ? row.IsSelected
-                : _mainViewModel.CommandTargetPortNames.Contains(name, StringComparer.OrdinalIgnoreCase);
-            row.Update(isSelected, isOpen);
-            CommandTargetPorts.Add(row);
-        }
-    }
-
-    private void OnCommandTargetSelectionChanged()
-    {
-        _mainViewModel?.SetCommandTargetPortNames(CommandTargetPorts
-            .Where(row => row.IsSelected)
-            .Select(row => row.PortName));
-    }
-
-    [RelayCommand]
-    private Task StopSelectedCommandGroupAsync() =>
-        _commandRunner?.StopAsync() ?? Task.CompletedTask;
-
-    public string StatusTextKey
-    {
-        get;
-        set => SetProperty(ref field, value);
-    } = string.Empty;
-
-    private void OnRunnerStateChanged(object? sender, EventArgs e) =>
-        App.Current.Dispatcher.BeginInvoke(() =>
-        {
-            bool wasRunning = IsRunnerRunning;
-            IsRunnerRunning = _commandRunner?.IsRunning ?? false;
-            if (wasRunning && !IsRunnerRunning)
-            {
-                RebuildGroupRows();
-            }
-        });
-
-    private void OnCommandStatusChanged(object? sender, ScriptCommandStatusEventArgs e) =>
-        App.Current.Dispatcher.BeginInvoke(() =>
-        {
-            ScriptCommandRow? row = SelectedCommands.FirstOrDefault(item => item.Id == e.CommandId);
-            if (row is not null)
-            {
-                row.SetState(e.TargetName, GetResourceString($"Commands.State.{e.State}"));
-                if (!string.IsNullOrWhiteSpace(e.ErrorMessage))
-                {
-                    CommandMessage = GetResourceString("Commands.TargetError")
-                        .Replace("{0}", e.TargetName, StringComparison.Ordinal)
-                        .Replace("{1}", e.ErrorMessage, StringComparison.Ordinal);
-                }
-            }
-        });
-
-    [RelayCommand]
-    private void ExportSelectedCommandGroup()
-    {
-        Microsoft.Win32.SaveFileDialog dialog = new() { Filter = "DuCom command groups (*.json)|*.json", FileName = "command-group.json" };
-        if (dialog.ShowDialog() != true || FindGroup(SelectedCommandGroup?.GroupId) is not { } group)
-        {
-            return;
-        }
-
-        try
-        {
-            File.WriteAllText(dialog.FileName, CommandScriptSerializer.Serialize([group]));
-            CommandMessage = string.Empty;
-        }
-        catch (Exception exception)
-        {
-            Program.DiagnosticLog?.Warning($"Failed to export command group. {exception.Message}");
-            CommandMessage = GetResourceString("Commands.ExportFailed");
-        }
-    }
-
-    [RelayCommand]
-    private void ImportCommandGroup()
-    {
-        Microsoft.Win32.OpenFileDialog dialog = new() { Filter = "DuCom command groups (*.json)|*.json|All files (*.*)|*.*" };
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        try
-        {
-            IReadOnlyList<CommandGroup> parsed = CommandScriptSerializer.Deserialize(File.ReadAllText(dialog.FileName), out IReadOnlyList<string> warnings);
-            foreach (CommandGroup incoming in parsed)
-            {
-                string name = UniqueImportName(incoming.Name);
-                _commandGroups.Add(incoming with { Name = name });
-            }
-
-            if (!PersistGroups())
-            {
-                CommandMessage = GetResourceString("Commands.SaveFailed");
-                return;
-            }
-
-            RebuildGroupRows();
-            CommandMessage = warnings.Count == 0
-                ? string.Empty
-                : GetResourceString("Commands.ImportWarnings").Replace(
-                    "{0}",
-                    warnings.Count.ToString(System.Globalization.CultureInfo.CurrentCulture),
-                    StringComparison.Ordinal);
-            foreach (string warning in warnings)
-            {
-                Program.DiagnosticLog?.Warning($"Command script import warning. {warning}");
-            }
-        }
-        catch (Exception exception)
-        {
-            Program.DiagnosticLog?.Warning($"Failed to import command group. {exception.Message}");
-            CommandMessage = GetResourceString("Commands.ImportFailed");
-        }
-    }
-
-    private string UniqueImportName(string baseName)
-    {
-        string clean = string.IsNullOrWhiteSpace(baseName) ? "Project" : baseName.Trim();
-        string candidate = clean;
-        for (int suffix = 2; _commandGroups.Any(group => string.Equals(group.Name, candidate, StringComparison.OrdinalIgnoreCase)); suffix++)
-        {
-            candidate = $"{clean} ({suffix})";
-        }
-
-        return candidate;
-    }
-
-    private bool PersistGroups()
-    {
-        List<CommandGroup> ordered = [.. _commandGroups.OrderBy(group => group.Name, StringComparer.OrdinalIgnoreCase)];
-        _commandGroups = ordered;
-        bool saved = CommandScriptStore.Save(ordered);
-        if (!saved)
-        {
-            CommandMessage = GetResourceString("Commands.SaveFailed");
-        }
-
-        return saved;
-    }
 
     internal void RefreshSendHistoryList()
     {
@@ -1386,14 +976,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
         _monitorTimer.Tick -= OnMonitorTick;
         _telnetBridge.StatusChanged -= OnTelnetStatusChanged;
         _telnetBridge.Diagnostic -= OnTelnetDiagnostic;
-        if (_commandRunner is not null)
-        {
-            // Observation only: the shared host is owned by MainViewModel and must survive
-            // closing this tool window. Any active run keeps running for the main window.
-            _commandRunner.StateChanged -= OnRunnerStateChanged;
-            _commandRunner.CommandStatusChanged -= OnCommandStatusChanged;
-        }
-
         _process.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -1402,7 +984,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
     {
         UpdateMonitor();
         RefreshMonitorValues();
-        RefreshCommandTargetPorts();
     }
 
     private void UpdateMonitor()
@@ -1721,139 +1302,4 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
         string Description,
         string Path,
         bool IsBackgroundPlugin);
-
-    public sealed partial class CommandTargetPortRow : ObservableObject
-    {
-        private readonly Action _selectionChanged;
-        private bool _updating;
-
-        public CommandTargetPortRow(string portName, Action selectionChanged)
-        {
-            PortName = portName;
-            _selectionChanged = selectionChanged;
-        }
-
-        public string PortName { get; }
-
-        [ObservableProperty]
-        public partial bool IsSelected { get; set; }
-
-        [ObservableProperty]
-        public partial bool IsOpen { get; private set; }
-
-        public string StateText => GetResourceString(IsOpen ? "Commands.TargetOpen" : "Commands.TargetClosed");
-
-        partial void OnIsSelectedChanged(bool value)
-        {
-            if (!_updating)
-            {
-                _selectionChanged();
-            }
-        }
-
-        public void Update(bool isSelected, bool isOpen)
-        {
-            _updating = true;
-            try
-            {
-                IsSelected = isSelected;
-                IsOpen = isOpen;
-                OnPropertyChanged(nameof(StateText));
-            }
-            finally
-            {
-                _updating = false;
-            }
-        }
-    }
-
-    public sealed partial class CommandGroupRow(Guid groupId, string name, int commandCount) : ObservableObject
-    {
-        public Guid GroupId { get; } = groupId;
-
-        [ObservableProperty]
-        public partial string Name { get; set; } = name;
-
-        [ObservableProperty]
-        public partial int CommandCount { get; set; } = commandCount;
-    }
-
-    public sealed partial class ScriptCommandRow : ObservableObject
-    {
-        private Guid _id;
-        private readonly Dictionary<string, string> _targetStates = new(StringComparer.OrdinalIgnoreCase);
-
-        public Guid Id => _id;
-
-        public static ScriptCommandRow From(ScriptCommand command) => new()
-        {
-            _id = command.Id,
-            NameText = command.Name,
-            OrderValue = command.Order,
-            PayloadText = command.Payload,
-            IsHexEnabled = command.IsHex,
-            DelayMsValue = command.DelayMilliseconds,
-            HasResultCheck = command.IsResultCheck,
-            ExpectedResultText = command.ExpectedResult,
-            ResultTimeoutMsValue = command.ResultTimeoutMilliseconds,
-            SelectedNewline = command.Newline,
-        };
-
-        [ObservableProperty]
-        public partial string NameText { get; set; } = string.Empty;
-
-        [ObservableProperty]
-        public partial int OrderValue { get; set; }
-
-        [ObservableProperty]
-        public partial string PayloadText { get; set; } = string.Empty;
-
-        [ObservableProperty]
-        public partial bool IsHexEnabled { get; set; }
-
-        [ObservableProperty]
-        public partial int DelayMsValue { get; set; }
-
-        [ObservableProperty]
-        public partial bool HasResultCheck { get; set; }
-
-        [ObservableProperty]
-        public partial string ExpectedResultText { get; set; } = string.Empty;
-
-        [ObservableProperty]
-        public partial int ResultTimeoutMsValue { get; set; }
-
-        [ObservableProperty]
-        public partial NewlinePolicy SelectedNewline { get; set; }
-
-        [ObservableProperty]
-        public partial string StateText { get; set; } = string.Empty;
-
-        public void SetState(string? targetName, string state)
-        {
-            if (string.IsNullOrWhiteSpace(targetName))
-            {
-                StateText = state;
-                return;
-            }
-
-            _targetStates[targetName] = state;
-            StateText = string.Join("; ", _targetStates
-                .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(pair => pair.Key, StringComparer.Ordinal)
-                .Select(pair => $"{pair.Key}: {pair.Value}"));
-        }
-
-        public ScriptCommand ToCommand(int fallbackOrder) => new(
-            _id == Guid.Empty ? Guid.NewGuid() : _id,
-            NameText,
-            OrderValue >= 0 ? OrderValue : fallbackOrder,
-            PayloadText,
-            IsHexEnabled,
-            Math.Max(DelayMsValue, 0),
-            HasResultCheck,
-            ExpectedResultText,
-            Math.Clamp(ResultTimeoutMsValue <= 0 ? 5_000 : ResultTimeoutMsValue, 1, 3_600_000),
-            SelectedNewline);
-    }
 }

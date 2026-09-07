@@ -135,7 +135,7 @@
                             <MenuItem Command="{Binding ToggleSettingsCommand}" Header="{DynamicResource Settings.Title}" />
                             <MenuItem Command="{Binding ShowHighlightFilterRulesCommand}" Header="{DynamicResource Menu.Tools.HighlightFilter}" />
                             <MenuItem Command="{Binding ShowLogFilterCommand}" Header="{DynamicResource Menu.Tools.LogFilter}" />
-                            <MenuItem Command="{Binding ShowToolCenterCommand}" CommandParameter="commands" Header="{DynamicResource Menu.Tools.Commands}" />
+                            <MenuItem Command="{Binding ShowCommandGroupsCommand}" Header="{DynamicResource Menu.Tools.Commands}" />
                             <MenuItem Command="{Binding ShowToolCenterCommand}" CommandParameter="send-history" Header="{DynamicResource Menu.Tools.SendHistory}" />
                         </ContextMenu>
                     </Button.ContextMenu>

@@ -52,15 +52,14 @@ public sealed class ShortcutManagerTests : IDisposable
     }
 
     [Fact]
-    public void RegisterDefaultActions_FormatJsonAndJoinLines_AreUnboundByDefault()
+    public void RegisterDefaultActions_DoesNotIncludeRemovedEditorActions()
     {
         ShortcutManager manager = CreateManagerWithDefaults();
 
-        foreach (string actionId in (string[])["FormatJson", "JoinLines"])
+        foreach (string actionId in (string[])["ToggleSendMode", "FormatJson", "JoinLines"])
         {
             ShortcutDefinition? definition = manager.GetDefinition(actionId);
-            Assert.NotNull(definition);
-            Assert.Null(definition!.DefaultGesture);
+            Assert.Null(definition);
         }
     }
 

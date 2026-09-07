@@ -1,0 +1,484 @@
+<ui:FluentWindow x:Class="DuCom.CommandGroupsWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="{DynamicResource Commands.WindowTitle}"
+                 Width="1180"
+                 Height="720"
+                 Icon="/Assets/DuCom.ico"
+                 MinWidth="960"
+                 MinHeight="600"
+                 WindowState="Maximized"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowStartupLocation="CenterOwner">
+    <ui:FluentWindow.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <Style x:Key="Style.Chip" TargetType="Border">
+            <Setter Property="Padding" Value="7,2" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Background" Value="{DynamicResource Brush.ControlSurface}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Brush.PanelBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="{DynamicResource Radius.Small}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="Style.ChipText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextMuted}" />
+        </Style>
+    </ui:FluentWindow.Resources>
+    <Grid Background="{DynamicResource Brush.ShellSurface}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <ui:TitleBar Title="{DynamicResource Commands.WindowTitle}" />
+
+        <Grid Grid.Row="1" Margin="12,4,12,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="285" />
+                <ColumnDefinition Width="{DynamicResource Size.SettingsColumnGap}" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Style="{DynamicResource Style.Panel}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Margin="12,12,12,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource Brush.TextPrimary}"
+                                   Text="{DynamicResource Commands.GroupsTitle}" />
+                        <TextBlock Grid.Column="1"
+                                   VerticalAlignment="Center"
+                                   Style="{DynamicResource Style.MutedText}"
+                                   Text="{Binding GroupSummary}" />
+                    </Grid>
+
+                    <TextBox Grid.Row="1"
+                             Margin="12,0,12,8"
+                             Text="{Binding GroupSearchText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="{DynamicResource Commands.SearchGroupsHint}" />
+
+                    <ListBox x:Name="GroupsList"
+                             Grid.Row="2"
+                             Margin="6,0,6,4"
+                             ItemsSource="{Binding FilteredCommandGroups}"
+                             SelectedItem="{Binding SelectedCommandGroup}"
+                             MouseDoubleClick="GroupsList_MouseDoubleClick">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem" BasedOn="{StaticResource Style.EditorListItem}">
+                                <Setter Property="MinHeight" Value="44" />
+                                <Setter Property="Padding" Value="10,6" />
+                                <Setter Property="ContextMenu">
+                                    <Setter.Value>
+                                        <ContextMenu>
+                                            <MenuItem Command="{Binding DataContext.RenameSelectedCommandGroupCommand, RelativeSource={RelativeSource AncestorType=Window}}" Header="{DynamicResource Commands.RenameGroup}" />
+                                            <MenuItem Command="{Binding DataContext.DeleteSelectedCommandGroupCommand, RelativeSource={RelativeSource AncestorType=Window}}" Header="{DynamicResource Commands.DeleteGroup}" />
+                                            <Separator />
+                                            <MenuItem Command="{Binding DataContext.ExportSelectedCommandGroupCommand, RelativeSource={RelativeSource AncestorType=Window}}" Header="{DynamicResource Commands.Export}" />
+                                        </ContextMenu>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Margin="2,0,0,0" Orientation="Vertical">
+                                        <TextBlock FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource Brush.TextPrimary}"
+                                                   Text="{Binding Name}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock FontSize="11"
+                                                   Style="{DynamicResource Style.MutedText}"
+                                                   Text="{Binding CommandCount, StringFormat={StaticResource Commands.GroupCommandCountFormat}}" />
+                                    </StackPanel>
+                                    <ui:SymbolIcon Grid.Column="1"
+                                                   Margin="8,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="14"
+                                                   Foreground="{DynamicResource Brush.Success}"
+                                                   Symbol="PlayCircle24"
+                                                   Visibility="{Binding IsRunning, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Border Grid.Row="3"
+                            Margin="6,4,6,6"
+                            Padding="6,8,6,6"
+                            BorderBrush="{DynamicResource Brush.PanelBorder}"
+                            BorderThickness="0,1,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button Height="32"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding AddCommandGroupCommand}"
+                                    Content="{DynamicResource Commands.NewGroup}"
+                                    Style="{StaticResource Style.ToolbarPrimary}" />
+                            <Button Grid.Column="1"
+                                    Margin="6,0,0,0"
+                                    Command="{Binding RenameSelectedCommandGroupCommand}"
+                                    Style="{StaticResource Style.ToolbarIconButton}"
+                                    ToolTip="{DynamicResource Commands.RenameGroup}">
+                                <ui:SymbolIcon FontSize="15" Symbol="Rename28" />
+                            </Button>
+                            <Button Grid.Column="2"
+                                    Margin="6,0,0,0"
+                                    Command="{Binding DeleteSelectedCommandGroupCommand}"
+                                    Style="{StaticResource Style.ToolbarIconButton}"
+                                    ToolTip="{DynamicResource Commands.DeleteGroup}">
+                                <ui:SymbolIcon FontSize="15" Foreground="{DynamicResource Brush.Danger}" Symbol="Delete24" />
+                            </Button>
+                            <Button Grid.Column="3"
+                                    Margin="6,0,0,0"
+                                    Command="{Binding ExportSelectedCommandGroupCommand}"
+                                    Style="{StaticResource Style.ToolbarIconButton}"
+                                    ToolTip="{DynamicResource Commands.Export}">
+                                <ui:SymbolIcon FontSize="15" Symbol="ArrowExportLtr24" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" MinHeight="140" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Style="{DynamicResource Style.SettingsCard}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock FontWeight="SemiBold" Text="{DynamicResource Commands.TargetPorts}" />
+                            <ItemsControl ItemsSource="{Binding CommandTargetPorts}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Margin="0,6,16,2" IsChecked="{Binding IsSelected}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding PortName}" />
+                                                <TextBlock Margin="6,0,0,0"
+                                                           FontSize="11"
+                                                           Style="{DynamicResource Style.MutedText}"
+                                                           Text="{Binding StateText}" />
+                                            </StackPanel>
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                VerticalAlignment="Top"
+                                Command="{Binding ImportCommandGroupCommand}"
+                                Content="{DynamicResource Commands.Import}" />
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="1" Margin="0,0,0,12" Style="{DynamicResource Style.Panel}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid Margin="14,10,14,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                           Text="{DynamicResource Commands.ListTitle}" />
+                                <TextBlock Margin="10,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Style="{DynamicResource Style.MutedText}"
+                                           Text="{Binding SelectedCommands.Count, StringFormat={StaticResource Commands.GroupCommandCountFormat}}" />
+                            </StackPanel>
+                            <TextBlock Grid.Column="1"
+                                       VerticalAlignment="Center"
+                                       Style="{DynamicResource Style.MutedText}"
+                                       Text="{DynamicResource Commands.ListHint}" />
+                        </Grid>
+                        <ListBox x:Name="CommandsList"
+                                 Grid.Row="1"
+                                 Margin="6,0,6,6"
+                                 ItemsSource="{Binding SelectedCommands}"
+                                 SelectedItem="{Binding SelectedScriptCommand}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem" BasedOn="{StaticResource Style.EditorListItem}">
+                                    <Setter Property="MinHeight" Value="52" />
+                                    <Setter Property="Padding" Value="10,6" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="10" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="26"
+                                                Height="26"
+                                                Background="{DynamicResource Brush.AccentSoft}"
+                                                CornerRadius="13">
+                                            <TextBlock HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource Brush.Accent}"
+                                                       Text="{Binding OrderValue}" />
+                                        </Border>
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <TextBlock FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource Brush.TextPrimary}"
+                                                       Text="{Binding NameDisplay}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock FontSize="12"
+                                                       Style="{DynamicResource Style.MutedText}"
+                                                       Text="{Binding PayloadDisplay}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                            <Border Style="{StaticResource Style.Chip}" Background="{DynamicResource Brush.DangerSoft}" Visibility="{Binding IsHexEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Style="{StaticResource Style.ChipText}" Foreground="{DynamicResource Brush.Danger}" Text="HEX" />
+                                            </Border>
+                                            <Border Style="{StaticResource Style.Chip}" Visibility="{Binding HasNewline, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Style="{StaticResource Style.ChipText}" Text="{Binding NewlineLabel}" />
+                                            </Border>
+                                            <Border Style="{StaticResource Style.Chip}">
+                                                <TextBlock Style="{StaticResource Style.ChipText}" Text="{Binding DelayMsValue, StringFormat={}{0} ms}" />
+                                            </Border>
+                                            <Border Style="{StaticResource Style.Chip}" Background="{DynamicResource Brush.CautionSoft}" Visibility="{Binding HasResultCheck, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ui:SymbolIcon Margin="0,0,3,0"
+                                                                   FontSize="11"
+                                                                   Foreground="{DynamicResource Brush.Caution}"
+                                                                   Symbol="CheckmarkCircle24" />
+                                                    <TextBlock Style="{StaticResource Style.ChipText}" Text="{DynamicResource Commands.ResultCheckShort}" />
+                                                </StackPanel>
+                                            </Border>
+                                            <TextBlock Margin="4,0,10,0"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="11"
+                                                       Style="{DynamicResource Style.MutedText}"
+                                                       Text="{Binding StateText}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="4"
+                                                Command="{Binding DataContext.DeleteScriptCommandCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource Style.IconButton}"
+                                                ToolTip="{DynamicResource History.DeleteEntry}">
+                                            <ui:SymbolIcon FontSize="13" Symbol="Dismiss24" />
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Border>
+
+                <Border Grid.Row="2" Style="{DynamicResource Style.SettingsCard}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center"
+                                           FontWeight="SemiBold"
+                                           Text="{DynamicResource Commands.EditorTitle}" />
+                                <TextBlock Margin="10,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Style="{DynamicResource Style.MutedText}"
+                                           Text="{Binding SelectedScriptCommand.NameDisplay}" />
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Height="30"
+                                    MinWidth="96"
+                                    Click="AddCommandButton_Click"
+                                    Command="{Binding AddScriptCommandCommand}"
+                                    Content="{DynamicResource Commands.AddCommand}"
+                                    Style="{StaticResource Style.ToolbarPrimary}" />
+                        </Grid>
+
+                        <Grid Grid.Row="1"
+                              Margin="0,12,0,0"
+                              IsEnabled="{Binding HasSelectedCommand}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="220" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Tools.Name}" />
+                                <TextBox x:Name="CommandNameBox"
+                                         Margin="0,4,16,0"
+                                         Text="{Binding SelectedScriptCommand.NameText, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Commands.Payload}" />
+                                <TextBox Margin="0,4,16,0"
+                                         FontFamily="Consolas"
+                                         Text="{Binding SelectedScriptCommand.PayloadText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="{DynamicResource Commands.PayloadHint}" />
+                            </StackPanel>
+                            <CheckBox Grid.Column="2"
+                                      Margin="0,22,0,0"
+                                      VerticalAlignment="Top"
+                                      Content="HEX"
+                                      IsChecked="{Binding SelectedScriptCommand.IsHexEnabled}" />
+                        </Grid>
+
+                        <Grid Grid.Row="2"
+                              Margin="0,10,0,0"
+                              IsEnabled="{Binding HasSelectedCommand}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="70" />
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="100" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="110" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Commands.Order}" />
+                                <TextBox Margin="0,4,16,0" Text="{Binding SelectedScriptCommand.OrderValue, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.NewlineLabel}" />
+                                <ComboBox Margin="0,4,16,0"
+                                          ItemsSource="{Binding DataContext.NewlineOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                          SelectedItem="{Binding SelectedScriptCommand.SelectedNewline}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Commands.Delay}" />
+                                <TextBox Margin="0,4,16,0" Text="{Binding SelectedScriptCommand.DelayMsValue, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <CheckBox Grid.Column="3"
+                                      Margin="0,22,24,0"
+                                      VerticalAlignment="Top"
+                                      Content="{DynamicResource Commands.ResultCheck}"
+                                      IsChecked="{Binding SelectedScriptCommand.HasResultCheck}" />
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Commands.ExpectedResult}" />
+                                <TextBox Margin="0,4,16,0"
+                                         IsEnabled="{Binding SelectedScriptCommand.HasResultCheck}"
+                                         Text="{Binding SelectedScriptCommand.ExpectedResultText, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="5">
+                                <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Commands.Timeout}" />
+                                <TextBox Margin="0,4,0,0"
+                                         IsEnabled="{Binding SelectedScriptCommand.HasResultCheck}"
+                                         Text="{Binding SelectedScriptCommand.ResultTimeoutMsValue, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Grid.Row="1"
+                                   Grid.RowSpan="2"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Text="{DynamicResource Commands.EditorEmptyHint}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Style.MutedText}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasSelectedCommand}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="3" Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ui:Button Height="32"
+                               MinWidth="110"
+                               Appearance="Primary"
+                               Command="{Binding StartSelectedCommandGroupCommand}"
+                               Content="{DynamicResource Commands.Start}"
+                               Icon="{ui:SymbolIcon Play24}" />
+                    <ui:Button Grid.Column="1"
+                               Height="32"
+                               Margin="8,0,0,0"
+                               Command="{Binding StopSelectedCommandGroupCommand}"
+                               Content="{DynamicResource Commands.Stop}"
+                               Icon="{ui:SymbolIcon Stop24}" />
+                    <StackPanel Grid.Column="2" HorizontalAlignment="Right" Orientation="Horizontal">
+                        <Border Padding="10,4"
+                                Background="{DynamicResource Brush.SuccessSoft}"
+                                CornerRadius="{DynamicResource Radius.Small}"
+                                Visibility="{Binding IsRunnerRunning, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Margin="0,0,6,0"
+                                              FontSize="14"
+                                              Foreground="{DynamicResource Brush.Success}"
+                                              Symbol="PlayCircle24" />
+                                <TextBlock FontWeight="SemiBold" Text="{DynamicResource Commands.Running}" />
+                            </StackPanel>
+                        </Border>
+                        <TextBlock MaxWidth="420"
+                                   Margin="14,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Brush.Caution}"
+                                   Text="{Binding CommandMessage}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding CommandMessage}" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

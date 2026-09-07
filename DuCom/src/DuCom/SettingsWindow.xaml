@@ -237,11 +237,6 @@
                                     </Grid>
                                     </StackPanel>
                                 </Border>
-                                <Button Margin="0,0,0,12"
-                                        HorizontalAlignment="Left"
-                                        Command="{Binding RestoreCurrentPortDefaultsCommand}"
-                                        Content="{DynamicResource Settings.RestoreCurrentPortDefaults}"
-                                        Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 <Border Style="{DynamicResource Style.SettingsCard}">
                                     <StackPanel>
                                         <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.CustomBaudRates}" />
@@ -270,8 +265,12 @@
                                             <Button Margin="8,0,0,0" Command="{Binding AddBaudRateCommand}" Content="{DynamicResource Settings.CustomBaudRates.Add}" />
                                         </WrapPanel>
                                     </StackPanel>
-                                </Border>
-                                </StackPanel>
+                                 </Border>
+                                <Button Margin="0,0,0,12"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding RestoreTransportDefaultsCommand}"
+                                        Content="{DynamicResource Settings.RestoreDefaults}" />
+                                 </StackPanel>
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
@@ -282,7 +281,7 @@
                                 <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.Receive}" />
                                  <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Receive.Description}" />
                                 <TextBlock Margin="0,0,0,12" Foreground="{DynamicResource Brush.Caution}" Text="{DynamicResource Settings.SessionRestartNotice}" TextWrapping="Wrap" />
-                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                 <Border Style="{DynamicResource Style.SettingsCard}">
                                     <StackPanel>
                                         <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.LogDisplay}" />
                                         <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.ReceiveMode}" />
@@ -320,11 +319,25 @@
                                              <Button Margin="8,0,0,0" Command="{Binding OpenLogFolderCommand}" Content="{DynamicResource Log.OpenFolder}" />
                                          </WrapPanel>
                                          <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogPackageOutputDirectory}" />
-                                         <TextBox Text="{Binding LogPackageOutputDirectory, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
+                                          <TextBox Text="{Binding LogPackageOutputDirectoryDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                   TextWrapping="Wrap">
+                                              <TextBox.Style>
+                                                  <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                                      <Style.Triggers>
+                                                          <DataTrigger Binding="{Binding IsLogPackageOutputFollowingLogDirectory}" Value="True">
+                                                              <Setter Property="IsEnabled" Value="False" />
+                                                          </DataTrigger>
+                                                      </Style.Triggers>
+                                                  </Style>
+                                              </TextBox.Style>
+                                          </TextBox>
                                          <TextBlock Margin="0,4,0,0" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Settings.LogPackageOutputDirectoryHint}" TextWrapping="Wrap" />
                                          <WrapPanel Margin="0,8,0,0">
                                              <Button Command="{Binding SelectLogPackageOutputDirectoryCommand}" Content="{DynamicResource LogPackage.Browse}" />
-                                             <Button Margin="8,0,0,0" Command="{Binding ResetLogPackageOutputDirectoryCommand}" Content="{DynamicResource LogPackage.FollowLogDirectory}" />
+                                              <CheckBox Margin="12,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Content="{DynamicResource LogPackage.FollowLogDirectory}"
+                                                        IsChecked="{Binding IsLogPackageOutputFollowingLogDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                          </WrapPanel>
                                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogRotationSize}" />
                                         <TextBox IsEnabled="{Binding LogRotationEnabled}" Text="{Binding LogRotationMegabytes, UpdateSourceTrigger=PropertyChanged}" />
@@ -352,18 +365,22 @@
                                                            TextTrimming="CharacterEllipsis"
                                                            ToolTip="{Binding LogFileNamePreview}" />
                                             </Grid>
-                                        </Border>
-                                    </StackPanel>
-                                </Border>
-                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                 </Border>
+                                     </StackPanel>
+                                 </Border>
+                                 <Border Style="{DynamicResource Style.SettingsCard}">
                                     <StackPanel>
                                         <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.TxLogging}" />
                                         <CheckBox Content="{DynamicResource Settings.SendPrefixEnabled}" IsChecked="{Binding SendPrefixEnabled}" />
                                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.SendPrefix}" />
                                         <TextBox IsEnabled="{Binding SendPrefixEnabled}" Text="{Binding SendPrefix, UpdateSourceTrigger=PropertyChanged}" />
                                     </StackPanel>
-                                </Border>
-                            </StackPanel>
+                                 </Border>
+                                <Button Margin="0,0,0,12"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding RestoreReceiveAndLogDefaultsCommand}"
+                                        Content="{DynamicResource Settings.RestoreDefaults}" />
+                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
 
@@ -397,7 +414,7 @@
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.Send}" />
                                 <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Send.Description}" />
-                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                 <Border Style="{DynamicResource Style.SettingsCard}">
                                     <StackPanel>
                                     <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.SendDefaults}" />
                                     <Grid>
@@ -436,8 +453,12 @@
                                         <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.TimedInterval}" />
                                         <TextBox IsEnabled="{Binding SerialParameterTimedSendEnabled}" Text="{Binding SerialParameterTimedSendIntervalMilliseconds, UpdateSourceTrigger=PropertyChanged}" />
                                     </StackPanel>
-                                </Border>
-                            </StackPanel>
+                                 </Border>
+                                <Button Margin="0,0,0,12"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding RestoreSendDefaultsCommand}"
+                                        Content="{DynamicResource Settings.RestoreDefaults}" />
+                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
 
@@ -446,7 +467,7 @@
                             <StackPanel>
                                 <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Settings.Appearance}" />
                                 <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Appearance.Description}" />
-                                <Border Style="{DynamicResource Style.SettingsCard}">
+                                 <Border Style="{DynamicResource Style.SettingsCard}">
                                     <StackPanel>
                                         <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Menu.Tools.Theme}" />
                                         <WrapPanel>
@@ -458,22 +479,36 @@
                                             <ToggleButton Command="{Binding ApplyChineseLanguageCommand}" Content="{DynamicResource Settings.Language.Chinese}" IsChecked="{Binding IsChineseLanguage, Mode=OneWay}" Style="{DynamicResource Style.SettingsChoice}" />
                                             <ToggleButton Command="{Binding ApplyEnglishLanguageCommand}" Content="{DynamicResource Settings.Language.English}" IsChecked="{Binding IsEnglishLanguage, Mode=OneWay}" Style="{DynamicResource Style.SettingsChoice}" />
                                         </WrapPanel>
-                                        <TextBlock Margin="0,14,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.SearchOpacity}" />
-                                        <Slider Minimum="0.2" Maximum="1" TickFrequency="0.1" IsSnapToTickEnabled="True" Value="{Binding SearchOpacity}" />
+                                        <Grid Margin="0,14,0,4">
+                                            <TextBlock VerticalAlignment="Center" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.SearchOpacity}" />
+                                            <Button HorizontalAlignment="Right"
+                                                    Command="{Binding ResetSearchOpacityCommand}"
+                                                    Content="{DynamicResource Settings.ResetOpacity}" />
+                                        </Grid>
+                                        <Slider Minimum="0"
+                                                Maximum="100"
+                                                TickFrequency="1"
+                                                IsSnapToTickEnabled="False"
+                                                Style="{StaticResource Style.PrecisionSlider}"
+                                                Value="{Binding SearchOpacity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Converter={StaticResource PercentageValueConverter}}" />
                                         <TextBlock Margin="0,18,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogFontFamily}" />
                                         <ComboBox ItemsSource="{Binding LogFontFamilies}" SelectedItem="{Binding LogFontFamily}" />
                                         <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.FontPreview}" />
                                         <Border Padding="12,9" Background="{DynamicResource Brush.LogSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="{DynamicResource Radius.Small}">
                                             <TextBlock FontFamily="{Binding LogFontFamily}" FontSize="{Binding LogFontSize}" Foreground="{DynamicResource Brush.LogText}" Text="[15:42:18.237] Device boot complete 设备启动完成" />
-                                        </Border>
-                                    </StackPanel>
+                                 </Border>
+                                <Button Margin="0,0,0,12"
+                                        HorizontalAlignment="Left"
+                                        Command="{Binding RestoreAppearanceDefaultsCommand}"
+                                        Content="{DynamicResource Settings.RestoreDefaults}" />
+                             </StackPanel>
                                 </Border>
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
 
                     <TabItem>
-                        <Grid Margin="4">
+                        <Grid Margin="4,2">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -484,22 +519,44 @@
                                 <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Menu.Tools.Shortcuts}" />
                                 <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Shortcuts.Description}" />
                             </StackPanel>
-                            <TextBox Grid.Row="1"
-                                     Margin="0,0,0,8"
-                                     AutomationProperties.Name="{DynamicResource Settings.Shortcuts.Search}"
-                                     Text="{Binding ShortcutsSettings.ShortcutSearchText, UpdateSourceTrigger=PropertyChanged}"
-                                     ToolTip="{DynamicResource Shortcut.SearchHint}" />
+                            <Border Grid.Row="1"
+                                    Margin="0,2,0,10"
+                                    Padding="10,0"
+                                    Background="{DynamicResource Brush.PanelRaised}"
+                                    BorderBrush="{DynamicResource Brush.PanelBorder}"
+                                    BorderThickness="1"
+                                    CornerRadius="{DynamicResource Radius.Small}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <ui:SymbolIcon Margin="0,0,8,0"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="16"
+                                                   Foreground="{DynamicResource Brush.TextMuted}"
+                                                   Symbol="Search24" />
+                                    <TextBox Grid.Column="1"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             AutomationProperties.Name="{DynamicResource Settings.Shortcuts.Search}"
+                                             Text="{Binding ShortcutsSettings.ShortcutSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="{DynamicResource Shortcut.SearchHint}" />
+                                </Grid>
+                            </Border>
                             <DataGrid Grid.Row="2"
-                                       Margin="0,8,0,0"
+                                       CanUserResizeColumns="True"
+                                       ColumnHeaderHeight="36"
+                                       RowHeight="42"
                                        AutoGenerateColumns="False"
                                        IsReadOnly="True"
                                        ItemsSource="{Binding ShortcutsSettings.FilteredShortcuts}"
                                        Style="{StaticResource Style.EditorDataGrid}"
                                        MouseDoubleClick="ShortcutsDataGrid_MouseDoubleClick">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Width="*" Binding="{Binding ActionName}" Header="{DynamicResource Tools.Action}" />
-                                    <DataGridTextColumn Width="140" Binding="{Binding GestureText}" Header="{DynamicResource Menu.Tools.Shortcuts}" />
-                                    <DataGridTemplateColumn Width="90" Header="{DynamicResource Shortcut.Status}">
+                                    <DataGridTextColumn Width="2*" MinWidth="210" Binding="{Binding ActionName}" Header="{DynamicResource Tools.Action}" />
+                                    <DataGridTextColumn Width="180" MinWidth="160" Binding="{Binding GestureText}" Header="{DynamicResource Menu.Tools.Shortcuts}" />
+                                    <DataGridTemplateColumn Width="100" MinWidth="100" Header="{DynamicResource Shortcut.Status}">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <CheckBox HorizontalAlignment="Center"
@@ -510,19 +567,20 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTextColumn Width="2*"
+                                    <DataGridTextColumn Width="1.4*"
+                                                        MinWidth="150"
                                                         Binding="{Binding ConflictMessage}"
                                                         Foreground="{DynamicResource Brush.Danger}"
                                                         Header="{DynamicResource Shortcut.Conflict}" />
-                                    <DataGridTemplateColumn Width="Auto" Header="{DynamicResource Shortcut.Operation}">
+                                    <DataGridTemplateColumn Width="190" MinWidth="190" Header="{DynamicResource Shortcut.Operation}">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Button Margin="4,0"
+                                                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                                                    <Button Margin="0,0,6,0"
                                                             Command="{Binding DataContext.ShortcutsSettings.StartEditShortcutCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                             CommandParameter="{Binding}"
                                                             Content="{DynamicResource Shortcut.Edit}" />
-                                                    <Button Margin="4,0"
+                                                    <Button Margin="0"
                                                             Command="{Binding DataContext.ShortcutsSettings.ResetShortcutCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                             CommandParameter="{Binding}"
                                                             Content="{DynamicResource Shortcut.Reset}" />

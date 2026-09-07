@@ -33,9 +33,6 @@ public sealed class ShortcutManager
         Register(new("CloseSelectedSession", "Shortcut.CloseSelectedSession", "Ctrl+W", "Shortcut.Category.Session"));
         Register(new("ToggleHexDisplay", "Shortcut.ToggleHexDisplay", "Alt+E", "Shortcut.Category.Display"));
         Register(new("ToggleTimestamp", "Shortcut.ToggleTimestamp", "Alt+D", "Shortcut.Category.Display"));
-        Register(new("ToggleSendMode", "Shortcut.ToggleSendMode", "Ctrl+Shift+M", "Shortcut.Category.Send"));
-        Register(new("FormatJson", "Shortcut.FormatJson", string.Empty, "Shortcut.Category.Edit"));
-        Register(new("JoinLines", "Shortcut.JoinLines", string.Empty, "Shortcut.Category.Edit"));
     }
 
     public void Register(ShortcutAction action)
