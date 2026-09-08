@@ -35,15 +35,15 @@
 
         <Image Grid.RowSpan="2"
                IsHitTestVisible="False"
-               Opacity="{Binding BackgroundImageOpacity}"
+               Opacity="{Binding PluginSystem.Background.Opacity}"
                Panel.ZIndex="100"
-               Source="{Binding BackgroundImageSource}"
+               Source="{Binding PluginSystem.Background.ImageSource}"
                Stretch="UniformToFill">
             <Image.Style>
                 <Style TargetType="Image">
                     <Setter Property="Visibility" Value="Visible" />
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding BackgroundImageEnabled}" Value="False">
+                        <DataTrigger Binding="{Binding PluginSystem.Background.Enabled}" Value="False">
                             <Setter Property="Visibility" Value="Collapsed" />
                         </DataTrigger>
                     </Style.Triggers>
@@ -144,6 +144,14 @@
                         </ContextMenu>
                     </Button.ContextMenu>
                 </Button>
+                <Button x:Name="PluginsMenuButton"
+                        Style="{StaticResource Style.TopNavButton}"
+                        Click="TopMenuButton_Click"
+                        Content="{DynamicResource Menu.Plugins}">
+                    <Button.ContextMenu>
+                        <ContextMenu x:Name="PluginMenuContextMenu" Placement="Bottom" />
+                    </Button.ContextMenu>
+                </Button>
                 <Button x:Name="AboutMenuButton"
                          Style="{StaticResource Style.TopNavButton}"
                          Click="TopMenuButton_Click"
@@ -165,10 +173,10 @@
                 <Button Margin="6,0,0,0"
                         Style="{StaticResource Style.TopNavButton}"
                         Command="{Binding ShowLogPackageCommand}"
+                        Visibility="{Binding IsLogPackagePluginActive, Converter={StaticResource BooleanToVisibilityConverter}}"
                         Content="{DynamicResource LogPackage.Entry}"
-                        ToolTip="{DynamicResource LogPackage.EntryHint}"
-                        Visibility="{Binding LogPackagePluginEnabled, Converter={StaticResource BooleanToVisibilityConverter}}" />
-            </StackPanel>
+                        ToolTip="{DynamicResource LogPackage.EntryHint}" />
+             </StackPanel>
             </ui:TitleBar.Header>
             <ui:TitleBar.TrailingContent>
                 <StackPanel Margin="0,0,12,0"

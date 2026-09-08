@@ -5,9 +5,15 @@
   <Folder Name="/src/">
     <Project Path="src/DuCom.Core/DuCom.Core.csproj" />
     <Project Path="src/DuCom/DuCom.csproj" />
+    <Project Path="src/DuCom.Plugin.Sdk/DuCom.Plugin.Sdk.csproj" />
+    <Project Path="src/DuCom.PluginHost/DuCom.PluginHost.csproj" />
+    <Project Path="src/DuCom.Plugins.BackgroundImage/DuCom.Plugins.BackgroundImage.csproj" />
+    <Project Path="src/DuCom.Plugins.LogPackage/DuCom.Plugins.LogPackage.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DuCom.Core.Tests/DuCom.Core.Tests.csproj" />
+    <Project Path="tests/DuCom.Plugins.Tests/DuCom.Plugins.Tests.csproj" />
+    <Project Path="tests/DuCom.PluginTestBed/DuCom.PluginTestBed.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/DuCom.LoadGenerator/DuCom.LoadGenerator.csproj" />

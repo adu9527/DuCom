@@ -1,0 +1,14 @@
+{
+  "manifestVersion": 1,
+  "id": "com.ducom.log-package",
+  "name": "日志打包",
+  "version": "1.0.0",
+  "protocolVersion": "1.0",
+  "minHostVersion": "0.0.1",
+  "entryAssembly": "DuCom.Plugins.LogPackage.dll",
+  "entryType": "DuCom.Plugins.LogPackage.Plugin",
+  "runtime": { "framework": "net10.0", "rid": "win-x64" },
+  "capabilities": [ "menu", "tool-page" ],
+  "permissions": [ "serial.logs.read", "storage.own", "files.user-selected.write" ],
+  "defaultCulture": "zh-CN"
+}

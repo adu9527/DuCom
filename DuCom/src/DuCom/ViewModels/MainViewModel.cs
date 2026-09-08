@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -21,7 +21,10 @@ using DuCom.Core.Parsing;
 using DuCom.Core.Persistence;
 using DuCom.Core.Sending;
 using DuCom.Core.Diagnostics;
+using DuCom.PluginHost;
+using DuCom.PluginHost.Core;
 using DuCom.Services;
+using DuCom.Services.Plugins;
 using DuCom.Services.Shortcuts;
 
 namespace DuCom.ViewModels;
@@ -42,7 +45,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     private readonly HashSet<string> _hiddenPorts = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _settingsSaveTimer;
     private readonly DispatcherTimer _portSettingsApplyTimer;
-    private readonly DispatcherTimer _backgroundImageTimer;
     private readonly SendHistory _sendHistory = new();
     private readonly SendHistoryNavigator _sendHistoryNavigator;
     private string[] _discoveredPortNames = [];
@@ -66,8 +68,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     private SessionViewModel? _activeLogSession;
     private TimeSpan _lastRenderTime;
     private TimeSpan _lastStatusRefreshTime;
-    private string[] _backgroundImagePlaylist = [];
-    private int _backgroundImageIndex = -1;
     private readonly object _portRefreshSync = new();
     private bool _portRefreshRequested;
     private Task? _portRefreshTask;
@@ -90,11 +90,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             Interval = TimeSpan.FromMilliseconds(250),
         };
         _portSettingsApplyTimer.Tick += OnPortSettingsApplyTick;
-        _backgroundImageTimer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromSeconds(30),
-        };
-        _backgroundImageTimer.Tick += OnBackgroundImageTimerTick;
         ShortcutManager = new ShortcutManager();
         ShortcutManager.RegisterDefaultActions();
         ShortcutsSettings = new ShortcutsSettingsViewModel(ShortcutManager);
@@ -605,47 +600,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     public partial string LogDirectory { get; set; } = GetDefaultLogDirectory();
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLogPackageOutputFollowingLogDirectory))]
-    [NotifyPropertyChangedFor(nameof(LogPackageOutputDirectoryDisplay))]
-    public partial string LogPackageOutputDirectory { get; set; } = string.Empty;
-
-    public bool IsLogPackageOutputFollowingLogDirectory
-    {
-        get => string.IsNullOrWhiteSpace(LogPackageOutputDirectory);
-        set
-        {
-            if (value == IsLogPackageOutputFollowingLogDirectory)
-            {
-                return;
-            }
-
-            if (value)
-            {
-                LogPackageOutputDirectory = string.Empty;
-            }
-            else
-            {
-                LogPackageOutputDirectory = LogDirectory;
-            }
-        }
-    }
-
-    public string LogPackageOutputDirectoryDisplay
-    {
-        get => IsLogPackageOutputFollowingLogDirectory ? LogDirectory : LogPackageOutputDirectory;
-        set
-        {
-            if (!IsLogPackageOutputFollowingLogDirectory && value != LogPackageOutputDirectory)
-            {
-                LogPackageOutputDirectory = value;
-            }
-        }
-    }
-
-    [ObservableProperty]
-    public partial bool LogPackagePluginEnabled { get; set; } = true;
-
-    [ObservableProperty]
     public partial int LogRotationMegabytes { get; set; } = 40;
 
     [ObservableProperty]
@@ -724,58 +678,77 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     public partial double SearchOpacity { get; set; } = 1d;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(BackgroundImageSource))]
-    public partial bool BackgroundImageEnabled { get; set; }
+    public Services.Plugins.PluginSystemHost? PluginSystem { get; private set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(BackgroundImageSource))]
-    public partial string BackgroundImagePath { get; set; } = string.Empty;
+    public event Action? PluginMenuChanged;
 
-    [ObservableProperty]
-    public partial string BackgroundImageFolderPath { get; set; } = string.Empty;
+    public bool IsLogPackagePluginActive => PluginSystem?.Service.BuildManagerRows().Any(row =>
+        row.Id == "com.ducom.log-package" && row.State == PluginRuntimeState.Active) == true;
 
-    [ObservableProperty]
-    public partial BackgroundImagePlaybackMode BackgroundImagePlaybackMode { get; set; }
-
-    [ObservableProperty]
-    public partial int BackgroundImageIntervalSeconds { get; set; } = 300;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(BackgroundImageSource))]
-    public partial string CurrentBackgroundImagePath { get; private set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial double BackgroundImageOpacity { get; set; } = 0.18d;
-
-    public ImageSource? BackgroundImageSource
+    internal void AttachPluginSystem(Services.Plugins.PluginSystemHost pluginSystem)
     {
-        get
+        ArgumentNullException.ThrowIfNull(pluginSystem);
+        PluginSystem = pluginSystem;
+        OnPropertyChanged(nameof(PluginSystem));
+        PluginManager.AttachPluginSystem(pluginSystem);
+        pluginSystem.Ui.Changed += (_, _) =>
         {
-            string path = BackgroundImagePlaybackMode == BackgroundImagePlaybackMode.SingleImage
-                ? BackgroundImagePath
-                : CurrentBackgroundImagePath;
-            if (!BackgroundImageEnabled || string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            OnPropertyChanged(nameof(IsLogPackagePluginActive));
+            PluginMenuChanged?.Invoke();
+        };
+        pluginSystem.Service.Changed += () => Application.Current?.Dispatcher.BeginInvoke(() =>
+            OnPropertyChanged(nameof(IsLogPackagePluginActive)));
+        PluginMenuChanged?.Invoke();
+    }
+
+    public IReadOnlyList<Services.Plugins.PluginMenuEntry> BuildPluginMenuEntries() =>
+        PluginSystem?.Ui.BuildMenuEntries() ?? [];
+
+    public async void InvokePluginMenu(Services.Plugins.PluginMenuEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        PluginSystemHost? system = PluginSystem;
+        if (system is null)
+        {
+            return;
+        }
+
+        if (entry.PageId is { Length: > 0 })
+        {
+            // Let the plugin refresh page state (e.g. prefill the reproduction time) before the window opens.
+            if (entry.CommandId is { Length: > 0 })
             {
-                return null;
+                try
+                {
+                    await InvokePluginCommandAsync(entry.PluginId, entry.CommandId, values: new Dictionary<string, string>());
+                }
+                catch (Exception exception)
+                {
+                    Program.DiagnosticLog?.Warning($"Plugin menu command '{entry.CommandId}' failed: {exception.Message}");
+                }
             }
 
-            try
-            {
-                BitmapImage image = new();
-                image.BeginInit();
-                image.CacheOption = BitmapCacheOption.OnLoad;
-                image.UriSource = new Uri(path, UriKind.Absolute);
-                image.EndInit();
-                image.Freeze();
-                return image;
-            }
-            catch
-            {
-                return null;
-            }
+            system.Ui.OpenToolPage(entry.PluginId, entry.PageId, (commandId, values) => InvokePluginCommandAsync(entry.PluginId, commandId, values));
+            return;
         }
+
+        _ = InvokePluginCommandAsync(entry.PluginId, entry.CommandId, values: new Dictionary<string, string>());
     }
+
+    private async Task<bool> InvokePluginCommandAsync(string pluginId, string commandId, IReadOnlyDictionary<string, string> values)
+    {
+        PluginRuntimeController? controller = PluginSystem?.Service.GetOrCreateController(pluginId);
+        if (controller is null || !controller.IsActive)
+        {
+            StatusMessage = GetResourceString("Plugins.NotActive");
+            return false;
+        }
+
+        return await controller.InvokeCommandAsync(commandId, values);
+    }
+
+    internal Task<bool> InvokePluginCommandForManagerAsync(string pluginId, string commandId, IReadOnlyDictionary<string, string> values) =>
+        InvokePluginCommandAsync(pluginId, commandId, values);
 
     [ObservableProperty]
     public partial int TelnetPort { get; set; } = 23;
@@ -1470,24 +1443,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     [RelayCommand]
-    private void SelectLogPackageOutputDirectory()
-    {
-        string initialDirectory = ResolveLogPackageOutputDirectory();
-        OpenFolderDialog dialog = new()
-        {
-            Title = GetResourceString("LogPackage.SelectOutputDirectory"),
-            InitialDirectory = Directory.Exists(initialDirectory) ? initialDirectory : null,
-        };
-        if (dialog.ShowDialog() == true)
-        {
-            LogPackageOutputDirectory = dialog.FolderName;
-        }
-    }
-
-    [RelayCommand]
-    private void ResetLogPackageOutputDirectory() => LogPackageOutputDirectory = string.Empty;
-
-    [RelayCommand]
     private void AddBaudRate()
     {
         if (NewBaudRate <= 0 || BaudRates.Contains(NewBaudRate))
@@ -1580,8 +1535,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             TimestampFormat = "HH:mm:ss.fff";
             LoggingEnabled = true;
             LogDirectory = GetDefaultLogDirectory();
-            LogPackageOutputDirectory = string.Empty;
-            LogPackagePluginEnabled = true;
             DefaultSendMode = SendMode.Str;
             LogRotationMegabytes = 40;
             LogRotationEnabled = true;
@@ -1614,12 +1567,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             ShowVirtualPorts = true;
             ShowCoverPage = true;
             CoverPageAnimationEnabled = true;
-            BackgroundImageEnabled = false;
-            BackgroundImagePath = string.Empty;
-            BackgroundImageFolderPath = string.Empty;
-            BackgroundImagePlaybackMode = BackgroundImagePlaybackMode.SingleImage;
-            BackgroundImageIntervalSeconds = 300;
-            BackgroundImageOpacity = 0.18d;
             PortSortMode = PortSortMode.NameAscending;
             WordWrap = false;
             ShowLineNumbers = true;
@@ -1641,7 +1588,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         ApplyDefaultSettingsToEditor();
         SerialParameterSendMode = DefaultSendMode;
         SerialParameterNewline = DefaultNewline;
-        PluginManager.SyncFromMainViewModel();
         _ = Application.Current.Dispatcher.BeginInvoke(
             () =>
             {
@@ -1722,7 +1668,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         TimestampEnabled = true;
         TimestampFormat = "HH:mm:ss.fff";
         LoggingEnabled = true;
-        LogPackageOutputDirectory = string.Empty;
         LogRotationMegabytes = 40;
         LogRotationEnabled = true;
         DisplayBudgetMegabytes = 64;
@@ -1786,8 +1731,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         _settingsSaveTimer.Tick -= OnSettingsSaveTick;
         _portSettingsApplyTimer.Stop();
         _portSettingsApplyTimer.Tick -= OnPortSettingsApplyTick;
-        _backgroundImageTimer.Stop();
-        _backgroundImageTimer.Tick -= OnBackgroundImageTimerTick;
         SaveSettings();
         await CommandRunner.DisposeAsync();
         await Telnet.DisposeAsync();
@@ -1912,8 +1855,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             _isLoadingSettings = false;
         }
-
-        PluginManager?.SyncFromMainViewModel();
     }
 
     partial void OnSelectedPortItemChanged(PortItemViewModel? value)
@@ -2461,16 +2402,28 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     }
 
     [RelayCommand]
-    private void ShowLogPackage()
+    private async Task ShowLogPackageAsync()
     {
-        LogPackageWindow window = new(
-            Sessions,
-            ResolveLogPackageOutputDirectory(),
-            path => LogPackageOutputDirectory = string.Equals(path, LogDirectory, StringComparison.OrdinalIgnoreCase) ? string.Empty : path)
+        PluginSystemHost? system = PluginSystem;
+        PluginPublishedActivation? activation = system?.Ui.Activations.FirstOrDefault(candidate => candidate.PluginId == "com.ducom.log-package");
+        if (system is null || activation is null)
         {
-            Owner = Application.Current.MainWindow,
-        };
-        window.ShowDialog();
+            StatusMessage = GetResourceString("Plugins.NotActive");
+            return;
+        }
+
+        string pageId = activation.ToolPages.Count > 0 ? activation.ToolPages[0].ContributionId : "packager";
+        // Prefill the reproduction time with "now" (legacy behavior) right before the window opens.
+        try
+        {
+            await InvokePluginCommandAsync(activation.PluginId, "open", values: new Dictionary<string, string>());
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Warning($"Log package open command failed: {exception.Message}");
+        }
+
+        system.Ui.OpenToolPage(activation.PluginId, pageId, (commandId, values) => InvokePluginCommandAsync(activation.PluginId, commandId, values));
     }
 
     [RelayCommand]
@@ -2617,6 +2570,27 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         await session.DisposeAsync();
         NotifyCommandStates();
     }
+
+    /// <summary>
+    /// Closes every open session for the plugin apply-and-restart flow: stopping send jobs
+    /// and closing serial ports first so the log writer can flush before workers stop.
+    /// </summary>
+    public async Task CloseAllSessionsForRestartAsync()
+    {
+        await CommandRunner.StopAsync();
+        foreach (SessionViewModel session in Sessions.ToList())
+        {
+            await CloseSessionAsync(session);
+        }
+
+        foreach (SessionViewModel session in RightSessions.ToList())
+        {
+            await CloseSessionAsync(session);
+        }
+    }
+
+    /// <summary>Flushes the debounced settings save immediately (restart commit point).</summary>
+    public void SaveSettingsNow() => SaveSettings();
 
     [RelayCommand]
     private async Task CloseSessionAsync(SessionViewModel? session)
@@ -2889,12 +2863,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         ShowVirtualPorts,
         ShowCoverPage,
         CoverPageAnimationEnabled,
-        BackgroundImageEnabled,
-        BackgroundImagePath,
-        BackgroundImageFolderPath,
-        BackgroundImagePlaybackMode,
-        Math.Clamp(BackgroundImageIntervalSeconds, 1, 86_400),
-        Math.Clamp(BackgroundImageOpacity, 0d, 1d),
         TelnetPort,
         TelnetAllowRemote,
         TelnetAuthenticationEnabled,
@@ -2910,8 +2878,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         [.. Sessions.Where(session => session.IsOpen).Select(session => session.PortName)],
         SelectedSession is { IsOpen: true, IsInRightPane: false } ? SelectedSession.PortName : null,
         SelectedRightSession is { IsOpen: true, IsInRightPane: true } ? SelectedRightSession.PortName : null,
-        LogPackageOutputDirectory,
-        LogPackagePluginEnabled,
         AutoCheckUpdates,
         SkippedUpdateVersion,
         ShowMemoryMonitor,
@@ -2991,21 +2957,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
             ShowVirtualPorts = snapshot.ShowVirtualPorts;
             ShowCoverPage = snapshot.ShowCoverPage;
             CoverPageAnimationEnabled = snapshot.CoverPageAnimationEnabled;
-            BackgroundImageEnabled = snapshot.BackgroundImageEnabled;
-            BackgroundImagePath = snapshot.BackgroundImagePath ?? string.Empty;
-            BackgroundImageFolderPath = snapshot.BackgroundImageFolderPath ?? string.Empty;
-            BackgroundImagePlaybackMode = snapshot.BackgroundImagePlaybackMode;
-            BackgroundImageIntervalSeconds = snapshot.BackgroundImageIntervalSeconds == 30
-                ? 300
-                : Math.Clamp(snapshot.BackgroundImageIntervalSeconds, 1, 86_400);
-            BackgroundImageOpacity = Math.Clamp(snapshot.BackgroundImageOpacity, 0d, 1d);
-            RefreshBackgroundImagePlayback();
             TelnetPort = Math.Clamp(snapshot.TelnetPort, 1, 65_535);
             TelnetAllowRemote = snapshot.TelnetAllowRemote;
             TelnetAuthenticationEnabled = snapshot.TelnetAuthenticationEnabled;
             TelnetUsername = snapshot.TelnetUsername ?? string.Empty;
-            LogPackageOutputDirectory = snapshot.LogPackageOutputDirectory ?? string.Empty;
-            LogPackagePluginEnabled = snapshot.LogPackagePluginEnabled;
             AutoCheckUpdates = snapshot.AutoCheckUpdates;
             SkippedUpdateVersion = snapshot.SkippedUpdateVersion;
             if (!string.IsNullOrWhiteSpace(snapshot.Language))
@@ -3275,12 +3230,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         bool ShowVirtualPorts = true,
         bool ShowCoverPage = true,
         bool CoverPageAnimationEnabled = true,
-        bool BackgroundImageEnabled = false,
-        string? BackgroundImagePath = null,
-        string? BackgroundImageFolderPath = null,
-        BackgroundImagePlaybackMode BackgroundImagePlaybackMode = BackgroundImagePlaybackMode.SingleImage,
-        int BackgroundImageIntervalSeconds = 300,
-        double BackgroundImageOpacity = 0.18d,
         int TelnetPort = 23,
         bool TelnetAllowRemote = false,
         bool TelnetAuthenticationEnabled = false,
@@ -3296,8 +3245,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         List<string>? OpenSessionPorts = null,
         string? SelectedSessionPort = null,
         string? SelectedRightSessionPort = null,
-        string? LogPackageOutputDirectory = null,
-        bool LogPackagePluginEnabled = true,
         bool AutoCheckUpdates = true,
         string? SkippedUpdateVersion = null,
         bool ShowMemoryMonitor = true,
@@ -3605,9 +3552,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private static string GetDefaultLogDirectory() => Path.Combine(AppContext.BaseDirectory, "Logs");
 
-    private string ResolveLogPackageOutputDirectory() =>
-        string.IsNullOrWhiteSpace(LogPackageOutputDirectory) ? LogDirectory : LogPackageOutputDirectory;
-
     private void EnsureBaudRatePresent(int baudRate)
     {
         if (baudRate <= 0 || BaudRates.Contains(baudRate))
@@ -3776,20 +3720,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     partial void OnLogDirectoryChanged(string value)
     {
-        OnPropertyChanged(nameof(LogPackageOutputDirectoryDisplay));
         MarkSettingsDirty();
-    }
-
-    partial void OnLogPackageOutputDirectoryChanged(string value)
-    {
-        OnPropertyChanged(nameof(IsLogPackageOutputFollowingLogDirectory));
-        OnPropertyChanged(nameof(LogPackageOutputDirectoryDisplay));
-        MarkSettingsDirty();
-    }
-    partial void OnLogPackagePluginEnabledChanged(bool value)
-    {
-        MarkSettingsDirty();
-        PluginManager?.SyncFromMainViewModel();
     }
 
     partial void OnDefaultSendModeChanged(SendMode value) => MarkSettingsDirty();
@@ -3872,142 +3803,6 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         RebuildPortItems(SelectedPort);
     }
 
-    partial void OnBackgroundImageEnabledChanged(bool value)
-    {
-        RefreshBackgroundImagePlayback();
-        MarkSettingsDirty();
-    }
-
-    partial void OnBackgroundImagePathChanged(string value)
-    {
-        if (BackgroundImagePlaybackMode == BackgroundImagePlaybackMode.SingleImage)
-        {
-            OnPropertyChanged(nameof(BackgroundImageSource));
-        }
-        MarkSettingsDirty();
-    }
-
-    partial void OnBackgroundImageFolderPathChanged(string value)
-    {
-        RefreshBackgroundImagePlayback();
-        MarkSettingsDirty();
-    }
-
-    partial void OnBackgroundImagePlaybackModeChanged(BackgroundImagePlaybackMode value)
-    {
-        RefreshBackgroundImagePlayback();
-        MarkSettingsDirty();
-    }
-
-    partial void OnBackgroundImageIntervalSecondsChanged(int value)
-    {
-        UpdateBackgroundImageTimer();
-        MarkSettingsDirty();
-    }
-
-    partial void OnBackgroundImageOpacityChanged(double value) => MarkSettingsDirty();
-
-    internal void ShowNextBackgroundImage() => AdvanceBackgroundImage();
-
-    internal void ConfigureSingleBackgroundImage(string path)
-    {
-        BackgroundImagePath = path;
-        BackgroundImagePlaybackMode = BackgroundImagePlaybackMode.SingleImage;
-        BackgroundImageEnabled = true;
-        OnPropertyChanged(nameof(BackgroundImageSource));
-    }
-
-    internal void ConfigureBackgroundImageFolder(string path)
-    {
-        BackgroundImageFolderPath = path;
-        BackgroundImagePlaybackMode = BackgroundImagePlaybackMode.Sequential;
-        BackgroundImageEnabled = true;
-        RefreshBackgroundImagePlayback();
-        OnPropertyChanged(nameof(BackgroundImageSource));
-    }
-
-    internal void SetBackgroundImagePluginEnabled(bool enabled)
-    {
-        BackgroundImageEnabled = enabled;
-        RefreshBackgroundImagePlayback();
-        OnPropertyChanged(nameof(BackgroundImageSource));
-    }
-
-    internal void SetLogPackagePluginEnabled(bool enabled) => LogPackagePluginEnabled = enabled;
-
-    private void RefreshBackgroundImagePlayback()
-    {
-        _backgroundImageTimer.Stop();
-        if (BackgroundImagePlaybackMode == BackgroundImagePlaybackMode.SingleImage)
-        {
-            _backgroundImagePlaylist = [];
-            _backgroundImageIndex = -1;
-            CurrentBackgroundImagePath = string.Empty;
-            OnPropertyChanged(nameof(BackgroundImageSource));
-            return;
-        }
-
-        _backgroundImagePlaylist = GetBackgroundImages(BackgroundImageFolderPath);
-        _backgroundImageIndex = -1;
-        AdvanceBackgroundImage();
-        UpdateBackgroundImageTimer();
-        OnPropertyChanged(nameof(BackgroundImageSource));
-    }
-
-    private void UpdateBackgroundImageTimer()
-    {
-        _backgroundImageTimer.Stop();
-        if (!BackgroundImageEnabled ||
-            BackgroundImagePlaybackMode == BackgroundImagePlaybackMode.SingleImage ||
-            _backgroundImagePlaylist.Length < 2)
-        {
-            return;
-        }
-
-        _backgroundImageTimer.Interval = TimeSpan.FromSeconds(Math.Clamp(BackgroundImageIntervalSeconds, 1, 86_400));
-        _backgroundImageTimer.Start();
-    }
-
-    private void OnBackgroundImageTimerTick(object? sender, EventArgs e) => AdvanceBackgroundImage();
-
-    private void AdvanceBackgroundImage()
-    {
-        if (_backgroundImagePlaylist.Length == 0)
-        {
-            CurrentBackgroundImagePath = string.Empty;
-            return;
-        }
-
-        if (BackgroundImagePlaybackMode == BackgroundImagePlaybackMode.Random && _backgroundImagePlaylist.Length > 1)
-        {
-            int next;
-            do
-            {
-                next = Random.Shared.Next(_backgroundImagePlaylist.Length);
-            }
-            while (next == _backgroundImageIndex);
-            _backgroundImageIndex = next;
-        }
-        else
-        {
-            _backgroundImageIndex = (_backgroundImageIndex + 1) % _backgroundImagePlaylist.Length;
-        }
-
-        CurrentBackgroundImagePath = _backgroundImagePlaylist[_backgroundImageIndex];
-    }
-
-    private static string[] GetBackgroundImages(string directory)
-    {
-        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
-        {
-            return [];
-        }
-
-        HashSet<string> extensions = new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp", ".webp" };
-        return [.. Directory.EnumerateFiles(directory)
-            .Where(path => extensions.Contains(Path.GetExtension(path)))
-            .Order(StringComparer.OrdinalIgnoreCase)];
-    }
     partial void OnTelnetPortChanged(int value) => MarkSettingsDirty();
     partial void OnTelnetAllowRemoteChanged(bool value) => MarkSettingsDirty();
 
@@ -4142,11 +3937,4 @@ public enum SplitLayoutOrientation
 {
     Vertical,
     Horizontal,
-}
-
-public enum BackgroundImagePlaybackMode
-{
-    SingleImage,
-    Sequential,
-    Random,
 }

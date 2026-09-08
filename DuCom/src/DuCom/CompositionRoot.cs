@@ -41,6 +41,8 @@ internal sealed class CompositionRoot : IAsyncDisposable
 
     public MainWindow CreateMainWindow() => new(_mainViewModel);
 
+    public ViewModels.MainViewModel MainViewModel => _mainViewModel;
+
     public async ValueTask DisposeAsync()
     {
         await _uiResponsivenessMonitor.DisposeAsync().ConfigureAwait(false);

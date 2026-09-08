@@ -10,7 +10,8 @@ public sealed class ReceiveSessionSink(
     SessionLogWriter logWriter,
     BudgetedLineStore lineStore,
     LoadMetrics metrics,
-    SessionTapHub? displayTaps = null) : IReceiveBlockSink, IAsyncDisposable
+    SessionTapHub? displayTaps = null,
+    SessionRawTapHub? rawTaps = null) : IReceiveBlockSink, IAsyncDisposable
 {
     private readonly object _gate = new();
     private readonly SemaphoreSlim _formatterLock = new(1, 1);
@@ -39,6 +40,7 @@ public sealed class ReceiveSessionSink(
             IReadOnlyList<FormattedLine> lines = _formatter!.Append(block.Memory.Span, block.ReceivedAtUtc);
             await CommitAsync(lines, commitUnterminated: false, cancellationToken).ConfigureAwait(false);
             displayTaps?.PublishReceive(block.Memory.Span, block.ReceivedAtUtc, block.FormattingProfile);
+            rawTaps?.PublishRaw(block.Memory, block.ReceivedAtUtc);
             metrics.AddFormattedLogBlock();
         }
         finally

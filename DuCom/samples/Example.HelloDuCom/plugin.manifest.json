@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "id": "org.example.hello-ducom",
+  "name": "Hello DuCom",
+  "version": "1.0.0",
+  "protocolVersion": "1.0",
+  "minHostVersion": "0.0.1",
+  "entryAssembly": "Example.HelloDuCom.dll",
+  "entryType": "Example.HelloDuCom.HelloPlugin",
+  "runtime": { "framework": "net10.0", "rid": "win-x64" },
+  "capabilities": [ "menu", "tool-page" ],
+  "permissions": [ "serial.read", "storage.own" ],
+  "description": "Minimal third-party example: counts received serial bytes per session and greets the tool page.",
+  "author": "DuCom contributors",
+  "defaultCulture": "en-US"
+}

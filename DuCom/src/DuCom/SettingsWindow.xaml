@@ -315,31 +315,10 @@
                                          <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogDirectory}" />
                                          <TextBox Text="{Binding LogDirectory, UpdateSourceTrigger=PropertyChanged}" TextWrapping="Wrap" />
                                          <WrapPanel Margin="0,8,0,0">
-                                             <Button Command="{Binding SelectLogDirectoryCommand}" Content="{DynamicResource Settings.SelectLogDirectory}" />
-                                             <Button Margin="8,0,0,0" Command="{Binding OpenLogFolderCommand}" Content="{DynamicResource Log.OpenFolder}" />
-                                         </WrapPanel>
-                                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogPackageOutputDirectory}" />
-                                          <TextBox Text="{Binding LogPackageOutputDirectoryDisplay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                   TextWrapping="Wrap">
-                                              <TextBox.Style>
-                                                  <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                                      <Style.Triggers>
-                                                          <DataTrigger Binding="{Binding IsLogPackageOutputFollowingLogDirectory}" Value="True">
-                                                              <Setter Property="IsEnabled" Value="False" />
-                                                          </DataTrigger>
-                                                      </Style.Triggers>
-                                                  </Style>
-                                              </TextBox.Style>
-                                          </TextBox>
-                                         <TextBlock Margin="0,4,0,0" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Settings.LogPackageOutputDirectoryHint}" TextWrapping="Wrap" />
-                                         <WrapPanel Margin="0,8,0,0">
-                                             <Button Command="{Binding SelectLogPackageOutputDirectoryCommand}" Content="{DynamicResource LogPackage.Browse}" />
-                                              <CheckBox Margin="12,0,0,0"
-                                                        VerticalAlignment="Center"
-                                                        Content="{DynamicResource LogPackage.FollowLogDirectory}"
-                                                        IsChecked="{Binding IsLogPackageOutputFollowingLogDirectory, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                         </WrapPanel>
-                                        <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogRotationSize}" />
+                                              <Button Command="{Binding SelectLogDirectoryCommand}" Content="{DynamicResource Settings.SelectLogDirectory}" />
+                                              <Button Margin="8,0,0,0" Command="{Binding OpenLogFolderCommand}" Content="{DynamicResource Log.OpenFolder}" />
+                                          </WrapPanel>
+                                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.LogRotationSize}" />
                                         <TextBox IsEnabled="{Binding LogRotationEnabled}" Text="{Binding LogRotationMegabytes, UpdateSourceTrigger=PropertyChanged}" />
                                         <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.DisplayBudget}" />
                                         <TextBox Text="{Binding DisplayBudgetMegabytes, UpdateSourceTrigger=PropertyChanged}" />

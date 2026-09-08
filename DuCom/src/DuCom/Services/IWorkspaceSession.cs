@@ -8,6 +8,9 @@ namespace DuCom.Services;
 
 public interface IWorkspaceSession : IAsyncDisposable
 {
+    /// <summary>Stable identity of this session instance; a reopen creates a new runtime id.</summary>
+    string RuntimeId { get; }
+
     SerialPortSettings Settings { get; }
 
     SerialSessionStatusSnapshot Status { get; }
@@ -38,4 +41,7 @@ public interface IWorkspaceSession : IAsyncDisposable
 
     /// <summary>Display tap fan-out for auxiliary surfaces (float send window, log filter).</summary>
     SessionTapHub DisplayTaps { get; }
+
+    /// <summary>Raw pre-formatting receive observers (host-internal plugin broker surface).</summary>
+    SessionRawTapHub RawTaps { get; }
 }

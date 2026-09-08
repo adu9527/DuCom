@@ -2,6 +2,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using DuCom.Core.Diagnostics;
 using DuCom.Services;
+using DuCom.Services.Plugins;
 using Velopack;
 
 namespace DuCom;
@@ -18,6 +19,16 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.Contains("--plugin-worker", StringComparer.OrdinalIgnoreCase))
+        {
+            return PluginWorker.PluginWorkerMain.Run();
+        }
+
+        if (TryParseWaitParent(args, out int parentPid))
+        {
+            WaitForParentExit(parentPid, TimeSpan.FromSeconds(30));
+        }
+
         VelopackApp.Build().Run();
         if (!TryAcquireSingleInstanceLock())
         {
@@ -31,7 +42,7 @@ public static class Program
 
         try
         {
-            _log.Information($"Process starting. Version={typeof(Program).Assembly.GetName().Version}; Runtime={RuntimeInformation.FrameworkDescription}; OS={RuntimeInformation.OSDescription}; BaseDirectory={AppContext.BaseDirectory}");
+            _log.Information($"Process starting. ApplicationVersion={PluginHostVersion.ApplicationVersion}; PluginCompatibilityVersion={PluginHostVersion.CompatibilityVersion}; Runtime={RuntimeInformation.FrameworkDescription}; OS={RuntimeInformation.OSDescription}; BaseDirectory={AppContext.BaseDirectory}");
             App app = new();
             app.InitializeComponent();
             app.DiagnosticLog = _log;
@@ -95,6 +106,34 @@ public static class Program
 
         _singleInstanceMutex?.Dispose();
         _singleInstanceMutex = null;
+    }
+
+    private static bool TryParseWaitParent(string[] args, out int parentPid)
+    {
+        parentPid = 0;
+        for (int index = 0; index < args.Length - 1; index++)
+        {
+            if (string.Equals(args[index], "--wait-parent", StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(args[index + 1], out int pid))
+            {
+                parentPid = pid;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void WaitForParentExit(int parentPid, TimeSpan timeout)
+    {
+        try
+        {
+            using System.Diagnostics.Process parent = System.Diagnostics.Process.GetProcessById(parentPid);
+            parent.WaitForExit((int)timeout.TotalMilliseconds);
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private static void ShowStartupFailure(string logPath)

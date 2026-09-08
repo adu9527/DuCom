@@ -43,6 +43,37 @@ public partial class MainWindow : FluentWindow
         _deviceRefreshTimer.Tick += DeviceRefreshTimer_Tick;
         _processMemoryTimer.Tick += ProcessMemoryTimer_Tick;
         _systemMemoryTimer.Tick += SystemMemoryTimer_Tick;
+        viewModel.PluginMenuChanged += RefreshPluginMenu;
+        RefreshPluginMenu();
+    }
+
+    private void RefreshPluginMenu()
+    {
+        if (DataContext is not MainViewModel viewModel)
+        {
+            return;
+        }
+
+        PluginMenuContextMenu.Items.Clear();
+        foreach (Services.Plugins.PluginMenuEntry entry in viewModel.BuildPluginMenuEntries())
+        {
+            System.Windows.Controls.MenuItem item = new() { Header = entry.Header };
+            Services.Plugins.PluginMenuEntry captured = entry;
+            item.Click += (_, _) => viewModel.InvokePluginMenu(captured);
+            PluginMenuContextMenu.Items.Add(item);
+        }
+
+        if (PluginMenuContextMenu.Items.Count == 0)
+        {
+            System.Windows.Controls.MenuItem placeholder = new()
+            {
+                Header = (TryFindResource("Menu.Plugins.Empty") as string) ?? "No active plugin menus",
+                IsEnabled = false,
+            };
+            PluginMenuContextMenu.Items.Add(placeholder);
+        }
+
+        PluginsMenuButton.Visibility = System.Windows.Visibility.Visible;
     }
 
     private void MainWindow_SourceInitialized(object? sender, EventArgs e)
@@ -85,6 +116,7 @@ public partial class MainWindow : FluentWindow
         if (DataContext is MainViewModel viewModel)
         {
             viewModel.PropertyChanged -= MainViewModel_PropertyChanged;
+            viewModel.PluginMenuChanged -= RefreshPluginMenu;
         }
     }
 

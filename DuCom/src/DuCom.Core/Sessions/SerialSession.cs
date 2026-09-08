@@ -32,6 +32,7 @@ public sealed class SerialSession : IAsyncDisposable
     private readonly PortLifecycle _lifecycle;
     private readonly BudgetedLineStore _lineStore;
     private readonly SessionTapHub _displayTaps = new();
+    private readonly SessionRawTapHub _rawTaps = new();
     private SessionRuntime? _runtime;
     private SessionFaultSnapshot? _fault;
     private Task? _disposeTask;
@@ -97,6 +98,12 @@ public sealed class SerialSession : IAsyncDisposable
 
     /// <summary>Display tap fan-out for auxiliary surfaces (float send window, log filter).</summary>
     public SessionTapHub DisplayTaps => _displayTaps;
+
+    /// <summary>Raw pre-formatting receive observers (host-internal broker surface).</summary>
+    public SessionRawTapHub RawTaps => _rawTaps;
+
+    /// <summary>Stable identity of this session instance; a reopen creates a new runtime id.</summary>
+    public string RuntimeId { get; } = Guid.NewGuid().ToString("N");
 
     public SerialPortSettings Settings => _settings;
 
@@ -504,7 +511,7 @@ public sealed class SerialSession : IAsyncDisposable
     {
         SessionLogWriter logWriter = new(_logOptions, _metrics);
         ReceiveFormattingProfile formattingProfile = CreateFormattingProfile(_settings.EncodingName, _formattingProfileVersion);
-        ReceiveSessionSink sink = new(logWriter, _lineStore, _metrics, _displayTaps);
+        ReceiveSessionSink sink = new(logWriter, _lineStore, _metrics, _displayTaps, _rawTaps);
         ReceivePipeline pipeline = new(
             _transport,
             sink,

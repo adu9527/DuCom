@@ -75,6 +75,15 @@ public partial class ThemedMessageDialog : FluentWindow
         };
     }
 
+    /// <summary>Shows a single-button informational dialog and returns when it is dismissed.</summary>
+    public static void ShowInfo(Window? owner, string message, string title)
+    {
+        ThemedMessageDialog dialog = Create(owner, message, title, ThemedMessageDialogKind.Information);
+        dialog.PrimaryButton.Content = GetResourceString("Dialog.OK", "OK");
+        dialog.SecondaryButton.Visibility = Visibility.Collapsed;
+        _ = dialog.ShowDialog();
+    }
+
     public static void Show(Window? owner, string message, string title, ThemedMessageDialogKind kind)
     {
         ThemedMessageDialog dialog = Create(owner, message, title, kind);

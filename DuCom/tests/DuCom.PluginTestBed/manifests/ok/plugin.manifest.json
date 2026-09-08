@@ -1,0 +1,21 @@
+﻿{
+    "manifestVersion":  1,
+    "id":  "org.example.bed-ok",
+    "name":  "Bed ok",
+    "version":  "1.0.0",
+    "protocolVersion":  "1.0",
+    "minHostVersion":  "0.0.1",
+    "entryAssembly":  "DuCom.PluginTestBed.dll",
+    "entryType":  "DuCom.PluginTestBed.BedOkPlugin",
+    "runtime":  {
+                    "framework":  "net10.0",
+                    "rid":  "win-x64"
+                },
+    "capabilities":  [
+                         "menu",
+                         "tool-page"
+                     ],
+    "permissions":  [
+                        "storage.own"
+                    ]
+}

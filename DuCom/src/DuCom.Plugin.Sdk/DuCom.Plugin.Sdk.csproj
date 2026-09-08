@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Description>DuCom plugin protocol SDK (DPP/1). Worker-side adapter for DuCom plugins.</Description>
+    <Version>0.1.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>0.1.0</FileVersion>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CA1416;CA1711;CA1716;CA1720;CA1305;CA1001;CA1031;CA1848</NoWarn>
+  </PropertyGroup>
+</Project>

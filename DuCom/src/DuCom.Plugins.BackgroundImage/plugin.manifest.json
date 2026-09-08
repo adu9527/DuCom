@@ -1,0 +1,14 @@
+{
+  "manifestVersion": 1,
+  "id": "com.ducom.background-image",
+  "name": "背景图",
+  "version": "1.0.0",
+  "protocolVersion": "1.0",
+  "minHostVersion": "0.0.1",
+  "entryAssembly": "DuCom.Plugins.BackgroundImage.dll",
+  "entryType": "DuCom.Plugins.BackgroundImage.Plugin",
+  "runtime": { "framework": "net10.0", "rid": "win-x64" },
+  "capabilities": [ "settings-panel", "background-image" ],
+  "permissions": [ "storage.own", "files.user-selected.read" ],
+  "defaultCulture": "zh-CN"
+}

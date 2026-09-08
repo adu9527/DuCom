@@ -1,11 +1,13 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Windows;
-using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DuCom.PluginHost;
+using DuCom.Services.Plugins;
+using DuCom.PluginHost.Core;
+using DuCom.PluginHost.Packages;
 using Microsoft.Win32;
 
 namespace DuCom.ViewModels;
@@ -13,257 +15,481 @@ namespace DuCom.ViewModels;
 public partial class PluginManagerViewModel : ObservableObject
 {
     private readonly MainViewModel _mainViewModel;
-    private bool _syncingFromMainViewModel;
+    private PluginSystemHost? _attachedSystem;
 
     public PluginManagerViewModel(MainViewModel mainViewModel)
     {
         _mainViewModel = mainViewModel;
-        PluginDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DuCom", "Plugins");
-        BackgroundImageEnabled = mainViewModel.BackgroundImageEnabled;
-        BackgroundImagePath = mainViewModel.BackgroundImagePath;
-        BackgroundImageFolderPath = mainViewModel.BackgroundImageFolderPath;
-        BackgroundImageIntervalSeconds = mainViewModel.BackgroundImageIntervalSeconds;
-        BackgroundImageOpacity = mainViewModel.BackgroundImageOpacity;
-        PlaybackModes =
-        [
-            new PlaybackModeOption(BackgroundImagePlaybackMode.SingleImage, Resource("Plugins.BackgroundImage.Mode.Single")),
-            new PlaybackModeOption(BackgroundImagePlaybackMode.Sequential, Resource("Plugins.BackgroundImage.Mode.Sequential")),
-            new PlaybackModeOption(BackgroundImagePlaybackMode.Random, Resource("Plugins.BackgroundImage.Mode.Random")),
-        ];
-        SelectedPlaybackMode = PlaybackModes.First(option => option.Mode == mainViewModel.BackgroundImagePlaybackMode);
+        if (mainViewModel.PluginSystem is { } system)
+        {
+            AttachPluginSystem(system);
+        }
+
         RefreshPlugins();
-        OnPropertyChanged(nameof(LogPackagePluginEnabled));
     }
 
-    public void SyncFromMainViewModel()
+    internal void AttachPluginSystem(PluginSystemHost system)
     {
-        _syncingFromMainViewModel = true;
-        try
+        if (ReferenceEquals(_attachedSystem, system))
         {
-            BackgroundImageEnabled = _mainViewModel.BackgroundImageEnabled;
-            BackgroundImagePath = _mainViewModel.BackgroundImagePath;
-            BackgroundImageFolderPath = _mainViewModel.BackgroundImageFolderPath;
-            BackgroundImageIntervalSeconds = _mainViewModel.BackgroundImageIntervalSeconds;
-            BackgroundImageOpacity = _mainViewModel.BackgroundImageOpacity;
-            SelectedPlaybackMode = PlaybackModes.First(option => option.Mode == _mainViewModel.BackgroundImagePlaybackMode);
-            OnPropertyChanged(nameof(BackgroundImageSource));
-            OnPropertyChanged(nameof(LogPackagePluginEnabled));
+            return;
         }
-        finally
+
+        if (_attachedSystem is not null)
         {
-            _syncingFromMainViewModel = false;
+            _attachedSystem.Service.Changed -= ScheduleRefresh;
+            _attachedSystem.Ui.Changed -= OnUiChanged;
+        }
+
+        _attachedSystem = system;
+        system.Service.Changed += ScheduleRefresh;
+        system.Ui.Changed += OnUiChanged;
+        RefreshPlugins();
+    }
+
+    private void OnUiChanged(object? sender, EventArgs args) => ScheduleRefresh();
+
+    public ObservableCollection<PluginManagerRow> Plugins { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRowSelected))]
+    [NotifyPropertyChangedFor(nameof(ToggleLabel))]
+    [NotifyPropertyChangedFor(nameof(SelectedStateText))]
+    [NotifyPropertyChangedFor(nameof(CanToggle))]
+    public partial PluginManagerRow? SelectedPlugin { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ToggleLabel))]
+    [NotifyPropertyChangedFor(nameof(CanToggle))]
+    public partial bool IsChangingState { get; set; }
+
+    [ObservableProperty]
+    public partial string OperationMessage { get; set; } = string.Empty;
+
+    public bool CanToggle => IsRowSelected && !IsChangingState
+        && SelectedPlugin?.State is not (PluginRuntimeState.Starting or PluginRuntimeState.Activating or PluginRuntimeState.Stopping);
+
+    public string ToggleLabel => Resource(IsChangingState ? "Plugins.Working"
+        : SelectedPlugin?.State is PluginRuntimeState.Active or PluginRuntimeState.Activating
+            ? "Plugins.Disable" : "Plugins.Enable");
+
+    public string SelectedStateText => SelectedPlugin is { } row
+        ? Resource($"Plugins.State.{row.State}") : string.Empty;
+
+    public bool IsRowSelected => SelectedPlugin is not null;
+
+    public string InstalledDirectory => _mainViewModel.PluginSystem?.Service.Paths.InstalledRoot ?? string.Empty;
+
+    public bool SafeStartAllPlugins
+    {
+        get => _mainViewModel.PluginSystem?.Service.SafeStartAllPlugins ?? false;
+        set
+        {
+            if (_mainViewModel.PluginSystem is { } system && system.Service.SafeStartAllPlugins != value)
+            {
+                system.Service.SafeStartAllPlugins = value;
+                OnPropertyChanged();
+            }
         }
     }
 
-    public string PluginDirectory { get; }
+    public bool HasPendingUpdates => Plugins.Any(row => row.PendingUpdate);
 
-    public ObservableCollection<PluginRow> Plugins { get; } = [];
-
-    public IReadOnlyList<PlaybackModeOption> PlaybackModes { get; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsBackgroundPluginSelected))]
-    [NotifyPropertyChangedFor(nameof(IsLogPackagePluginSelected))]
-    [NotifyPropertyChangedFor(nameof(IsExternalPluginSelected))]
-    public partial PluginRow? SelectedPlugin { get; set; }
-
-    public bool IsBackgroundPluginSelected => SelectedPlugin?.Kind == PluginKind.BackgroundImage;
-
-    public bool IsLogPackagePluginSelected => SelectedPlugin?.Kind == PluginKind.LogPackage;
-
-    public bool IsExternalPluginSelected => SelectedPlugin?.Kind == PluginKind.External;
-
-    public bool LogPackagePluginEnabled => _mainViewModel.LogPackagePluginEnabled;
-
-    [ObservableProperty]
-    public partial bool BackgroundImageEnabled { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(BackgroundImageSource))]
-    public partial string BackgroundImagePath { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string BackgroundImageFolderPath { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial PlaybackModeOption? SelectedPlaybackMode { get; set; }
-
-    [ObservableProperty]
-    public partial int BackgroundImageIntervalSeconds { get; set; } = 300;
-
-    [ObservableProperty]
-    public partial double BackgroundImageOpacity { get; set; } = 0.18d;
-
-    public ImageSource? BackgroundImageSource => _mainViewModel.BackgroundImageSource;
-
-    [RelayCommand]
-    private void OpenPluginFolder()
+    public string BudgetSummary
     {
-        Directory.CreateDirectory(PluginDirectory);
-        Process.Start(new ProcessStartInfo(PluginDirectory) { UseShellExecute = true });
+        get
+        {
+            PluginSystemHost? system = _mainViewModel.PluginSystem;
+            if (system is null)
+            {
+                return string.Empty;
+            }
+
+            PluginBudgetSample? sample = system.Service.Budget.LastSample;
+            if (sample is null)
+            {
+                return Resource("Plugins.Budget.Sampling");
+            }
+
+            return string.Format(
+                Resource("Plugins.Budget.Summary"),
+                sample.TotalPrivateBytes / 1_000_000d,
+                system.Service.Budget.Configuration.TotalBudgetBytes / 1_000_000d,
+                sample.HostPrivateBytes / 1_000_000d);
+        }
     }
 
     [RelayCommand]
     private void RefreshPlugins()
     {
-        Directory.CreateDirectory(PluginDirectory);
+        PluginSystemHost? system = _mainViewModel.PluginSystem;
         string? selectedId = SelectedPlugin?.Id;
         Plugins.Clear();
-        Plugins.Add(new PluginRow("background-image", Resource("Plugins.BackgroundImage.Name"), "Built-in", Resource("Plugins.BackgroundImage.Description"), string.Empty, PluginKind.BackgroundImage));
-        Plugins.Add(new PluginRow("log-package", Resource("Plugins.LogPackage.Name"), "Built-in", Resource("Plugins.LogPackage.Description"), string.Empty, PluginKind.LogPackage));
-        foreach (string file in Directory.GetFiles(PluginDirectory, "*.dll"))
+        if (system is not null)
         {
-            string version = "Unknown";
-            try
+            foreach (PluginManagerRow row in system.Service.BuildManagerRows().OrderBy(row => row.Id, StringComparer.Ordinal))
             {
-                version = AssemblyName.GetAssemblyName(file).Version?.ToString() ?? version;
+                Plugins.Add(row);
             }
-            catch (BadImageFormatException)
-            {
-                version = "Invalid .NET assembly";
-            }
-
-            Plugins.Add(new PluginRow(file, Path.GetFileNameWithoutExtension(file), version, Resource("Plugins.External.Description"), file, PluginKind.External));
         }
 
-        SelectedPlugin = Plugins.FirstOrDefault(plugin => string.Equals(plugin.Id, selectedId, StringComparison.OrdinalIgnoreCase)) ?? Plugins.FirstOrDefault();
+        SelectedPlugin = Plugins.FirstOrDefault(row => string.Equals(row.Id, selectedId, StringComparison.Ordinal))
+            ?? Plugins.FirstOrDefault();
+        OnPropertyChanged(nameof(BudgetSummary));
+        OnPropertyChanged(nameof(HasPendingUpdates));
+        OnPropertyChanged(nameof(InstalledDirectory));
+        OnPropertyChanged(nameof(SafeStartAllPlugins));
     }
 
     [RelayCommand]
-    private void SelectBackgroundImage()
+    private void OpenPluginFolder()
     {
-        OpenFileDialog dialog = new() { Filter = Resource("Plugins.BackgroundImage.Filter"), CheckFileExists = true };
-        if (dialog.ShowDialog() == true)
+        if (Directory.Exists(InstalledDirectory))
         {
-            _mainViewModel.ConfigureSingleBackgroundImage(dialog.FileName);
-            SyncFromMainViewModel();
+            Process.Start(new ProcessStartInfo(InstalledDirectory) { UseShellExecute = true });
         }
     }
 
     [RelayCommand]
-    private void SelectBackgroundImageFolder()
+    private async Task InstallPluginAsync()
     {
-        OpenFolderDialog dialog = new()
+        PluginSystemHost? system = _mainViewModel.PluginSystem;
+        if (system is null)
         {
-            Title = Resource("Plugins.BackgroundImage.SelectFolder"),
-            InitialDirectory = Directory.Exists(BackgroundImageFolderPath) ? BackgroundImageFolderPath : null,
+            return;
+        }
+
+        OpenFileDialog dialog = new()
+        {
+            Filter = "DuCom plugin package (*.dcpack)|*.dcpack",
+            CheckFileExists = true,
+            Title = Resource("Plugins.Install.PickTitle"),
         };
-        if (dialog.ShowDialog() == true)
+        if (Application.Current?.MainWindow is { } owner && dialog.ShowDialog(owner) != true)
         {
-            _mainViewModel.ConfigureBackgroundImageFolder(dialog.FolderName);
-            SyncFromMainViewModel();
+            return;
         }
-    }
-
-    [RelayCommand]
-    private void ClearBackgroundImage()
-    {
-        BackgroundImageEnabled = false;
-        BackgroundImagePath = string.Empty;
-        BackgroundImageFolderPath = string.Empty;
-    }
-
-    [RelayCommand]
-    private void ToggleBackgroundImage()
-    {
-        _mainViewModel.SetBackgroundImagePluginEnabled(!_mainViewModel.BackgroundImageEnabled);
-        SyncFromMainViewModel();
-    }
-
-    [RelayCommand]
-    private void ToggleLogPackage()
-    {
-        _mainViewModel.SetLogPackagePluginEnabled(!_mainViewModel.LogPackagePluginEnabled);
-        OnPropertyChanged(nameof(LogPackagePluginEnabled));
-    }
-
-    [RelayCommand]
-    private void ShowNextBackgroundImage()
-    {
-        _mainViewModel.ShowNextBackgroundImage();
-        OnPropertyChanged(nameof(BackgroundImageSource));
-    }
-
-    [RelayCommand]
-    private void ResetBackgroundImageOpacity() => BackgroundImageOpacity = 0.18d;
-
-    partial void OnBackgroundImageEnabledChanged(bool value)
-    {
-        if (_syncingFromMainViewModel)
+        else if (dialog.FileName.Length == 0)
         {
             return;
         }
 
-        _mainViewModel.BackgroundImageEnabled = value;
-        Program.DiagnosticLog?.Information($"Background image plugin {(value ? "enabled" : "disabled")}.");
-        OnPropertyChanged(nameof(BackgroundImageSource));
-    }
+        PackageValidationResult result;
+        try
+        {
+            // Inspection is deliberately non-persistent: neither package files nor permissions
+            // are committed until the user has reviewed this exact content digest.
+            result = system.Service.InspectPack(dialog.FileName);
+        }
+        catch (Exception exception)
+        {
+            ThemedMessageDialog.Show(Application.Current?.MainWindow, exception.Message,
+                Resource("Plugins.Install.RejectedTitle"), ThemedMessageDialogKind.Warning);
+            return;
+        }
+        if (!result.Accepted)
+        {
+            ThemedMessageDialog.Show(
+                Application.Current?.MainWindow,
+                string.Join(Environment.NewLine, result.Errors),
+                Resource("Plugins.Install.RejectedTitle"),
+                ThemedMessageDialogKind.Warning);
+            return;
+        }
 
-    partial void OnBackgroundImagePathChanged(string value)
-    {
-        if (_syncingFromMainViewModel)
+        string permissions = result.Manifest.Permissions.Count == 0
+            ? Resource("Plugins.Install.NoPermissions")
+            : string.Join(", ", result.Manifest.Permissions);
+        string message = string.Format(
+            Resource("Plugins.Install.Confirm"),
+            result.Manifest.Id,
+            result.Manifest.Version,
+            result.Manifest.Name,
+            permissions);
+        if (!ThemedMessageDialog.Confirm(
+                Application.Current?.MainWindow,
+                message,
+                Resource("Plugins.Install.ConfirmTitle")))
         {
             return;
         }
 
-        _mainViewModel.BackgroundImagePath = value;
-        OnPropertyChanged(nameof(BackgroundImageSource));
+        bool existingPlugin = system.Service.Registry.Current.Plugins.ContainsKey(result.Manifest.Id);
+        try
+        {
+            if (existingPlugin)
+            {
+                if (!system.Service.StageUpdate(dialog.FileName, approveNewPermissions: true))
+                {
+                    throw new InvalidOperationException(Resource("Plugins.Install.RejectedTitle"));
+                }
+                OperationMessage = string.Format(Resource("Plugins.Update.Staged"), result.Manifest.Version);
+                RefreshPlugins();
+                return;
+            }
+
+            result = system.Service.InstallPack(dialog.FileName, result.Digest);
+        }
+        catch (Exception exception)
+        {
+            ThemedMessageDialog.Show(Application.Current?.MainWindow, exception.Message,
+                Resource("Plugins.Install.RejectedTitle"), ThemedMessageDialogKind.Warning);
+            return;
+        }
+        if (!result.Accepted)
+        {
+            ThemedMessageDialog.Show(Application.Current?.MainWindow, string.Join(Environment.NewLine, result.Errors),
+                Resource("Plugins.Install.RejectedTitle"), ThemedMessageDialogKind.Warning);
+            return;
+        }
+
+        system.Service.SetEnabled(result.Manifest.Id, true);
+        _ = await system.Service.StartRegisteredAsync(result.Manifest.Id);
+        RefreshPlugins();
     }
 
-    partial void OnBackgroundImageFolderPathChanged(string value)
+    [RelayCommand]
+    private async Task ToggleSelectedAsync()
     {
-        if (!_syncingFromMainViewModel)
+        if (SelectedPlugin is { } row) await ChangeStateAsync(row, !row.IsActive);
+    }
+
+    private async Task ChangeStateAsync(PluginManagerRow row, bool enable)
+    {
+        if (IsChangingState || _mainViewModel.PluginSystem is not { } system)
         {
-            _mainViewModel.BackgroundImageFolderPath = value;
+            return;
+        }
+
+        PluginManagerRow? currentRow = system.Service.BuildManagerRows().FirstOrDefault(item => item.Id == row.Id);
+        if (currentRow is null || currentRow.State is PluginRuntimeState.Starting or PluginRuntimeState.Activating or PluginRuntimeState.Stopping
+            || currentRow.IsActive == enable)
+        {
+            return;
+        }
+
+        IsChangingState = true;
+        OperationMessage = Resource("Plugins.Working");
+        try
+        {
+            if (!enable)
+            {
+                system.Service.SetEnabled(row.Id, false, stopImmediately: false);
+                await system.Service.StopAsync(row.Id);
+            }
+            else
+            {
+                if (system.Service.SafeStartAllPlugins)
+                {
+                    OperationMessage = Resource("Plugins.SafeStart.Blocked");
+                    return;
+                }
+
+                if (currentRow.State == PluginRuntimeState.FaultDisabled)
+                {
+                    if (!ThemedMessageDialog.Confirm(Application.Current?.MainWindow,
+                        string.Format(Resource("Plugins.Retry.Warn"), row.Id, row.FaultReason),
+                        Resource("Plugins.Retry.Title")))
+                    {
+                        OperationMessage = string.Empty;
+                        return;
+                    }
+
+                    system.Service.ClearFaultDisable(row.Id);
+                }
+
+                system.Service.SetEnabled(row.Id, true);
+                bool started = await system.Service.StartRegisteredAsync(row.Id);
+                if (!started)
+                {
+                    PluginManagerRow? current = system.Service.BuildManagerRows().FirstOrDefault(item => item.Id == row.Id);
+                    OperationMessage = current?.FaultReason ?? Resource("Plugins.StartFailed");
+                    return;
+                }
+            }
+
+            OperationMessage = Resource(enable ? "Plugins.Started" : "Plugins.Stopped");
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Error("Plugin state change failed.", exception);
+            OperationMessage = exception.Message;
+        }
+        finally
+        {
+            IsChangingState = false;
+            RefreshPlugins();
         }
     }
 
-    partial void OnSelectedPlaybackModeChanged(PlaybackModeOption? value)
+    [RelayCommand]
+    private async Task TogglePluginAsync(PluginManagerRow? row)
     {
-        if (!_syncingFromMainViewModel && value is not null)
+        if (row is null) return;
+        SelectedPlugin = row;
+        await ToggleSelectedAsync();
+    }
+
+    [RelayCommand]
+    private async Task EnablePluginAsync(PluginManagerRow? row)
+    {
+        if (row is null) return;
+        await ChangeStateAsync(row, true);
+    }
+
+    [RelayCommand]
+    private async Task DisablePluginAsync(PluginManagerRow? row)
+    {
+        if (row is null) return;
+        await ChangeStateAsync(row, false);
+    }
+
+    [RelayCommand]
+    private async Task RetryPluginAsync(PluginManagerRow? row)
+    {
+        if (row is null) return;
+        SelectedPlugin = row;
+        if (row.State is PluginRuntimeState.FaultDisabled or PluginRuntimeState.Rejected)
         {
-            _mainViewModel.BackgroundImagePlaybackMode = value.Mode;
-            Program.DiagnosticLog?.Information($"Background image playback mode changed. Mode={value.Mode}.");
-            OnPropertyChanged(nameof(BackgroundImageSource));
+            await ToggleSelectedAsync();
         }
     }
 
-    partial void OnBackgroundImageIntervalSecondsChanged(int value) =>
-        SyncBackgroundImageInterval(value);
-
-    private void SyncBackgroundImageInterval(int value)
+    [RelayCommand]
+    private void OpenPlugin(PluginManagerRow? row)
     {
-        if (!_syncingFromMainViewModel)
+        if (row is null || _mainViewModel.PluginSystem is not { } system) return;
+        PluginPublishedActivation? activation = system.Ui.Activations.FirstOrDefault(item => item.PluginId == row.Id);
+        if (activation is null)
         {
-            SetBackgroundImageInterval(value);
+            OperationMessage = Resource("Plugins.NotActive");
+            return;
+        }
+
+        string? page = activation.ToolPages.Count > 0 ? activation.ToolPages[0].ContributionId : null;
+        if (!string.IsNullOrEmpty(page))
+        {
+            system.Ui.OpenToolPage(row.Id, page, (commandId, values) => _mainViewModel.InvokePluginCommandForManagerAsync(row.Id, commandId, values));
+            return;
+        }
+
+        OperationMessage = Resource("Plugins.NotActive");
+    }
+
+    [RelayCommand]
+    private async Task UninstallSelectedAsync()
+    {
+        if (SelectedPlugin is not { } row || _mainViewModel.PluginSystem is not { } system)
+        {
+            return;
+        }
+
+        if (row.Source == "BuiltIn")
+        {
+            ThemedMessageDialog.Show(
+                Application.Current?.MainWindow,
+                Resource("Plugins.Uninstall.BuiltIn"),
+                Resource("Plugins.Uninstall.Title"),
+                ThemedMessageDialogKind.Information);
+            return;
+        }
+
+        if (!ThemedMessageDialog.Confirm(
+                Application.Current?.MainWindow,
+                string.Format(Resource("Plugins.Uninstall.Confirm"), row.Id),
+                Resource("Plugins.Uninstall.Title")))
+        {
+            return;
+        }
+
+        try
+        {
+            await system.Service.UninstallAsync(row.Id);
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Error("Plugin uninstall failed; package and data were retained where possible.", exception);
+            ThemedMessageDialog.Show(Application.Current?.MainWindow, exception.Message,
+                Resource("Plugins.Uninstall.Title"), ThemedMessageDialogKind.Error);
+        }
+
+        RefreshPlugins();
+    }
+
+    [RelayCommand]
+    private async Task ApplyAndRestartAsync()
+    {
+        PluginSystemHost? system = _mainViewModel.PluginSystem;
+        if (system is null || !Plugins.Any(row => row.PendingUpdate))
+        {
+            OperationMessage = Resource("Plugins.ApplyRestart.None");
+            return;
+        }
+
+        if (!ThemedMessageDialog.Confirm(
+                Application.Current?.MainWindow,
+                Resource("Plugins.ApplyRestart.Confirm"),
+                Resource("Plugins.ApplyRestart.Title")))
+        {
+            return;
+        }
+
+        IsChangingState = true;
+        OperationMessage = Resource("Plugins.Working");
+        (bool succeeded, string message) = await system.ApplyAndRestartAsync(
+            CloseAllSessionsForRestartAsync,
+            SaveSettingsForRestartAsync,
+            RestartApplication);
+        if (!succeeded)
+        {
+            OperationMessage = message;
+            IsChangingState = false;
         }
     }
 
-    private void SetBackgroundImageInterval(int value)
+    private async Task<bool> CloseAllSessionsForRestartAsync()
     {
-        int interval = Math.Clamp(value, 1, 86_400);
-        _mainViewModel.BackgroundImageIntervalSeconds = interval;
-        Program.DiagnosticLog?.Information($"Background image interval changed. Seconds={interval}.");
-    }
-
-    partial void OnBackgroundImageOpacityChanged(double value)
-    {
-        if (!_syncingFromMainViewModel)
+        try
         {
-            _mainViewModel.BackgroundImageOpacity = Math.Clamp(value, 0d, 1d);
+            await _mainViewModel.CloseAllSessionsForRestartAsync();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Error("Core cleanup failed before plugin apply-and-restart; restart aborted.", exception);
+            ThemedMessageDialog.Show(
+                Application.Current?.MainWindow,
+                Resource("Plugins.ApplyRestart.CoreCleanupFailed"),
+                Resource("Plugins.ApplyRestart.Title"),
+                ThemedMessageDialogKind.Error);
+            return false;
         }
     }
+
+    private Task SaveSettingsForRestartAsync()
+    {
+        _mainViewModel.SaveSettingsNow();
+        return Task.CompletedTask;
+    }
+
+    private Task RestartApplication()
+    {
+        string? executable = Environment.ProcessPath;
+        if (executable is null)
+        {
+            throw new InvalidOperationException("Cannot determine the current executable path.");
+        }
+
+        Process.Start(new ProcessStartInfo(executable, $"--wait-parent {Environment.ProcessId}") { UseShellExecute = true });
+        Application.Current.Shutdown(0);
+        return Task.CompletedTask;
+    }
+
+    public PluginRuntimeController? GetSelectedController() =>
+        SelectedPlugin is { } row ? _mainViewModel.PluginSystem?.Service.GetOrCreateController(row.Id) : null;
+
+    private void ScheduleRefresh() =>
+        Application.Current?.Dispatcher.BeginInvoke(RefreshPlugins);
 
     private static string Resource(string key) => Application.Current?.TryFindResource(key) as string ?? key;
-
-    public sealed record PluginRow(string Id, string Name, string Version, string Description, string Path, PluginKind Kind);
-
-    public enum PluginKind
-    {
-        BackgroundImage,
-        LogPackage,
-        External,
-    }
-
-    public sealed record PlaybackModeOption(BackgroundImagePlaybackMode Mode, string DisplayName);
 }

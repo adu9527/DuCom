@@ -2,6 +2,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DuCom.Core\DuCom.Core.csproj" />
+    <ProjectReference Include="..\DuCom.Plugin.Sdk\DuCom.Plugin.Sdk.csproj" />
+    <ProjectReference Include="..\DuCom.PluginHost\DuCom.PluginHost.csproj" />
+    <ProjectReference Include="..\DuCom.Plugins.BackgroundImage\DuCom.Plugins.BackgroundImage.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\DuCom.Plugins.LogPackage\DuCom.Plugins.LogPackage.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -21,6 +25,7 @@
     <ApplicationIcon>..\..\..\Image\DuCom_256x256.ico</ApplicationIcon>
     <StartupObject>DuCom.Program</StartupObject>
     <DuComBuildDate>$([System.DateTime]::Now.ToString('yyyy-MM-dd'))</DuComBuildDate>
+    <NoWarn>$(NoWarn);CA1859;CA1822;CA1869;CA1863;CA1305</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,5 +35,40 @@
   <ItemGroup>
     <Resource Include="..\..\..\Image\DuCom_256x256.ico" Link="Assets\DuCom.ico" />
   </ItemGroup>
+
+  <Target Name="BuildBuiltinPluginPacks"
+          BeforeTargets="AssignTargetPaths"
+          DependsOnTargets="$(BuiltinPluginPacksDependsOn)">
+    <MSBuild Projects="..\DuCom.Plugins.BackgroundImage\DuCom.Plugins.BackgroundImage.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
+    <MSBuild Projects="..\DuCom.Plugins.LogPackage\DuCom.Plugins.LogPackage.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
+    <ItemGroup>
+      <BackgroundPackFile Include="..\DuCom.Plugins.BackgroundImage\bin\$(Configuration)\net10.0\**\*.*"
+                          Exclude="..\DuCom.Plugins.BackgroundImage\bin\$(Configuration)\net10.0\*.pdb" />
+      <LogPackFile Include="..\DuCom.Plugins.LogPackage\bin\$(Configuration)\net10.0\**\*.*"
+                   Exclude="..\DuCom.Plugins.LogPackage\bin\$(Configuration)\net10.0\*.pdb" />
+      <EmbeddedResource Include="@(BackgroundPackFile)"
+                        Condition="'%(Extension)' == '.dll' Or '%(Extension)' == '.json'">
+        <LogicalName>DuCom.Factory.com.ducom.background-image/1.0.0/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+      </EmbeddedResource>
+      <EmbeddedResource Include="@(LogPackFile)"
+                        Condition="'%(Extension)' == '.dll' Or '%(Extension)' == '.json'">
+        <LogicalName>DuCom.Factory.com.ducom.log-package/1.0.0/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+      </EmbeddedResource>
+    </ItemGroup>
+    <Message Importance="high" Text="FACTORYPACK count=@(EmbeddedResource->Count()) names=[@(EmbeddedResource->'%(LogicalName)', ';')]" />
+  </Target>
+
+  <PropertyGroup>
+    <AssignTargetPathsDependsOn>
+      $(AssignTargetPathsDependsOn);
+      BuildBuiltinPluginPacks
+    </AssignTargetPathsDependsOn>
+  </PropertyGroup>
+
+  <Target Name="ExcludeEmbeddedPluginContentFromPublish" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'plugin.manifest.json'" />
+    </ItemGroup>
+  </Target>
 
 </Project>

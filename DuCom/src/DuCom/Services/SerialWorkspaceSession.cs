@@ -51,6 +51,8 @@ internal sealed class SerialWorkspaceSession : IWorkspaceSession
             timestampFormat);
     }
 
+    public string RuntimeId => _session.RuntimeId;
+
     public SerialPortSettings Settings => _session.Settings;
 
     public SerialSessionStatusSnapshot Status => _session.Status();
@@ -86,6 +88,8 @@ internal sealed class SerialWorkspaceSession : IWorkspaceSession
     public void ClearDisplay() => _session.ClearDisplay();
 
     public SessionTapHub DisplayTaps => _session.DisplayTaps;
+
+    public SessionRawTapHub RawTaps => _session.RawTaps;
 
     public async ValueTask DisposeAsync()
     {

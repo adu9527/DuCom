@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Description>DuCom plugin host runtime (DPP/1): supervisor, sandbox launcher, IPC broker, registry, installer, budget governor.</Description>
+    <NoWarn>$(NoWarn);CA1416;CA1510;CA1031;CA1848;CA2101;CA1869;CA1865;CA2020;CA1305;CA1859</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DuCom.Plugin.Sdk\DuCom.Plugin.Sdk.csproj" />
+    <ProjectReference Include="..\DuCom.Core\DuCom.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.IO.Pipes.AccessControl" Version="10.0.0" Condition="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="DuCom.Plugins.Tests" />
+  </ItemGroup>
+</Project>

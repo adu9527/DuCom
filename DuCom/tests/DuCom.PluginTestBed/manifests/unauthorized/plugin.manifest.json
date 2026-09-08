@@ -1,0 +1,20 @@
+﻿{
+    "manifestVersion":  1,
+    "id":  "org.example.bed-unauthorized",
+    "name":  "Bed unauthorized",
+    "version":  "1.0.0",
+    "protocolVersion":  "1.0",
+    "minHostVersion":  "0.0.1",
+    "entryAssembly":  "DuCom.PluginTestBed.dll",
+    "entryType":  "DuCom.PluginTestBed.BedUnauthorizedPlugin",
+    "runtime":  {
+                    "framework":  "net10.0",
+                    "rid":  "win-x64"
+                },
+    "capabilities":  [
+                         "menu"
+                     ],
+    "permissions":  [
+                        "storage.own"
+                    ]
+}

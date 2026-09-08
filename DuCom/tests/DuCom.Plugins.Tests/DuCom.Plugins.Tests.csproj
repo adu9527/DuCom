@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CA1416;CA1031;CA1510;CA1848;CA1861;CA1305;CA1707;CA1054;CA1869;CA1711;xUnit1031;xUnit2030;xUnit1030;CS8619;CS0067</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DuCom.Plugin.Sdk\DuCom.Plugin.Sdk.csproj" />
+    <ProjectReference Include="..\..\src\DuCom.PluginHost\DuCom.PluginHost.csproj" />
+    <ProjectReference Include="..\DuCom.HostRecoveryWorker\DuCom.HostRecoveryWorker.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\DuCom.PluginTestBed\DuCom.PluginTestBed.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+</Project>

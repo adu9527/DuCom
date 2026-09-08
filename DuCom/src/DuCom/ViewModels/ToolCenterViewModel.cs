@@ -46,12 +46,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
             TelnetAllowRemote = _mainViewModel.TelnetAllowRemote;
             TelnetAuthenticationEnabled = _mainViewModel.TelnetAuthenticationEnabled;
             TelnetUsername = _mainViewModel.TelnetUsername;
-            BackgroundImageEnabled = _mainViewModel.BackgroundImageEnabled;
-            BackgroundImagePath = _mainViewModel.BackgroundImagePath;
-            BackgroundImageFolderPath = _mainViewModel.BackgroundImageFolderPath;
-            BackgroundImagePlaybackMode = _mainViewModel.BackgroundImagePlaybackMode;
-            BackgroundImageIntervalSeconds = _mainViewModel.BackgroundImageIntervalSeconds;
-            BackgroundImageOpacity = _mainViewModel.BackgroundImageOpacity;
             ShowMemoryMonitor = _mainViewModel.ShowMemoryMonitor;
             MemoryRefreshInterval = _mainViewModel.MemoryRefreshInterval;
             SystemMemoryRefreshInterval = _mainViewModel.SystemMemoryRefreshInterval;
@@ -61,12 +55,10 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
         AsciiRows = Enumerable.Range(0, 128)
             .Select(value => new AsciiRow(value, $"0x{value:X2}", value is < 32 or 127 ? ControlName(value) : ((char)value).ToString()))
             .ToArray();
-        PluginDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DuCom", "Plugins");
         _monitorTimer.Tick += OnMonitorTick;
         _monitorTimer.Start();
         _telnetBridge.StatusChanged += OnTelnetStatusChanged;
         _telnetBridge.Diagnostic += OnTelnetDiagnostic;
-        RefreshPlugins();
         RefreshVirtualPorts();
         UpdateMonitor();
         UpdateTelnetStatus();
@@ -228,41 +220,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
 
     public IReadOnlyList<AsciiRow> AsciiRows { get; }
 
-    public ObservableCollection<PluginRow> Plugins { get; } = [];
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsBackgroundPluginSelected))]
-    [NotifyPropertyChangedFor(nameof(IsExternalPluginSelected))]
-    public partial PluginRow? SelectedPlugin { get; set; }
-
-    public bool IsBackgroundPluginSelected => SelectedPlugin?.IsBackgroundPlugin == true;
-
-    public bool IsExternalPluginSelected => SelectedPlugin is { IsBackgroundPlugin: false };
-
-    [ObservableProperty]
-    public partial bool BackgroundImageEnabled { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(BackgroundImageSource))]
-    public partial string BackgroundImagePath { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string BackgroundImageFolderPath { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial BackgroundImagePlaybackMode BackgroundImagePlaybackMode { get; set; }
-
-    public IReadOnlyList<BackgroundImagePlaybackMode> BackgroundImagePlaybackModes { get; } =
-        [BackgroundImagePlaybackMode.SingleImage, BackgroundImagePlaybackMode.Sequential, BackgroundImagePlaybackMode.Random];
-
-    [ObservableProperty]
-    public partial int BackgroundImageIntervalSeconds { get; set; } = 30;
-
-    [ObservableProperty]
-    public partial double BackgroundImageOpacity { get; set; } = 0.18d;
-
-    public ImageSource? BackgroundImageSource => _mainViewModel?.BackgroundImageSource;
-
     public ObservableCollection<string> VirtualPorts { get; } = [];
 
     public ObservableCollection<DuCom.Core.Processes.Com0ComPortPair> Com0ComPairs { get; } = [];
@@ -303,7 +260,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     public partial string Com0ComStatus { get; set; } = string.Empty;
 
-    public string PluginDirectory { get; }
 
     [ObservableProperty]
     public partial int SelectedTabIndex { get; set; }
@@ -473,152 +429,6 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
     {
         _mainViewModel?.ClearSendHistory();
         RefreshSendHistoryList();
-    }
-
-    [RelayCommand]
-    private void OpenPluginFolder()
-    {
-        Directory.CreateDirectory(PluginDirectory);
-        Process.Start(new ProcessStartInfo(PluginDirectory) { UseShellExecute = true });
-    }
-
-    [RelayCommand]
-    private void RefreshPlugins()
-    {
-        Directory.CreateDirectory(PluginDirectory);
-        string? selectedPath = SelectedPlugin?.Path;
-        Plugins.Clear();
-        Plugins.Add(new PluginRow(
-            GetResourceString("Plugins.BackgroundImage.Name"),
-            "Built-in",
-            GetResourceString("Plugins.BackgroundImage.Description"),
-            string.Empty,
-            IsBackgroundPlugin: true));
-        foreach (string file in Directory.GetFiles(PluginDirectory, "*.dll"))
-        {
-            string name = Path.GetFileNameWithoutExtension(file);
-            string version = "Unknown";
-            try
-            {
-                version = AssemblyName.GetAssemblyName(file).Version?.ToString() ?? version;
-            }
-            catch (BadImageFormatException)
-            {
-                version = "Invalid .NET assembly";
-            }
-
-            Plugins.Add(new PluginRow(
-                name,
-                version,
-                GetResourceString("Plugins.External.Description"),
-                file,
-                IsBackgroundPlugin: false));
-        }
-
-        SelectedPlugin = Plugins.FirstOrDefault(plugin => string.Equals(plugin.Path, selectedPath, StringComparison.OrdinalIgnoreCase))
-            ?? Plugins.FirstOrDefault();
-    }
-
-    [RelayCommand]
-    private void SelectBackgroundImage()
-    {
-        OpenFileDialog dialog = new()
-        {
-            Filter = GetResourceString("Plugins.BackgroundImage.Filter"),
-            CheckFileExists = true,
-            Multiselect = false,
-        };
-        if (dialog.ShowDialog() == true)
-        {
-            BackgroundImagePath = dialog.FileName;
-            BackgroundImageEnabled = true;
-        }
-    }
-
-    [RelayCommand]
-    private void SelectBackgroundImageFolder()
-    {
-        OpenFolderDialog dialog = new()
-        {
-            Title = GetResourceString("Plugins.BackgroundImage.SelectFolder"),
-            InitialDirectory = Directory.Exists(BackgroundImageFolderPath) ? BackgroundImageFolderPath : null,
-        };
-        if (dialog.ShowDialog() == true)
-        {
-            BackgroundImageFolderPath = dialog.FolderName;
-            BackgroundImagePlaybackMode = BackgroundImagePlaybackMode.Sequential;
-            BackgroundImageEnabled = true;
-        }
-    }
-
-    [RelayCommand]
-    private void ClearBackgroundImage()
-    {
-        BackgroundImageEnabled = false;
-        BackgroundImagePath = string.Empty;
-        BackgroundImageFolderPath = string.Empty;
-    }
-
-    [RelayCommand]
-    private void ToggleBackgroundImage() => BackgroundImageEnabled = !BackgroundImageEnabled;
-
-    [RelayCommand]
-    private void ShowNextBackgroundImage()
-    {
-        _mainViewModel?.ShowNextBackgroundImage();
-        OnPropertyChanged(nameof(BackgroundImageSource));
-    }
-
-    partial void OnBackgroundImageEnabledChanged(bool value)
-    {
-        if (_mainViewModel is not null)
-        {
-            _mainViewModel.BackgroundImageEnabled = value;
-            OnPropertyChanged(nameof(BackgroundImageSource));
-        }
-    }
-
-    partial void OnBackgroundImagePathChanged(string value)
-    {
-        if (_mainViewModel is not null)
-        {
-            _mainViewModel.BackgroundImagePath = value;
-            OnPropertyChanged(nameof(BackgroundImageSource));
-        }
-    }
-
-    partial void OnBackgroundImageFolderPathChanged(string value)
-    {
-        if (_mainViewModel is not null)
-        {
-            _mainViewModel.BackgroundImageFolderPath = value;
-            OnPropertyChanged(nameof(BackgroundImageSource));
-        }
-    }
-
-    partial void OnBackgroundImagePlaybackModeChanged(BackgroundImagePlaybackMode value)
-    {
-        if (_mainViewModel is not null)
-        {
-            _mainViewModel.BackgroundImagePlaybackMode = value;
-            OnPropertyChanged(nameof(BackgroundImageSource));
-        }
-    }
-
-    partial void OnBackgroundImageIntervalSecondsChanged(int value)
-    {
-        if (_mainViewModel is not null)
-        {
-            _mainViewModel.BackgroundImageIntervalSeconds = Math.Clamp(value, 1, 86_400);
-        }
-    }
-
-    partial void OnBackgroundImageOpacityChanged(double value)
-    {
-        if (_mainViewModel is not null)
-        {
-            _mainViewModel.BackgroundImageOpacity = Math.Clamp(value, 0d, 1d);
-        }
     }
 
     [RelayCommand]
@@ -1345,11 +1155,4 @@ public partial class ToolCenterViewModel : ObservableObject, IAsyncDisposable
         ShortcutDefinition Definition);
 
     public sealed record AsciiRow(int DecimalValue, string Hex, string Character);
-
-    public sealed record PluginRow(
-        string Name,
-        string Version,
-        string Description,
-        string Path,
-        bool IsBackgroundPlugin);
 }
