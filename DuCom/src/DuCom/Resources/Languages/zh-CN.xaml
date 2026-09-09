@@ -98,10 +98,17 @@
     <system:String x:Key="Send.TimedInterval">发送间隔（毫秒，最小 50）</system:String>
     <system:String x:Key="Settings.Title">设置</system:String>
     <system:String x:Key="Dialog.OK">确定</system:String>
-    <system:String x:Key="Dialog.Yes">恢复默认</system:String>
+    <system:String x:Key="Dialog.Yes">确认</system:String>
     <system:String x:Key="Dialog.No">取消</system:String>
     <system:String x:Key="Dialog.Cancel">取消</system:String>
     <system:String x:Key="Dialog.Delete">删除</system:String>
+    <system:String x:Key="Dialog.RestoreDefaults">恢复默认</system:String>
+    <system:String x:Key="Dialog.Update">更新</system:String>
+    <system:String x:Key="Dialog.Uninstall">卸载</system:String>
+    <system:String x:Key="Dialog.Retry">重试</system:String>
+    <system:String x:Key="Dialog.Restart">应用并重启</system:String>
+    <system:String x:Key="Dialog.Rollback">回滚</system:String>
+    <system:String x:Key="Menu.Plugins.Manage">插件管理</system:String>
     <system:String x:Key="Settings.MenuTitle">设置</system:String>
     <system:String x:Key="Settings.SerialParameters">串口参数</system:String>
     <system:String x:Key="Settings.Tools">工具中心</system:String>
@@ -766,6 +773,7 @@
     <system:String x:Key="Plugins.Install.PickTitle">选择 .dcpack 插件包</system:String>
     <system:String x:Key="Plugins.Install.RejectedTitle">插件包校验未通过</system:String>
     <system:String x:Key="Plugins.Install.ConfirmTitle">安装插件</system:String>
+    <system:String x:Key="Plugins.Install.ConfirmAction">安装</system:String>
     <system:String x:Key="Plugins.Install.Confirm">即将安装插件：{0} {1}（{2}）。&#10;申请权限：{3}&#10;来源未经审核，请确认信任该来源后继续。是否安装？</system:String>
     <system:String x:Key="Plugins.Install.NoPermissions">（无）</system:String>
     <system:String x:Key="Plugins.Retry.Title">重新启用插件</system:String>

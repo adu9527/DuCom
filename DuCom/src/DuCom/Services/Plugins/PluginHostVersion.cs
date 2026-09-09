@@ -10,7 +10,7 @@ public static class PluginHostVersion
 {
     public static string ApplicationVersion => FormatApplicationVersion(typeof(PluginHostVersion).Assembly.GetName().Version);
 
-    public const string CompatibilityVersion = "0.0.1";
+    public const string CompatibilityVersion = "0.1.0";
 
     public static string FormatApplicationVersion(Version? version) => version is null
         ? "0.0.0.0"

@@ -1421,6 +1421,13 @@ public static class PluginUiRenderer
                     Maximum = 100,
                     Height = 18,
                 };
+                bar.Foreground = Application.Current.TryFindResource(progress.State switch
+                {
+                    "running" => "Brush.Warning",
+                    "succeeded" => "Brush.Success",
+                    "failed" => "Brush.Danger",
+                    _ => "Brush.TextMuted",
+                }) as System.Windows.Media.Brush;
                 if (progress.Percent.HasValue)
                 {
                     bar.Value = Math.Clamp(progress.Percent.Value, 0, 100);

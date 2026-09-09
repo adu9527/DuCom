@@ -9,6 +9,7 @@ public static class PluginManifestValidator
     private static readonly System.Text.RegularExpressions.Regex SemVerRegex = new(@"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$", System.Text.RegularExpressions.RegexOptions.Compiled);
     private static readonly System.Text.RegularExpressions.Regex ProtocolVersionRegex = new(@"^(\d+)\.(\d+)$", System.Text.RegularExpressions.RegexOptions.Compiled);
     private static readonly System.Text.RegularExpressions.Regex CultureRegex = new(@"^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*$", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex HelperIdRegex = new(@"^[a-z][a-z0-9-]{0,63}$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     public static bool TryParseStrict(string json, out PluginManifest? manifest, out string? error)
     {
@@ -157,6 +158,63 @@ public static class PluginManifestValidator
             }
         }
 
+        if (manifest.NativeHelpers.Count > 16)
+        {
+            Fail("nativeHelpers must contain at most 16 entries.");
+        }
+
+        if (manifest.NativeHelpers.Count > 0 && !manifest.Permissions.Contains(Permission.NativeHelpersExecute, StringComparer.Ordinal))
+        {
+            Fail($"nativeHelpers requires permission '{Permission.NativeHelpersExecute}'.");
+        }
+
+        if (manifest.NativeHelpers.Select(helper => helper.Id).Distinct(StringComparer.Ordinal).Count() != manifest.NativeHelpers.Count)
+        {
+            Fail("nativeHelpers contains duplicate ids.");
+        }
+
+        foreach (PluginNativeHelper helper in manifest.NativeHelpers)
+        {
+            if (!HelperIdRegex.IsMatch(helper.Id))
+            {
+                Fail($"native helper id '{helper.Id}' is invalid.");
+            }
+
+            if (!IsSafePackageRelativePath(helper.EntryPoint)
+                || !helper.EntryPoint.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            {
+                Fail($"native helper entryPoint '{helper.EntryPoint}' must be a package-relative EXE path.");
+            }
+
+            if (!string.Equals(helper.Rid, "win-x86", StringComparison.Ordinal))
+            {
+                Fail($"native helper '{helper.Id}' rid must be 'win-x86'.");
+            }
+
+            if (string.IsNullOrWhiteSpace(helper.ProtocolVersion) || !ProtocolVersionRegex.IsMatch(helper.ProtocolVersion))
+            {
+                Fail($"native helper '{helper.Id}' protocolVersion must be major.minor.");
+            }
+            else if (ParseProtocolVersion(helper.ProtocolVersion) is not (1, 0))
+            {
+                Fail($"native helper '{helper.Id}' protocolVersion '{helper.ProtocolVersion}' is not supported by this host SDK.");
+            }
+
+            if (helper.Dependencies.Count > 128
+                || helper.Dependencies.Distinct(StringComparer.OrdinalIgnoreCase).Count() != helper.Dependencies.Count)
+            {
+                Fail($"native helper '{helper.Id}' dependencies are duplicated or exceed 128 entries.");
+            }
+
+            foreach (string dependency in helper.Dependencies)
+            {
+                if (!IsSafePackageRelativePath(dependency))
+                {
+                    Fail($"native helper '{helper.Id}' dependency '{dependency}' is not a safe package-relative path.");
+                }
+            }
+        }
+
         if (manifest.DefaultCulture is { } culture
             && (culture.Length > 20 || !CultureRegex.IsMatch(culture)))
         {
@@ -203,6 +261,19 @@ public static class PluginManifestValidator
     }
 
     public static bool TryParseSemVer(string value, out Version? version) => Version.TryParse(value.Split(['-', '+'])[0], out version);
+
+    public static bool IsSafePackageRelativePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || path.Length > 200 || Path.IsPathRooted(path)
+            || path.Contains(':', StringComparison.Ordinal) || path.EndsWith(' ') || path.EndsWith('.'))
+        {
+            return false;
+        }
+
+        string normalized = path.Replace('\\', '/');
+        return !normalized.StartsWith('/')
+            && normalized.Split('/').All(segment => segment.Length > 0 && segment is not "." and not "..");
+    }
 
     internal static bool TryFindDuplicateProperties(JsonElement element, string path, out string? duplicate)
     {

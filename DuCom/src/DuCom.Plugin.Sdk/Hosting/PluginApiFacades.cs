@@ -14,7 +14,9 @@ internal static class OpTimeouts
         PluginOps.FilesPickRead or PluginOps.FilesPickWrite or PluginOps.UiNotify => UserInteraction,
         PluginOps.LogsSnapshot => TimeSpan.FromSeconds(30),
         PluginOps.OutputCommit or PluginOps.OutputWrite => Chunk,
+        PluginOps.HelperStart or PluginOps.HelperCancel => Chunk,
         PluginOps.FilesRead or PluginOps.LogsRead => Chunk,
+        PluginOps.FilesSnapshot => Chunk,
         _ => Standard,
     };
 }
@@ -42,6 +44,7 @@ internal sealed class PluginApiFacades(IPluginRequestChannel channel) : IPluginH
     public IPluginSerial Serial { get; } = new SerialFacade(channel);
     public IPluginLogs Logs { get; } = new LogsFacade(channel);
     public IPluginOutput Output { get; } = new OutputFacade(channel);
+    public IPluginHelpers Helpers { get; } = new HelpersFacade(channel);
     public IPluginUi Ui { get; } = new UiFacade(channel);
     public IPluginBackground Background { get; } = new BackgroundFacade(channel);
     public IPluginDiagnostics Diagnostics { get; } = new DiagnosticsFacade(channel);
@@ -164,6 +167,14 @@ internal sealed class PluginApiFacades(IPluginRequestChannel channel) : IPluginH
             return result?.Entries ?? [];
         }
 
+        public async Task<IReadOnlyList<FileSnapshotEntry>> CreateTaskSnapshotsAsync(string taskId, IReadOnlyList<string> tokens, CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(taskId);
+            ArgumentNullException.ThrowIfNull(tokens);
+            FilesSnapshotResult? result = await RequestTypedAsync<FilesSnapshotResult>(channel, PluginOps.FilesSnapshot, new FilesSnapshotRequest { TaskId = taskId, Tokens = tokens }, cancellationToken);
+            return result?.Files ?? [];
+        }
+
     }
 
     private sealed class SerialFacade(IPluginRequestChannel channel) : IPluginSerial, ISerialEventSink, IDisposable
@@ -181,6 +192,12 @@ internal sealed class PluginApiFacades(IPluginRequestChannel channel) : IPluginH
         {
             SerialListResult? result = await RequestTypedAsync<SerialListResult>(channel, PluginOps.SerialList, null, cancellationToken);
             return result?.Sessions ?? [];
+        }
+
+        public async Task<IReadOnlyList<SerialPortInfo>> ListPortsAsync(CancellationToken cancellationToken = default)
+        {
+            SerialPortsResult? result = await RequestTypedAsync<SerialPortsResult>(channel, PluginOps.SerialPorts, null, cancellationToken);
+            return result?.Ports ?? [];
         }
 
         public async Task<bool> SubscribeAsync(string sessionId, CancellationToken cancellationToken = default)
@@ -213,6 +230,25 @@ internal sealed class PluginApiFacades(IPluginRequestChannel channel) : IPluginH
             {
                 await RequestAsync(channel, PluginOps.SerialUnsubscribe, new FilesTokenRequest { Token = subscriptionId }, cancellationToken);
             }
+        }
+
+        public Task<SerialLeaseResult> AcquireLeaseAsync(string taskId, string port, string? deviceIdentity, bool restoreSession, CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(taskId);
+            ArgumentException.ThrowIfNullOrEmpty(port);
+            return RequestTypedAsync<SerialLeaseResult>(channel, PluginOps.SerialLeaseAcquire, new SerialLeaseAcquireRequest
+            {
+                TaskId = taskId,
+                Port = port,
+                DeviceIdentity = deviceIdentity,
+                RestoreSession = restoreSession,
+            }, cancellationToken)!;
+        }
+
+        public Task<SerialLeaseResult> ReleaseLeaseAsync(string leaseId, CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(leaseId);
+            return RequestTypedAsync<SerialLeaseResult>(channel, PluginOps.SerialLeaseRelease, new SerialLeaseRequest { LeaseId = leaseId }, cancellationToken)!;
         }
 
         public void Dispose()
@@ -302,6 +338,35 @@ internal sealed class PluginApiFacades(IPluginRequestChannel channel) : IPluginH
         {
             ArgumentException.ThrowIfNullOrEmpty(outputToken);
             return RequestAsync(channel, PluginOps.OutputDiscard, new FilesTokenRequest { Token = outputToken }, cancellationToken);
+        }
+    }
+
+    private sealed class HelpersFacade(IPluginRequestChannel channel) : IPluginHelpers
+    {
+        public Task<HelperTaskResult> StartAsync(string helperId, string taskId, string payload, int timeoutMs, CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(helperId);
+            ArgumentException.ThrowIfNullOrEmpty(taskId);
+            ArgumentNullException.ThrowIfNull(payload);
+            return RequestTypedAsync<HelperTaskResult>(channel, PluginOps.HelperStart, new HelperStartRequest
+            {
+                HelperId = helperId,
+                TaskId = taskId,
+                Payload = payload,
+                TimeoutMs = timeoutMs,
+            }, cancellationToken)!;
+        }
+
+        public Task<HelperTaskResult> GetStatusAsync(string taskId, CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(taskId);
+            return RequestTypedAsync<HelperTaskResult>(channel, PluginOps.HelperStatus, new HelperTaskRequest { TaskId = taskId }, cancellationToken)!;
+        }
+
+        public Task<HelperTaskResult> CancelAsync(string taskId, CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(taskId);
+            return RequestTypedAsync<HelperTaskResult>(channel, PluginOps.HelperCancel, new HelperTaskRequest { TaskId = taskId }, cancellationToken)!;
         }
     }
 

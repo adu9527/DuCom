@@ -119,6 +119,26 @@ public sealed record FilesTokenRequest
     [JsonPropertyName("token")] public string Token { get; init; } = string.Empty;
 }
 
+public sealed record FilesSnapshotRequest
+{
+    [JsonPropertyName("taskId")] public string TaskId { get; init; } = string.Empty;
+    [JsonPropertyName("tokens")] public IReadOnlyList<string> Tokens { get; init; } = [];
+}
+
+public sealed record FileSnapshotEntry
+{
+    [JsonPropertyName("token")] public string Token { get; init; } = string.Empty;
+    [JsonPropertyName("path")] public string Path { get; init; } = string.Empty;
+    [JsonPropertyName("name")] public string Name { get; init; } = string.Empty;
+    [JsonPropertyName("length")] public long Length { get; init; }
+    [JsonPropertyName("sha256")] public string Sha256 { get; init; } = string.Empty;
+}
+
+public sealed record FilesSnapshotResult
+{
+    [JsonPropertyName("files")] public IReadOnlyList<FileSnapshotEntry> Files { get; init; } = [];
+}
+
 public sealed record FilesRememberedRequest
 {
     [JsonPropertyName("path")] public string Path { get; init; } = string.Empty;
@@ -140,6 +160,19 @@ public sealed record SerialSessionInfo
 public sealed record SerialListResult
 {
     [JsonPropertyName("sessions")] public IReadOnlyList<SerialSessionInfo> Sessions { get; init; } = [];
+}
+
+public sealed record SerialPortInfo
+{
+    [JsonPropertyName("port")] public string Port { get; init; } = string.Empty;
+    [JsonPropertyName("displayName")] public string DisplayName { get; init; } = string.Empty;
+    [JsonPropertyName("vidPid")] public string VidPid { get; init; } = string.Empty;
+    [JsonPropertyName("deviceIdentity")] public string DeviceIdentity { get; init; } = string.Empty;
+}
+
+public sealed record SerialPortsResult
+{
+    [JsonPropertyName("ports")] public IReadOnlyList<SerialPortInfo> Ports { get; init; } = [];
 }
 
 public sealed record SerialSubscribeRequest
@@ -168,6 +201,56 @@ public sealed record SerialDataNotice
 public sealed record SessionClosedNotice
 {
     [JsonPropertyName("sessionId")] public string SessionId { get; init; } = string.Empty;
+}
+
+public sealed record HelperStartRequest
+{
+    [JsonPropertyName("helperId")] public string HelperId { get; init; } = string.Empty;
+    [JsonPropertyName("taskId")] public string TaskId { get; init; } = string.Empty;
+    [JsonPropertyName("payload")] public string Payload { get; init; } = string.Empty;
+    [JsonPropertyName("timeoutMs")] public int TimeoutMs { get; init; }
+}
+
+public sealed record HelperTaskRequest
+{
+    [JsonPropertyName("taskId")] public string TaskId { get; init; } = string.Empty;
+}
+
+public sealed record HelperTaskResult
+{
+    [JsonPropertyName("taskId")] public string TaskId { get; init; } = string.Empty;
+    [JsonPropertyName("state")] public string State { get; init; } = "unknown";
+    [JsonPropertyName("startedUtc")] public DateTimeOffset StartedUtc { get; init; }
+    [JsonPropertyName("endedUtc")] public DateTimeOffset? EndedUtc { get; init; }
+    [JsonPropertyName("exitCode")] public int? ExitCode { get; init; }
+    [JsonPropertyName("result")] public string? Result { get; init; }
+    [JsonPropertyName("error")] public string? Error { get; init; }
+    [JsonPropertyName("exitConfirmed")] public bool ExitConfirmed { get; init; }
+    [JsonPropertyName("percent")] public int? Percent { get; init; }
+    [JsonPropertyName("message")] public string? Message { get; init; }
+}
+
+public sealed record SerialLeaseAcquireRequest
+{
+    [JsonPropertyName("taskId")] public string TaskId { get; init; } = string.Empty;
+    [JsonPropertyName("port")] public string Port { get; init; } = string.Empty;
+    [JsonPropertyName("deviceIdentity")] public string? DeviceIdentity { get; init; }
+    [JsonPropertyName("restoreSession")] public bool RestoreSession { get; init; }
+}
+
+public sealed record SerialLeaseRequest
+{
+    [JsonPropertyName("leaseId")] public string LeaseId { get; init; } = string.Empty;
+}
+
+public sealed record SerialLeaseResult
+{
+    [JsonPropertyName("leaseId")] public string LeaseId { get; init; } = string.Empty;
+    [JsonPropertyName("port")] public string Port { get; init; } = string.Empty;
+    [JsonPropertyName("state")] public string State { get; init; } = string.Empty;
+    [JsonPropertyName("sessionWasOpen")] public bool SessionWasOpen { get; init; }
+    [JsonPropertyName("restored")] public bool Restored { get; init; }
+    [JsonPropertyName("message")] public string? Message { get; init; }
 }
 
 public sealed record LogsSnapshotRequest

@@ -206,15 +206,17 @@ public partial class PluginManagerViewModel : ObservableObject
             result.Manifest.Version,
             result.Manifest.Name,
             permissions);
+        bool existingPlugin = system.Service.Registry.Current.Plugins.ContainsKey(result.Manifest.Id);
         if (!ThemedMessageDialog.Confirm(
                 Application.Current?.MainWindow,
                 message,
-                Resource("Plugins.Install.ConfirmTitle")))
+                Resource("Plugins.Install.ConfirmTitle"),
+                existingPlugin ? "Dialog.Update" : "Plugins.Install.ConfirmAction",
+                "Dialog.Cancel"))
         {
             return;
         }
 
-        bool existingPlugin = system.Service.Registry.Current.Plugins.ContainsKey(result.Manifest.Id);
         try
         {
             if (existingPlugin)
@@ -289,7 +291,7 @@ public partial class PluginManagerViewModel : ObservableObject
                 {
                     if (!ThemedMessageDialog.Confirm(Application.Current?.MainWindow,
                         string.Format(Resource("Plugins.Retry.Warn"), row.Id, row.FaultReason),
-                        Resource("Plugins.Retry.Title")))
+                        Resource("Plugins.Retry.Title"), "Dialog.Retry", "Dialog.Cancel"))
                     {
                         OperationMessage = string.Empty;
                         return;
@@ -377,7 +379,7 @@ public partial class PluginManagerViewModel : ObservableObject
             {
                 if (!ThemedMessageDialog.Confirm(Application.Current?.MainWindow,
                         string.Format(Resource("Plugins.Retry.Warn"), row.Id, row.FaultReason),
-                        Resource("Plugins.Retry.Title")))
+                        Resource("Plugins.Retry.Title"), "Dialog.Retry", "Dialog.Cancel"))
                 {
                     OperationMessage = string.Empty;
                     return;
@@ -478,7 +480,9 @@ public partial class PluginManagerViewModel : ObservableObject
         if (!ThemedMessageDialog.Confirm(
                 Application.Current?.MainWindow,
                 string.Format(Resource("Plugins.Uninstall.Confirm"), row.Id),
-                Resource("Plugins.Uninstall.Title")))
+                Resource("Plugins.Uninstall.Title"),
+                "Dialog.Uninstall",
+                "Dialog.Cancel"))
         {
             return;
         }
@@ -510,7 +514,9 @@ public partial class PluginManagerViewModel : ObservableObject
         if (!ThemedMessageDialog.Confirm(
                 Application.Current?.MainWindow,
                 Resource("Plugins.ApplyRestart.Confirm"),
-                Resource("Plugins.ApplyRestart.Title")))
+                Resource("Plugins.ApplyRestart.Title"),
+                "Dialog.Restart",
+                "Dialog.Cancel"))
         {
             return;
         }

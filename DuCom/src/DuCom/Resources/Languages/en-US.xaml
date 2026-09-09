@@ -98,10 +98,17 @@
     <system:String x:Key="Send.TimedInterval">Send interval (milliseconds, minimum 50)</system:String>
     <system:String x:Key="Settings.Title">Settings</system:String>
     <system:String x:Key="Dialog.OK">OK</system:String>
-    <system:String x:Key="Dialog.Yes">Restore defaults</system:String>
+    <system:String x:Key="Dialog.Yes">Confirm</system:String>
     <system:String x:Key="Dialog.No">Cancel</system:String>
     <system:String x:Key="Dialog.Cancel">Cancel</system:String>
     <system:String x:Key="Dialog.Delete">Delete</system:String>
+    <system:String x:Key="Dialog.RestoreDefaults">Restore defaults</system:String>
+    <system:String x:Key="Dialog.Update">Update</system:String>
+    <system:String x:Key="Dialog.Uninstall">Uninstall</system:String>
+    <system:String x:Key="Dialog.Retry">Retry</system:String>
+    <system:String x:Key="Dialog.Restart">Apply and restart</system:String>
+    <system:String x:Key="Dialog.Rollback">Rollback</system:String>
+    <system:String x:Key="Menu.Plugins.Manage">Plugin manager</system:String>
     <system:String x:Key="Settings.MenuTitle">Settings</system:String>
     <system:String x:Key="Settings.SerialParameters">Serial parameters</system:String>
     <system:String x:Key="Settings.Tools">Tool center</system:String>
@@ -766,6 +773,7 @@
     <system:String x:Key="Plugins.Install.PickTitle">Choose a .dcpack plugin package</system:String>
     <system:String x:Key="Plugins.Install.RejectedTitle">Plugin package validation failed</system:String>
     <system:String x:Key="Plugins.Install.ConfirmTitle">Install plugin</system:String>
+    <system:String x:Key="Plugins.Install.ConfirmAction">Install</system:String>
     <system:String x:Key="Plugins.Install.Confirm">About to install plugin: {0} {1} ({2}).&#10;Requested permissions: {3}&#10;The origin is unreviewed; continue only if you trust it. Install?</system:String>
     <system:String x:Key="Plugins.Install.NoPermissions">(none)</system:String>
     <system:String x:Key="Plugins.Retry.Title">Re-enable plugin</system:String>

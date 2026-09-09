@@ -3,6 +3,9 @@ using DuCom.Plugin;
 namespace DuCom.PluginHost;
 
 public sealed record HostSerialSession(string SessionId, string Port, bool Open);
+public sealed record HostSerialPort(string Port, string DisplayName, string VidPid, string DeviceIdentity);
+public sealed record HostSerialLeaseRequest(string PluginId, string ActivationId, string TaskId, string Port, string? DeviceIdentity, bool RestoreSession);
+public sealed record HostSerialLeaseResult(string LeaseId, string Port, string State, bool SessionWasOpen, bool Restored, string? Message);
 
 public sealed record HostLogSnapshotFile(string Path, long Length, string Port, string DisplayName);
 
@@ -84,12 +87,19 @@ public interface IPluginHostEnvironment
     string Culture { get; }
 
     IReadOnlyList<HostSerialSession> GetSerialSessions();
+    IReadOnlyList<HostSerialPort> GetSerialPorts();
 
     Task<IReadOnlyList<HostLogSnapshot>> CreateLogSnapshotsAsync(string? sessionId, CancellationToken cancellationToken);
 
     IDisposable SubscribeRawBlocks(Action<string, ReadOnlyMemory<byte>, DateTimeOffset> handler);
 
     event EventHandler<string>? SessionClosed;
+
+    Task<HostSerialLeaseResult> AcquireSerialLeaseAsync(HostSerialLeaseRequest request, CancellationToken cancellationToken);
+
+    Task<HostSerialLeaseResult> ReleaseSerialLeaseAsync(string pluginId, string activationId, string leaseId, CancellationToken cancellationToken);
+
+    void RevokeSerialLeases(string pluginId, string activationId);
 
     Task<HostPickResult?> PickReadAsync(string pluginId, HostPickRequest request, CancellationToken cancellationToken);
 

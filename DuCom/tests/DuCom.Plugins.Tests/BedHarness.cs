@@ -183,8 +183,12 @@ public class FakeEnvironment : IPluginHostEnvironment
     public List<BackgroundApply> BackgroundApplies { get; } = [];
 
     public event EventHandler<string>? SessionClosed;
+    public Task<HostSerialLeaseResult> AcquireSerialLeaseAsync(HostSerialLeaseRequest request, CancellationToken cancellationToken) => Task.FromResult(new HostSerialLeaseResult("lease-test", request.Port, "leased", false, false, null));
+    public Task<HostSerialLeaseResult> ReleaseSerialLeaseAsync(string pluginId, string activationId, string leaseId, CancellationToken cancellationToken) => Task.FromResult(new HostSerialLeaseResult(leaseId, "TEST1", "released", false, false, null));
+    public void RevokeSerialLeases(string pluginId, string activationId) { }
 
     public virtual IReadOnlyList<HostSerialSession> GetSerialSessions() => [new HostSerialSession("session-1", "TEST1", true)];
+    public virtual IReadOnlyList<HostSerialPort> GetSerialPorts() => [new HostSerialPort("COM7", "Fake serial", "1234 / 5678", "fake-device")];
 
     public virtual Task<IReadOnlyList<HostLogSnapshot>> CreateLogSnapshotsAsync(string? sessionId, CancellationToken cancellationToken)
     {

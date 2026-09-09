@@ -8,6 +8,15 @@ public sealed record PluginRuntimeInfo
     [JsonPropertyName("rid")] public string Rid { get; init; } = string.Empty;
 }
 
+public sealed record PluginNativeHelper
+{
+    [JsonPropertyName("id")] public string Id { get; init; } = string.Empty;
+    [JsonPropertyName("entryPoint")] public string EntryPoint { get; init; } = string.Empty;
+    [JsonPropertyName("rid")] public string Rid { get; init; } = string.Empty;
+    [JsonPropertyName("protocolVersion")] public string ProtocolVersion { get; init; } = string.Empty;
+    [JsonPropertyName("dependencies")] public IReadOnlyList<string> Dependencies { get; init; } = [];
+}
+
 public sealed record PluginManifest
 {
     public const int CurrentManifestVersion = 1;
@@ -28,6 +37,8 @@ public sealed record PluginManifest
         Permission.SerialLogsRead,
         Permission.FilesUserSelectedRead,
         Permission.FilesUserSelectedWrite,
+        Permission.NativeHelpersExecute,
+        Permission.SerialLease,
     };
 
     [JsonPropertyName("manifestVersion")] public int ManifestVersion { get; init; }
@@ -41,6 +52,7 @@ public sealed record PluginManifest
     [JsonPropertyName("runtime")] public PluginRuntimeInfo Runtime { get; init; } = new();
     [JsonPropertyName("capabilities")] public IReadOnlyList<string> Capabilities { get; init; } = [];
     [JsonPropertyName("permissions")] public IReadOnlyList<string> Permissions { get; init; } = [];
+    [JsonPropertyName("nativeHelpers")] public IReadOnlyList<PluginNativeHelper> NativeHelpers { get; init; } = [];
     [JsonPropertyName("defaultCulture")] public string? DefaultCulture { get; init; }
     [JsonPropertyName("description")] public string? Description { get; init; }
     [JsonPropertyName("author")] public string? Author { get; init; }
@@ -62,4 +74,6 @@ public static class Permission
     public const string SerialLogsRead = "serial.logs.read";
     public const string FilesUserSelectedRead = "files.user-selected.read";
     public const string FilesUserSelectedWrite = "files.user-selected.write";
+    public const string NativeHelpersExecute = "native-helpers.execute";
+    public const string SerialLease = "serial.lease";
 }

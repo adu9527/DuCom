@@ -55,6 +55,13 @@ public partial class MainWindow : FluentWindow
         }
 
         PluginMenuContextMenu.Items.Clear();
+        System.Windows.Controls.MenuItem manage = new()
+        {
+            Header = TryFindResource("Menu.Plugins.Manage") as string ?? "插件管理",
+            Command = viewModel.ShowPluginManagerCommand,
+        };
+        PluginMenuContextMenu.Items.Add(manage);
+        PluginMenuContextMenu.Items.Add(new Separator());
         foreach (Services.Plugins.PluginMenuEntry entry in viewModel.BuildPluginMenuEntries())
         {
             System.Windows.Controls.MenuItem item = new() { Header = entry.Header };
@@ -63,7 +70,7 @@ public partial class MainWindow : FluentWindow
             PluginMenuContextMenu.Items.Add(item);
         }
 
-        if (PluginMenuContextMenu.Items.Count == 0)
+        if (!viewModel.BuildPluginMenuEntries().Any())
         {
             System.Windows.Controls.MenuItem placeholder = new()
             {

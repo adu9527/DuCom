@@ -233,7 +233,7 @@ public sealed class PluginSystemService : IAsyncDisposable
                                 FaultAtUtc = DateTime.UtcNow,
                                 ExitConfirmed = false,
                             };
-                        if (!attempt.RecoveryNotified && !fault.Notified
+                        if (!current.BuiltIn && !attempt.RecoveryNotified && !fault.Notified
                             && !data.PendingNotices.Any(notice => notice.PluginId == id && notice.ActivationId == attempt.ActivationId))
                         {
                             data.PendingNotices.Add(new PendingNoticeRecord
@@ -248,8 +248,8 @@ public sealed class PluginSystemService : IAsyncDisposable
                         }
                         data.Plugins[id] = current with
                         {
-                            FaultDisabled = fault,
-                            LastAttempt = attempt with { EndedCleanly = false, EndedUtc = attempt.EndedUtc ?? DateTime.UtcNow },
+                            FaultDisabled = current.BuiltIn ? fault with { Notified = true } : fault,
+                            LastAttempt = attempt with { EndedCleanly = false, EndedUtc = attempt.EndedUtc ?? DateTime.UtcNow, RecoveryNotified = current.BuiltIn || attempt.RecoveryNotified },
                         };
                     }
 
@@ -614,6 +614,27 @@ public sealed class PluginSystemService : IAsyncDisposable
 
     private async Task HandleFaultNoticeAsync(HostFaultNotice notice)
     {
+        if (_registry.Current.Plugins.TryGetValue(notice.PluginId, out PluginRegistryEntry? builtInEntry) && builtInEntry.BuiltIn)
+        {
+            _registry.Mutate(data =>
+            {
+                data.PendingNotices.RemoveAll(pending => pending.PluginId == notice.PluginId);
+                if (data.Plugins.TryGetValue(notice.PluginId, out PluginRegistryEntry? entry))
+                {
+                    data.Plugins[notice.PluginId] = entry with
+                    {
+                        FaultDisabled = entry.FaultDisabled is null ? null : entry.FaultDisabled with { Notified = true },
+                        LastAttempt = entry.LastAttempt is null ? null : entry.LastAttempt with { RecoveryNotified = true },
+                    };
+                }
+                return data;
+            });
+            ProgramLog?.Invoke($"Built-in plugin '{notice.PluginId}' fault recorded without a user popup: {notice.Reason}");
+            FaultNotice?.Invoke(notice);
+            Changed?.Invoke();
+            return;
+        }
+
         // Persist first so a UI failure, unavailable dispatcher, or host interruption leaves a
         // recoverable notice rather than a permanently suppressed fault warning.
         _registry.Mutate(data =>
@@ -936,6 +957,21 @@ public sealed class PluginSystemService : IAsyncDisposable
 
     private async Task ConsumePendingNoticesAsync()
     {
+        _registry.Mutate(data =>
+        {
+            PendingNoticeRecord[] builtInNotices = [.. data.PendingNotices.Where(notice => data.Plugins.TryGetValue(notice.PluginId, out PluginRegistryEntry? entry) && entry.BuiltIn)];
+            data.PendingNotices.RemoveAll(notice => builtInNotices.Any(candidate => candidate.PluginId == notice.PluginId && candidate.ActivationId == notice.ActivationId));
+            foreach (PendingNoticeRecord notice in builtInNotices)
+            {
+                PluginRegistryEntry entry = data.Plugins[notice.PluginId];
+                data.Plugins[notice.PluginId] = entry with
+                {
+                    FaultDisabled = entry.FaultDisabled?.ActivationId == notice.ActivationId ? entry.FaultDisabled with { Notified = true } : entry.FaultDisabled,
+                    LastAttempt = entry.LastAttempt?.ActivationId == notice.ActivationId ? entry.LastAttempt with { RecoveryNotified = true } : entry.LastAttempt,
+                };
+            }
+            return data;
+        });
         PluginRegistryData snapshot = _registry.Current;
         if (snapshot.PendingNotices.Count == 0)
         {

@@ -102,7 +102,9 @@ public partial class UpdateViewModel : ObservableObject
         if (!ThemedMessageDialog.Confirm(
                 Application.Current?.MainWindow,
                 GetResourceString("Update.Rollback.Confirmation"),
-                GetResourceString("Update.Title")))
+                GetResourceString("Update.Title"),
+                "Dialog.Rollback",
+                "Dialog.Cancel"))
         {
             return;
         }

@@ -82,6 +82,7 @@ public interface IPluginFiles
     Task<FileReadChunk> ReadChunkAsync(string token, long offset, int length, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<PickedEntry>> ListAsync(string token, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<FileSnapshotEntry>> CreateTaskSnapshotsAsync(string taskId, IReadOnlyList<string> tokens, CancellationToken cancellationToken = default);
 
 }
 
@@ -92,10 +93,13 @@ public interface IPluginSerial : IDisposable
     event EventHandler<string>? SessionClosed;
 
     Task<IReadOnlyList<SerialSessionInfo>> ListSessionsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SerialPortInfo>> ListPortsAsync(CancellationToken cancellationToken = default);
 
     Task<bool> SubscribeAsync(string sessionId, CancellationToken cancellationToken = default);
 
     Task UnsubscribeAllAsync(CancellationToken cancellationToken = default);
+    Task<SerialLeaseResult> AcquireLeaseAsync(string taskId, string port, string? deviceIdentity, bool restoreSession, CancellationToken cancellationToken = default);
+    Task<SerialLeaseResult> ReleaseLeaseAsync(string leaseId, CancellationToken cancellationToken = default);
 }
 
 public sealed class SerialDataEventArgs(byte[] data, string sessionId, long sequence, long byteOffset, DateTimeOffset receivedAtUtc) : EventArgs
@@ -129,6 +133,13 @@ public interface IPluginOutput
     Task<OutputCommitStatus> GetCommitStatusAsync(string commitId, CancellationToken cancellationToken = default);
 
     Task DiscardAsync(string outputToken, CancellationToken cancellationToken = default);
+}
+
+public interface IPluginHelpers
+{
+    Task<HelperTaskResult> StartAsync(string helperId, string taskId, string payload, int timeoutMs, CancellationToken cancellationToken = default);
+    Task<HelperTaskResult> GetStatusAsync(string taskId, CancellationToken cancellationToken = default);
+    Task<HelperTaskResult> CancelAsync(string taskId, CancellationToken cancellationToken = default);
 }
 
 public interface IPluginUi
@@ -180,6 +191,8 @@ public interface IPluginHostApi
     IPluginLogs Logs { get; }
 
     IPluginOutput Output { get; }
+
+    IPluginHelpers Helpers { get; }
 
     IPluginUi Ui { get; }
 

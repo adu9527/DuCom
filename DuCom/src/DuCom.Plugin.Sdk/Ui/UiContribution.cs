@@ -116,6 +116,7 @@ public sealed record UiProgressNode : UiNode
 {
     [JsonPropertyName("percent")] public int? Percent { get; init; }
     [JsonPropertyName("label")] public string? Label { get; init; }
+    [JsonPropertyName("state")] public string State { get; init; } = "idle";
 }
 
 public sealed record UiDividerNode : UiNode;

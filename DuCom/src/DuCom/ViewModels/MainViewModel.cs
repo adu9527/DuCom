@@ -1512,7 +1512,9 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         if (!ThemedMessageDialog.Confirm(
             _settingsWindow ?? Application.Current.MainWindow,
             GetResourceString("Settings.RestoreDefaults.Confirmation"),
-            GetResourceString("Settings.RestoreDefaults")))
+            GetResourceString("Settings.RestoreDefaults"),
+            "Dialog.RestoreDefaults",
+            "Dialog.Cancel"))
         {
             return;
         }

@@ -17,13 +17,13 @@ public sealed class PluginSystemHost : IAsyncDisposable
     private readonly DuComPluginHostEnvironment _environment;
     private readonly RememberedGrantsStore _rememberedGrants;
 
-    public PluginSystemHost(Func<IEnumerable<SessionViewModel>> sessionsProvider, BudgetGovernorConfig? budgetConfig = null, Func<string>? logDirectoryProvider = null)
+    public PluginSystemHost(Func<IEnumerable<SessionViewModel>> sessionsProvider, Func<IEnumerable<PortItemViewModel>> portsProvider, SerialLeaseCoordinator serialLeases, BudgetGovernorConfig? budgetConfig = null, Func<string>? logDirectoryProvider = null)
     {
         ArgumentNullException.ThrowIfNull(sessionsProvider);
         Ui = new PluginUiDispatcher();
         Background = new BackgroundImageHostService();
         _rememberedGrants = RememberedGrantsStore.CreateDefault();
-        _environment = new DuComPluginHostEnvironment(sessionsProvider, Ui, Background, _rememberedGrants, logDirectoryProvider);
+        _environment = new DuComPluginHostEnvironment(sessionsProvider, portsProvider, serialLeases, Ui, Background, _rememberedGrants, logDirectoryProvider);
         string executable = System.Environment.ProcessPath
             ?? throw new InvalidOperationException("Cannot determine the host executable for plugin workers.");
         _service = new PluginSystemService(

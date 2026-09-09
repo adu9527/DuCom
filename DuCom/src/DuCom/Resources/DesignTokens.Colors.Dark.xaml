@@ -20,6 +20,7 @@
     <SolidColorBrush x:Key="Brush.AccentPressed" Color="#FF3978DB" />
     <SolidColorBrush x:Key="Brush.FocusStroke" Color="#FF62A0FF" />
     <SolidColorBrush x:Key="Brush.Success" Color="#FF55D98A" />
+    <SolidColorBrush x:Key="Brush.Warning" Color="#FFF2C94C" />
     <SolidColorBrush x:Key="Brush.Caution" Color="#FFF2B84B" />
     <SolidColorBrush x:Key="Brush.Danger" Color="#FFF06A70" />
     <SolidColorBrush x:Key="Brush.SuccessSoft" Color="#2E55D98A" />

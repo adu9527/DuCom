@@ -54,6 +54,52 @@ public sealed class ManifestValidationTests
     }
 
     [Fact]
+    public void AcceptsRegisteredX86NativeHelper()
+    {
+        string json = BaseManifest.Replace(
+            "\"permissions\": []",
+            "\"permissions\": [\"native-helpers.execute\"], \"nativeHelpers\": [{\"id\":\"runner\",\"entryPoint\":\"helpers/win-x86/runner.exe\",\"rid\":\"win-x86\",\"protocolVersion\":\"1.0\",\"dependencies\":[\"helpers/win-x86/vendor.dll\"]}]");
+        Assert.True(PluginManifestValidator.TryParseStrict(json, out PluginManifest? manifest, out string? parseError), parseError);
+        Assert.True(PluginManifestValidator.Validate(manifest!, _ => false, out IReadOnlyList<string> errors), string.Join(Environment.NewLine, errors));
+    }
+
+    [Theory]
+    [InlineData("../runner.exe")]
+    [InlineData("C:/runner.exe")]
+    [InlineData("helpers//runner.exe")]
+    public void RejectsUnsafeNativeHelperEntryPoint(string entryPoint)
+    {
+        string json = BaseManifest.Replace(
+            "\"permissions\": []",
+            $"\"permissions\": [\"native-helpers.execute\"], \"nativeHelpers\": [{{\"id\":\"runner\",\"entryPoint\":\"{entryPoint}\",\"rid\":\"win-x86\",\"protocolVersion\":\"1.0\"}}]");
+        Assert.True(PluginManifestValidator.TryParseStrict(json, out PluginManifest? manifest, out _));
+        Assert.False(PluginManifestValidator.Validate(manifest!, _ => false, out IReadOnlyList<string> errors));
+        Assert.Contains(errors, error => error.Contains("entryPoint", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void NativeHelperRequiresExecutionPermission()
+    {
+        string json = BaseManifest.Replace(
+            "\"permissions\": []",
+            "\"permissions\": [], \"nativeHelpers\": [{\"id\":\"runner\",\"entryPoint\":\"runner.exe\",\"rid\":\"win-x86\",\"protocolVersion\":\"1.0\"}]");
+        Assert.True(PluginManifestValidator.TryParseStrict(json, out PluginManifest? manifest, out _));
+        Assert.False(PluginManifestValidator.Validate(manifest!, _ => false, out IReadOnlyList<string> errors));
+        Assert.Contains(errors, error => error.Contains(Permission.NativeHelpersExecute, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void RejectsUnsupportedNativeHelperProtocol()
+    {
+        string json = BaseManifest.Replace(
+            "\"permissions\": []",
+            "\"permissions\": [\"native-helpers.execute\"], \"nativeHelpers\": [{\"id\":\"runner\",\"entryPoint\":\"runner.exe\",\"rid\":\"win-x86\",\"protocolVersion\":\"2.0\"}]");
+        Assert.True(PluginManifestValidator.TryParseStrict(json, out PluginManifest? manifest, out _));
+        Assert.False(PluginManifestValidator.Validate(manifest!, _ => false, out IReadOnlyList<string> errors));
+        Assert.Contains(errors, error => error.Contains("not supported", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void RejectsUnknownCapability()
     {
         string json = BaseManifest.Replace("\"capabilities\": [\"menu\"]", "\"capabilities\": [\"serial-send\"]");

@@ -190,7 +190,7 @@ public sealed class PluginRuntimeController : IAsyncDisposable
             Directory.CreateDirectory(hostSnapshotDirectory);
 
             _scope = new ActivationScope(_manifest, _activationId, storageDirectory, workerScratchDirectory, hostOutputDirectory, hostSnapshotDirectory, _limits, _grantedPermissions, _hostTempDiskBudget, _hostTempLedger);
-            _broker = new PluginBroker(_scope, _environment, _diagnostics);
+            _broker = new PluginBroker(_scope, _environment, _diagnostics, _versionDirectory);
             _broker.SerialSubscriptionAdded += (subscriptionId, sessionId) => RegisterSerialSubscription(subscriptionId, sessionId);
             _broker.SerialSubscriptionRemoved += (_, subscriptionId) => RemoveSerialSubscription(subscriptionId);
 
@@ -477,6 +477,7 @@ public sealed class PluginRuntimeController : IAsyncDisposable
             _serialSubscriptions.Clear();
         }
 
+        _broker?.Dispose();
         _scope?.Revoke();
         _activationCancellation?.Cancel();
         if (_published is not null)
@@ -677,6 +678,9 @@ public sealed class PluginRuntimeController : IAsyncDisposable
         PluginOps.LogsSnapshot => TimeSpan.FromMinutes(2),
         PluginOps.OutputWrite => TimeSpan.FromSeconds(30),
         PluginOps.OutputCommit => TimeSpan.FromMinutes(5),
+        PluginOps.FilesSnapshot => TimeSpan.FromMinutes(5),
+        PluginOps.HelperStart => TimeSpan.FromSeconds(30),
+        PluginOps.HelperCancel => TimeSpan.FromSeconds(15),
         _ => TimeSpan.FromMilliseconds(_limits.CallTimeoutMs),
     };
 

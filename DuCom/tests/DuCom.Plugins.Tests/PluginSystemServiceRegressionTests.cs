@@ -311,6 +311,34 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task BuiltInRecoveryIsRecordedWithoutPopupAndLegacyNoticeIsRemoved()
+    {
+        PluginSystemService seed = Create();
+        await seed.InitializeAsync([]);
+        Assert.True(seed.InstallPack(Pack("1.0.0")).Accepted);
+        seed.Registry.Mutate(data =>
+        {
+            PluginRegistryEntry entry = data.Plugins[Id];
+            data.Plugins[Id] = entry with
+            {
+                BuiltIn = true,
+                Enabled = true,
+                LastAttempt = new AttemptRecord { ActivationId = "built-in-old", HostRunId = "old-host", Version = "1.0.0" },
+            };
+            data.PendingNotices.Add(new PendingNoticeRecord { PluginId = Id, Version = "1.0.0", ActivationId = "legacy", Reason = "legacy" });
+        });
+
+        FakeEnvironment environment = new();
+        PluginSystemService restarted = Create(environment);
+        await restarted.InitializeAsync([]);
+
+        Assert.Empty(environment.FaultNotices);
+        Assert.DoesNotContain(restarted.Registry.Current.PendingNotices, notice => notice.PluginId == Id);
+        Assert.True(restarted.Registry.Current.Plugins[Id].LastAttempt!.RecoveryNotified);
+        Assert.NotNull(restarted.Registry.Current.Plugins[Id].FaultDisabled);
+    }
+
+    [Fact]
     public async Task UndisplayedRecoveryNoticeIsRetriedWithoutDuplicatingPendingActivation()
     {
         PluginSystemService seed = Create();
@@ -611,8 +639,12 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         public virtual string HostVersion => "1.0.0";
         public string Culture => "en-US";
         public event EventHandler<string>? SessionClosed { add { } remove { } }
+        public Task<HostSerialLeaseResult> AcquireSerialLeaseAsync(HostSerialLeaseRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<HostSerialLeaseResult> ReleaseSerialLeaseAsync(string pluginId, string activationId, string leaseId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public void RevokeSerialLeases(string pluginId, string activationId) { }
         public virtual Task<bool> ShowFaultNoticeAsync(HostFaultNotice notice) => Task.FromResult(false);
         public IReadOnlyList<HostSerialSession> GetSerialSessions() => [];
+        public IReadOnlyList<HostSerialPort> GetSerialPorts() => [];
         public Task<IReadOnlyList<HostLogSnapshot>> CreateLogSnapshotsAsync(string? sessionId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public IDisposable SubscribeRawBlocks(Action<string, ReadOnlyMemory<byte>, DateTimeOffset> handler) => throw new NotSupportedException();
         public Task<HostPickResult?> PickReadAsync(string pluginId, HostPickRequest request, CancellationToken cancellationToken) => throw new NotSupportedException();

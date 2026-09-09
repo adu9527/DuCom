@@ -131,6 +131,27 @@ public sealed class PluginPackageInstaller
             errors.Add($"Entry assembly '{manifest.EntryAssembly}' is missing from the package root.");
         }
 
+        foreach (PluginNativeHelper helper in manifest.NativeHelpers)
+        {
+            string entryPath = ResolvePackagePath(directory, helper.EntryPoint);
+            if (!File.Exists(entryPath))
+            {
+                errors.Add($"Native helper '{helper.Id}' entry point '{helper.EntryPoint}' is missing.");
+            }
+            else if (!IsPe32Executable(entryPath))
+            {
+                errors.Add($"Native helper '{helper.Id}' entry point must be an x86 PE executable.");
+            }
+
+            foreach (string dependency in helper.Dependencies)
+            {
+                if (!File.Exists(ResolvePackagePath(directory, dependency)))
+                {
+                    errors.Add($"Native helper '{helper.Id}' dependency '{dependency}' is missing.");
+                }
+            }
+        }
+
         result = new PackageValidationResult
         {
             Accepted = errors.Count == 0,
@@ -331,6 +352,49 @@ public sealed class PluginPackageInstaller
     }
 
     internal static string RelativePathOf(string directory, string file) => Path.GetRelativePath(directory, file).Replace('\\', '/');
+
+    private static string ResolvePackagePath(string directory, string relativePath)
+    {
+        string root = Path.GetFullPath(directory) + Path.DirectorySeparatorChar;
+        string path = Path.GetFullPath(Path.Combine(directory, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+        if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new PluginInstallException($"Package path '{relativePath}' escapes the package root.");
+        }
+
+        return path;
+    }
+
+    private static bool IsPe32Executable(string path)
+    {
+        try
+        {
+            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using BinaryReader reader = new(stream);
+            if (stream.Length < 64 || reader.ReadUInt16() != 0x5A4D)
+            {
+                return false;
+            }
+
+            stream.Position = 0x3C;
+            int peOffset = reader.ReadInt32();
+            if (peOffset < 0 || peOffset > stream.Length - 24)
+            {
+                return false;
+            }
+
+            stream.Position = peOffset;
+            return reader.ReadUInt32() == 0x00004550 && reader.ReadUInt16() == 0x014C;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 
     private sealed class IncrementingHash : IDisposable
     {

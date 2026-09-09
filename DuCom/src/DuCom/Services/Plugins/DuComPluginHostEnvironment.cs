@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using DuCom.PluginHost;
+using DuCom.PluginHost.Core;
 using DuCom.ViewModels;
 using Microsoft.Win32;
 
@@ -15,6 +16,8 @@ namespace DuCom.Services.Plugins;
 public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
 {
     private readonly Func<IEnumerable<SessionViewModel>> _sessionsProvider;
+    private readonly Func<IEnumerable<PortItemViewModel>> _portsProvider;
+    private readonly SerialLeaseCoordinator _serialLeases;
     private readonly PluginUiDispatcher _ui;
     private readonly BackgroundImageHostService _background;
     private readonly RememberedGrantsStore _rememberedGrants;
@@ -26,6 +29,8 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
 
     public DuComPluginHostEnvironment(
         Func<IEnumerable<SessionViewModel>> sessionsProvider,
+        Func<IEnumerable<PortItemViewModel>> portsProvider,
+        SerialLeaseCoordinator serialLeases,
         PluginUiDispatcher ui,
         BackgroundImageHostService background,
         RememberedGrantsStore rememberedGrants,
@@ -33,6 +38,8 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
     {
         ArgumentNullException.ThrowIfNull(sessionsProvider);
         _sessionsProvider = sessionsProvider;
+        _portsProvider = portsProvider;
+        _serialLeases = serialLeases;
         _ui = ui;
         _background = background;
         _rememberedGrants = rememberedGrants;
@@ -48,6 +55,49 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
     public string Culture => System.Globalization.CultureInfo.CurrentUICulture.Name;
 
     public event EventHandler<string>? SessionClosed;
+
+    public async Task<HostSerialLeaseResult> AcquireSerialLeaseAsync(HostSerialLeaseRequest request, CancellationToken cancellationToken)
+    {
+        return await _serialLeases.RunPortOperationAsync(request.Port, async () =>
+        {
+            SessionViewModel? session = _sessionsProvider().FirstOrDefault(item => string.Equals(item.PortName, request.Port, StringComparison.OrdinalIgnoreCase));
+            bool wasOpen = session?.IsOpen == true;
+            SerialLeaseSnapshot lease;
+            try { lease = _serialLeases.Acquire(request.PluginId, request.ActivationId, request.TaskId, request.Port, request.DeviceIdentity, request.RestoreSession, wasOpen); }
+            catch (InvalidOperationException exception) { return new HostSerialLeaseResult(string.Empty, request.Port, "busy", wasOpen, false, exception.Message); }
+            try
+            {
+                if (wasOpen) await session!.CloseAsync(cancellationToken);
+                return new HostSerialLeaseResult(lease.LeaseId, lease.Port, "leased", wasOpen, false, null);
+            }
+            catch
+            {
+                _serialLeases.Release(lease.LeaseId);
+                throw;
+            }
+        });
+    }
+
+    public async Task<HostSerialLeaseResult> ReleaseSerialLeaseAsync(string pluginId, string activationId, string leaseId, CancellationToken cancellationToken)
+    {
+        SerialLeaseSnapshot lease = _serialLeases.GetOwned(pluginId, activationId, leaseId);
+        bool restored = false;
+        string? message = null;
+        SessionViewModel? session = _sessionsProvider().FirstOrDefault(item => string.Equals(item.PortName, lease.Port, StringComparison.OrdinalIgnoreCase));
+        if (lease.RestoreSession && lease.SessionWasOpen && session is not null)
+        {
+            try
+            {
+                await _serialLeases.RunAsOwnerAsync(lease.LeaseId, async () => restored = await session.OpenAsync(cancellationToken) == Core.Ports.PortCommandResult.Succeeded);
+                if (!restored) message = "The previous DuCom session could not be restored.";
+            }
+            catch (Exception exception) { message = exception.Message; }
+        }
+        _serialLeases.Release(lease.LeaseId);
+        return new HostSerialLeaseResult(lease.LeaseId, lease.Port, restored ? "released-restored" : "released", lease.SessionWasOpen, restored, message);
+    }
+
+    public void RevokeSerialLeases(string pluginId, string activationId) => _serialLeases.Revoke(pluginId, activationId);
 
     public IReadOnlyList<HostSerialSession> GetSerialSessions()
     {
@@ -67,6 +117,12 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
         DetectClosedSessions(live);
         return sessions;
     }
+
+    public IReadOnlyList<HostSerialPort> GetSerialPorts() => [.. _portsProvider().Select(port => new HostSerialPort(
+        port.PortName,
+        string.IsNullOrWhiteSpace(port.DisplayDeviceName) ? port.PortName : port.DisplayDeviceName,
+        port.VidPid,
+        port.DeviceInstanceId))];
 
     public async Task<IReadOnlyList<HostLogSnapshot>> CreateLogSnapshotsAsync(string? sessionId, CancellationToken cancellationToken)
     {

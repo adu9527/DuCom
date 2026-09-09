@@ -79,9 +79,16 @@ public static class PluginOps
     public const string FilesRead = "files.read";
     public const string FilesList = "files.list";
     public const string FilesRemembered = "files.remembered";
+    public const string FilesSnapshot = "files.snapshot";
     public const string SerialList = "serial.list";
+    public const string SerialPorts = "serial.ports";
     public const string SerialSubscribe = "serial.subscribe";
     public const string SerialUnsubscribe = "serial.unsubscribe";
+    public const string HelperStart = "helper.start";
+    public const string HelperStatus = "helper.status";
+    public const string HelperCancel = "helper.cancel";
+    public const string SerialLeaseAcquire = "serial.lease.acquire";
+    public const string SerialLeaseRelease = "serial.lease.release";
     public const string LogsList = "logs.list";
     public const string LogsSnapshot = "logs.snapshot";
     public const string LogsRead = "logs.read";

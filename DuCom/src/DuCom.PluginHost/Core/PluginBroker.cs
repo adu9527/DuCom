@@ -14,7 +14,7 @@ namespace DuCom.PluginHost.Core;
 /// updates, background switching, and diagnostics. Every operation checks scope revocation
 /// and the manifest permission before touching any resource.
 /// </summary>
-public sealed class PluginBroker
+public sealed class PluginBroker : IDisposable
 {
     private readonly ActivationScope _scope;
     private readonly IPluginHostEnvironment _environment;
@@ -25,16 +25,18 @@ public sealed class PluginBroker
     private readonly Queue<long> _uiWindow = new();
     private readonly object _commitGate = new();
     private readonly Dictionary<string, OutputCommitStatusResult> _commitResults = new(StringComparer.Ordinal);
+    private readonly NativeHelperTaskManager _helperTasks;
 
     internal static Action<string, string>? FileIoTestHook { get; set; }
 
-    public PluginBroker(ActivationScope scope, IPluginHostEnvironment environment, PluginDiagnosticsLog diagnostics)
+    public PluginBroker(ActivationScope scope, IPluginHostEnvironment environment, PluginDiagnosticsLog diagnostics, string? packageDirectory = null)
     {
         _scope = scope ?? throw new ArgumentNullException(nameof(scope));
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
         _diagnostics = diagnostics ?? throw new ArgumentNullException(nameof(diagnostics));
         _storageFilePath = Path.Combine(scope.StorageDirectory, "config.json");
         _diagAllowancePerMinute = Math.Max(scope.Limits.DiagMessagesPerMinute, 1);
+        _helperTasks = new NativeHelperTaskManager(scope.Manifest, packageDirectory ?? scope.TempDirectory, Path.Combine(scope.TempDirectory, "HelperTasks"));
     }
 
     public event Action<string, string>? SerialSubscriptionAdded;
@@ -57,9 +59,16 @@ public sealed class PluginBroker
             PluginOps.FilesRead => Json(await ReadChunkAsync(Require<FilesReadRequest>(data))),
             PluginOps.FilesList => Json(List(Require<FilesListRequest>(data))),
             PluginOps.FilesRemembered => Json(Remembered(Require<FilesRememberedRequest>(data))),
+            PluginOps.FilesSnapshot => Json(await SnapshotFilesAsync(Require<FilesSnapshotRequest>(data), cancellationToken)),
             PluginOps.SerialList => Json(SerialList()),
+            PluginOps.SerialPorts => Json(SerialPorts()),
             PluginOps.SerialSubscribe => Json(SubscribeSerial(Require<SerialSubscribeRequest>(data))),
             PluginOps.SerialUnsubscribe => Json(UnsubscribeSerial(Require<FilesTokenRequest>(data))),
+            PluginOps.HelperStart => Json(StartHelper(Require<HelperStartRequest>(data))),
+            PluginOps.HelperStatus => Json(HelperStatus(Require<HelperTaskRequest>(data))),
+            PluginOps.HelperCancel => Json(await CancelHelperAsync(Require<HelperTaskRequest>(data))),
+            PluginOps.SerialLeaseAcquire => Json(await AcquireSerialLeaseAsync(Require<SerialLeaseAcquireRequest>(data), cancellationToken)),
+            PluginOps.SerialLeaseRelease => Json(await ReleaseSerialLeaseAsync(Require<SerialLeaseRequest>(data), cancellationToken)),
             PluginOps.LogsList => Json(LogsList()),
             PluginOps.LogsSnapshot => await SnapshotLogsAsync(Require<LogsSnapshotRequest>(data), cancellationToken),
             PluginOps.LogsRead => Json(await ReadLogChunkAsync(Require<LogsReadRequest>(data))),
@@ -75,6 +84,45 @@ public sealed class PluginBroker
             PluginOps.BackgroundClear => Json(BackgroundClear()),
             _ => throw new PluginScopeException(PluginErrorCode.UnsupportedOperation, $"Unknown operation '{operation}'."),
         };
+    }
+
+    private HelperTaskResult StartHelper(HelperStartRequest request)
+    {
+        RequirePermission(Permission.NativeHelpersExecute);
+        return _helperTasks.Start(request);
+    }
+
+    private HelperTaskResult HelperStatus(HelperTaskRequest request)
+    {
+        RequirePermission(Permission.NativeHelpersExecute);
+        return _helperTasks.Status(request.TaskId);
+    }
+
+    private async Task<HelperTaskResult> CancelHelperAsync(HelperTaskRequest request)
+    {
+        RequirePermission(Permission.NativeHelpersExecute);
+        return await _helperTasks.CancelAsync(request.TaskId).ConfigureAwait(false);
+    }
+
+    public void Dispose()
+    {
+        _helperTasks.Dispose();
+        _environment.RevokeSerialLeases(_scope.Manifest.Id, _scope.ActivationId);
+    }
+
+    private async Task<SerialLeaseResult> AcquireSerialLeaseAsync(SerialLeaseAcquireRequest request, CancellationToken cancellationToken)
+    {
+        RequirePermission(Permission.SerialLease);
+        HostSerialLeaseResult result = await _environment.AcquireSerialLeaseAsync(new HostSerialLeaseRequest(
+            _scope.Manifest.Id, _scope.ActivationId, request.TaskId, request.Port, request.DeviceIdentity, request.RestoreSession), cancellationToken).ConfigureAwait(false);
+        return new SerialLeaseResult { LeaseId = result.LeaseId, Port = result.Port, State = result.State, SessionWasOpen = result.SessionWasOpen, Restored = result.Restored, Message = result.Message };
+    }
+
+    private async Task<SerialLeaseResult> ReleaseSerialLeaseAsync(SerialLeaseRequest request, CancellationToken cancellationToken)
+    {
+        RequirePermission(Permission.SerialLease);
+        HostSerialLeaseResult result = await _environment.ReleaseSerialLeaseAsync(_scope.Manifest.Id, _scope.ActivationId, request.LeaseId, cancellationToken).ConfigureAwait(false);
+        return new SerialLeaseResult { LeaseId = result.LeaseId, Port = result.Port, State = result.State, SessionWasOpen = result.SessionWasOpen, Restored = result.Restored, Message = result.Message };
     }
 
     public void WriteDiagnostic(string level, string message)
@@ -414,6 +462,55 @@ public sealed class PluginBroker
         return new FilesPickResult { Token = token, DisplayPath = resolved, IsDirectory = isDirectory, Entries = [] };
     }
 
+    private async Task<FilesSnapshotResult> SnapshotFilesAsync(FilesSnapshotRequest request, CancellationToken cancellationToken)
+    {
+        RequirePermission(Permission.FilesUserSelectedRead);
+        if (request.TaskId.Length is < 8 or > 80 || request.TaskId.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not '-' and not '_'))
+            throw new PluginScopeException(PluginErrorCode.InvalidArgument, "Task id is invalid.");
+        if (request.Tokens.Count is < 1 or > 16 || request.Tokens.Distinct(StringComparer.Ordinal).Count() != request.Tokens.Count)
+            throw new PluginScopeException(PluginErrorCode.InvalidArgument, "Snapshot tokens are empty, duplicated, or exceed 16 files.");
+        string root = Path.Combine(_scope.HostSnapshotDirectory, "tasks", request.TaskId);
+        if (Directory.Exists(root)) throw new PluginScopeException(PluginErrorCode.InvalidArgument, "Task snapshot id was already used.");
+        Directory.CreateDirectory(root);
+        List<FileSnapshotEntry> files = [];
+        long totalLength = 0;
+        string resourceId = _scope.RegisterResourceIntent(HostTempResourceKind.SnapshotDirectory, root);
+        try
+        {
+            for (int index = 0; index < request.Tokens.Count; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                string token = request.Tokens[index];
+                FileGrant grant = ResolveGrant(token, write: false);
+                if (grant.IsDirectory || !File.Exists(grant.Path)) throw new PluginScopeException(PluginErrorCode.NotFound, "A snapshotted input file is missing.");
+                string destination = Path.Combine(root, index.ToString("D2", System.Globalization.CultureInfo.InvariantCulture) + Path.GetExtension(grant.Path));
+                using FileStream source = new(grant.Path, FileMode.Open, FileAccess.Read, FileShare.Read, 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                using FileStream target = new(destination, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                using System.Security.Cryptography.IncrementalHash hash = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
+                byte[] buffer = new byte[128 * 1024];
+                int read;
+                long length = 0;
+                while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+                {
+                    if (totalLength > _scope.Limits.TempQuotaBytes - read) throw new PluginScopeException(PluginErrorCode.ResourceLimit, "Task input snapshots exceed the activation quota.");
+                    if (!_scope.TryReserveResource(resourceId, read)) throw new PluginScopeException(PluginErrorCode.ResourceLimit, "Host task-snapshot storage quota is exhausted.");
+                    await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+                    hash.AppendData(buffer, 0, read);
+                    length = checked(length + read);
+                    totalLength = checked(totalLength + read);
+                }
+                await target.FlushAsync(cancellationToken).ConfigureAwait(false);
+                files.Add(new FileSnapshotEntry { Token = token, Path = destination, Name = Path.GetFileName(grant.Path), Length = length, Sha256 = Convert.ToHexString(hash.GetHashAndReset()) });
+            }
+            return new FilesSnapshotResult { Files = files };
+        }
+        catch
+        {
+            _scope.CleanupResource(resourceId, HostTempResourceKind.SnapshotDirectory, root, totalLength);
+            throw;
+        }
+    }
+
     private object SerialList()
     {
         RequirePermission(Permission.SerialRead);
@@ -425,6 +522,15 @@ public sealed class PluginBroker
                 Port = session.Port,
                 Open = session.Open,
             })],
+        };
+    }
+
+    private object SerialPorts()
+    {
+        RequirePermission(Permission.SerialLease);
+        return new SerialPortsResult
+        {
+            Ports = [.. _environment.GetSerialPorts().Select(port => new SerialPortInfo { Port = port.Port, DisplayName = port.DisplayName, VidPid = port.VidPid, DeviceIdentity = port.DeviceIdentity })],
         };
     }
 

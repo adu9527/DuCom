@@ -15,6 +15,7 @@
     <Project Path="tests/DuCom.Core.Tests/DuCom.Core.Tests.csproj" />
     <Project Path="tests/DuCom.Plugins.Tests/DuCom.Plugins.Tests.csproj" />
     <Project Path="tests/DuCom.PluginTestBed/DuCom.PluginTestBed.csproj" />
+    <Project Path="tests/DuCom.NativeHelperTestBed/DuCom.NativeHelperTestBed.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/DuCom.LoadGenerator/DuCom.LoadGenerator.csproj" />

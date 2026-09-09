@@ -1,6 +1,7 @@
 using DuCom.Core.Ports;
 using DuCom.Services;
 using DuCom.ViewModels;
+using DuCom.PluginHost.Core;
 
 namespace DuCom;
 
@@ -8,13 +9,14 @@ internal sealed class CompositionRoot : IAsyncDisposable
 {
     private readonly MainViewModel _mainViewModel;
     private readonly UiResponsivenessMonitor _uiResponsivenessMonitor;
+    private readonly SerialLeaseCoordinator _serialLeases = new();
 
     public CompositionRoot()
     {
         MainViewModel? mainViewModel = null;
         mainViewModel = new MainViewModel(
             new WindowsPortDiscovery(),
-            options => new SerialWorkspaceSession(
+            options => new LeaseAwareWorkspaceSession(new SerialWorkspaceSession(
                 options.PortSettings,
                 options.ReceiveDisplayMode,
                 options.TimestampEnabled,
@@ -27,7 +29,7 @@ internal sealed class CompositionRoot : IAsyncDisposable
                 options.SendPrefixEnabled,
                 options.SendPrefix,
                 options.TimestampFormat,
-                () => Math.Max(1, mainViewModel!.PrivateMemoryThresholdMiB) * 1024L * 1024L));
+                () => Math.Max(1, mainViewModel!.PrivateMemoryThresholdMiB) * 1024L * 1024L), _serialLeases));
         _mainViewModel = mainViewModel;
         PrivateMemoryMonitorService memoryMonitor = new(
             () => _mainViewModel.PrivateMemoryMonitorEnabled,
@@ -42,6 +44,7 @@ internal sealed class CompositionRoot : IAsyncDisposable
     public MainWindow CreateMainWindow() => new(_mainViewModel);
 
     public ViewModels.MainViewModel MainViewModel => _mainViewModel;
+    public SerialLeaseCoordinator SerialLeases => _serialLeases;
 
     public async ValueTask DisposeAsync()
     {
