@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\DuCom.Plugin.Sdk\DuCom.Plugin.Sdk.csproj" />
     <ProjectReference Include="..\..\src\DuCom.PluginHost\DuCom.PluginHost.csproj" />
+    <ProjectReference Include="..\..\src\DuCom.Plugins.Timer\DuCom.Plugins.Timer.csproj" />
     <ProjectReference Include="..\DuCom.HostRecoveryWorker\DuCom.HostRecoveryWorker.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DuCom.PluginTestBed\DuCom.PluginTestBed.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>

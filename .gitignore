@@ -218,6 +218,9 @@ PublishScripts/
 **/[Pp]ackages/*
 # except build/, which is used as an MSBuild target.
 !**/[Pp]ackages/build/
+# Plugin package handling is source code, not a NuGet restore directory.
+!DuCom/src/DuCom.PluginHost/Packages/
+!DuCom/src/DuCom.PluginHost/Packages/**
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/[Pp]ackages/repositories.config
 # NuGet v3's project.json files produces more ignorable files

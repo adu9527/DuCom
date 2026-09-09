@@ -1,0 +1,14 @@
+{
+  "manifestVersion": 1,
+  "id": "com.ducom.timer",
+  "name": "秒表计时器",
+  "version": "1.0.0",
+  "protocolVersion": "1.0",
+  "minHostVersion": "0.0.1",
+  "entryAssembly": "DuCom.Plugins.Timer.dll",
+  "entryType": "DuCom.Plugins.Timer.Plugin",
+  "runtime": { "framework": "net10.0", "rid": "win-x64" },
+  "capabilities": [ "menu", "tool-page" ],
+  "permissions": [ "storage.own", "files.user-selected.write" ],
+  "defaultCulture": "zh-CN"
+}

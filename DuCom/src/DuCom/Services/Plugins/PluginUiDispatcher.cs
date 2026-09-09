@@ -68,23 +68,25 @@ public sealed class PluginUiDispatcher
     {
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
         ArgumentException.ThrowIfNullOrEmpty(contributionId);
-        RunOnUi(() =>
+        // Update the authoritative cache before returning to the worker. Window refresh remains
+        // UI-thread-bound, but callers that await an "open" command must not observe old nodes.
+        lock (_gate)
         {
-            lock (_gate)
+            _toolPages[(pluginId, contributionId)] = nodes;
+            if (_toolPagesByPlugin.TryGetValue(pluginId, out List<(string, IReadOnlyList<UiNode>)>? pages))
             {
-                _toolPages[(pluginId, contributionId)] = nodes;
-                if (_toolPagesByPlugin.TryGetValue(pluginId, out List<(string, IReadOnlyList<UiNode>)>? pages))
+                for (int index = 0; index < pages.Count; index++)
                 {
-                    for (int index = 0; index < pages.Count; index++)
+                    if (pages[index].Item1 == contributionId)
                     {
-                        if (pages[index].Item1 == contributionId)
-                        {
-                            pages[index] = (contributionId, nodes);
-                        }
+                        pages[index] = (contributionId, nodes);
                     }
                 }
             }
+        }
 
+        RunOnUi(() =>
+        {
             foreach (PluginToolWindow window in Application.Current?.Windows.OfType<PluginToolWindow>().ToList() ?? [])
             {
                 window.Refresh(pluginId, contributionId, nodes);

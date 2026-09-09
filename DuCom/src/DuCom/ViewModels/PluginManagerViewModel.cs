@@ -345,6 +345,76 @@ public partial class PluginManagerViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task RestartPluginAsync(PluginManagerRow? row)
+    {
+        if (row is null) return;
+        SelectedPlugin = row;
+        if (IsChangingState || _mainViewModel.PluginSystem is not { } system)
+        {
+            return;
+        }
+
+        PluginManagerRow? currentRow = system.Service.BuildManagerRows().FirstOrDefault(item => item.Id == row.Id);
+        if (currentRow is null
+            || currentRow.State is PluginRuntimeState.Starting or PluginRuntimeState.Activating or PluginRuntimeState.Stopping)
+        {
+            return;
+        }
+
+        if (system.Service.SafeStartAllPlugins)
+        {
+            OperationMessage = Resource("Plugins.SafeStart.Blocked");
+            return;
+        }
+
+        IsChangingState = true;
+        OperationMessage = Resource("Plugins.Working");
+        try
+        {
+            // Works from ON, OFF, and fault-disabled states alike: stop a live worker first,
+            // clear a persisted fault after the same confirmation the ON switch uses, then start.
+            if (currentRow.State == PluginRuntimeState.FaultDisabled)
+            {
+                if (!ThemedMessageDialog.Confirm(Application.Current?.MainWindow,
+                        string.Format(Resource("Plugins.Retry.Warn"), row.Id, row.FaultReason),
+                        Resource("Plugins.Retry.Title")))
+                {
+                    OperationMessage = string.Empty;
+                    return;
+                }
+
+                system.Service.ClearFaultDisable(row.Id);
+            }
+
+            if (currentRow.IsActive)
+            {
+                await system.Service.StopAsync(row.Id);
+            }
+
+            system.Service.SetEnabled(row.Id, true);
+            bool started = await system.Service.StartRegisteredAsync(row.Id);
+            if (!started)
+            {
+                PluginManagerRow? current = system.Service.BuildManagerRows().FirstOrDefault(item => item.Id == row.Id);
+                OperationMessage = current?.FaultReason ?? Resource("Plugins.StartFailed");
+                return;
+            }
+
+            OperationMessage = Resource("Plugins.Restarted");
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Error("Plugin restart failed.", exception);
+            OperationMessage = exception.Message;
+        }
+        finally
+        {
+            IsChangingState = false;
+            RefreshPlugins();
+        }
+    }
+
+    [RelayCommand]
     private async Task RetryPluginAsync(PluginManagerRow? row)
     {
         if (row is null) return;
@@ -356,7 +426,7 @@ public partial class PluginManagerViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void OpenPlugin(PluginManagerRow? row)
+    private async Task OpenPluginAsync(PluginManagerRow? row)
     {
         if (row is null || _mainViewModel.PluginSystem is not { } system) return;
         PluginPublishedActivation? activation = system.Ui.Activations.FirstOrDefault(item => item.PluginId == row.Id);
@@ -369,6 +439,17 @@ public partial class PluginManagerViewModel : ObservableObject
         string? page = activation.ToolPages.Count > 0 ? activation.ToolPages[0].ContributionId : null;
         if (!string.IsNullOrEmpty(page))
         {
+            // Refresh the plugin's cached page first (same as the menu entry) so the window
+            // opens with live state instead of the last pushed snapshot.
+            try
+            {
+                await _mainViewModel.InvokePluginCommandForManagerAsync(row.Id, "open", new Dictionary<string, string>());
+            }
+            catch (Exception exception)
+            {
+                Program.DiagnosticLog?.Warning($"Plugin open command failed: {exception.Message}");
+            }
+
             system.Ui.OpenToolPage(row.Id, page, (commandId, values) => _mainViewModel.InvokePluginCommandForManagerAsync(row.Id, commandId, values));
             return;
         }

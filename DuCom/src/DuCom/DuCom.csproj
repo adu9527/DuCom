@@ -6,6 +6,7 @@
     <ProjectReference Include="..\DuCom.PluginHost\DuCom.PluginHost.csproj" />
     <ProjectReference Include="..\DuCom.Plugins.BackgroundImage\DuCom.Plugins.BackgroundImage.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DuCom.Plugins.LogPackage\DuCom.Plugins.LogPackage.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\DuCom.Plugins.Timer\DuCom.Plugins.Timer.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,11 +42,14 @@
           DependsOnTargets="$(BuiltinPluginPacksDependsOn)">
     <MSBuild Projects="..\DuCom.Plugins.BackgroundImage\DuCom.Plugins.BackgroundImage.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
     <MSBuild Projects="..\DuCom.Plugins.LogPackage\DuCom.Plugins.LogPackage.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
+    <MSBuild Projects="..\DuCom.Plugins.Timer\DuCom.Plugins.Timer.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
     <ItemGroup>
       <BackgroundPackFile Include="..\DuCom.Plugins.BackgroundImage\bin\$(Configuration)\net10.0\**\*.*"
                           Exclude="..\DuCom.Plugins.BackgroundImage\bin\$(Configuration)\net10.0\*.pdb" />
       <LogPackFile Include="..\DuCom.Plugins.LogPackage\bin\$(Configuration)\net10.0\**\*.*"
                    Exclude="..\DuCom.Plugins.LogPackage\bin\$(Configuration)\net10.0\*.pdb" />
+      <TimerPackFile Include="..\DuCom.Plugins.Timer\bin\$(Configuration)\net10.0\**\*.*"
+                     Exclude="..\DuCom.Plugins.Timer\bin\$(Configuration)\net10.0\*.pdb" />
       <EmbeddedResource Include="@(BackgroundPackFile)"
                         Condition="'%(Extension)' == '.dll' Or '%(Extension)' == '.json'">
         <LogicalName>DuCom.Factory.com.ducom.background-image/1.0.0/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
@@ -53,6 +57,10 @@
       <EmbeddedResource Include="@(LogPackFile)"
                         Condition="'%(Extension)' == '.dll' Or '%(Extension)' == '.json'">
         <LogicalName>DuCom.Factory.com.ducom.log-package/1.0.0/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+      </EmbeddedResource>
+      <EmbeddedResource Include="@(TimerPackFile)"
+                        Condition="'%(Extension)' == '.dll' Or '%(Extension)' == '.json'">
+        <LogicalName>DuCom.Factory.com.ducom.timer/1.0.0/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
       </EmbeddedResource>
     </ItemGroup>
     <Message Importance="high" Text="FACTORYPACK count=@(EmbeddedResource->Count()) names=[@(EmbeddedResource->'%(LogicalName)', ';')]" />

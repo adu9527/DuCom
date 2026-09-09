@@ -253,7 +253,7 @@ public class FakeEnvironment : IPluginHostEnvironment
 
     public void PublishActivation(PluginPublishedActivation activation) => Publications.Add(activation);
 
-    public void UpdateToolPage(string pluginId, string contributionId, IReadOnlyList<UiNode> nodes) => ToolPageUpdates.Add((pluginId, contributionId));
+    public virtual void UpdateToolPage(string pluginId, string contributionId, IReadOnlyList<UiNode> nodes) => ToolPageUpdates.Add((pluginId, contributionId));
 
     public void RemoveActivation(string pluginId)
     {

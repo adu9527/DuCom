@@ -18,13 +18,14 @@ public partial class PluginToolWindow : FluentWindow
         PluginId = pluginId;
         ContributionId = contributionId;
         Title = title;
-        Width = pluginId == "com.ducom.log-package" ? 1080 : 820;
-        Height = pluginId == "com.ducom.log-package" ? 900 : 720;
-        MinWidth = pluginId == "com.ducom.log-package" ? 760 : 640;
+        Width = pluginId == "com.ducom.log-package" ? 1080 : pluginId == "com.ducom.timer" ? 720 : 820;
+        Height = pluginId == "com.ducom.log-package" ? 900 : pluginId == "com.ducom.timer" ? 760 : 720;
+        MinWidth = pluginId == "com.ducom.log-package" ? 760 : pluginId == "com.ducom.timer" ? 560 : 640;
         MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ExtendsContentIntoTitleBar = true;
         WindowBackdropType = WindowBackdropType.Mica;
+        Topmost = PluginToolWindowPreferencesService.Load().Topmost;
 
         SetResourceReference(ForegroundProperty, "Brush.TextPrimary");
         SetResourceReference(BackgroundProperty, "Brush.ShellSurface");
@@ -41,11 +42,18 @@ public partial class PluginToolWindow : FluentWindow
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
+        if (pluginId == "com.ducom.timer")
+        {
+            // The stopwatch page pins its header and scrolls only the lap list, so the
+            // outer viewer must not scroll (and must not show a second scrollbar).
+            viewer.VerticalScrollBarVisibility = ScrollBarVisibility.Disabled;
+        }
+
         Grid.SetRow(viewer, 1);
         shell.Children.Add(viewer);
         // Pin the page width to the viewport (clamped by its MaxWidth): otherwise the
         // centered panel resizes with its longest wrapped text and cards visibly jump.
-        viewer.SizeChanged += (_, args) => ApplyViewportWidth(viewer, args.NewSize.Width);
+        viewer.SizeChanged += (_, args) => ApplyViewportSize(viewer, args.NewSize.Width, args.NewSize.Height);
         Border footer = new()
         {
             Padding = new Thickness(16, 10, 16, 10),
@@ -57,12 +65,29 @@ public partial class PluginToolWindow : FluentWindow
         {
             Content = FindResource("LogPackage.Cancel") as string ?? "关闭",
             MinWidth = 96,
-            HorizontalAlignment = HorizontalAlignment.Right,
         };
         close.Click += (_, _) => Close();
+        System.Windows.Controls.Primitives.ToggleButton topmostToggle = new()
+        {
+            MinWidth = 44,
+            IsChecked = Topmost,
+            Style = FindResource("Style.FloatToolbarToggle") as Style,
+        };
+        topmostToggle.SetResourceReference(ContentControl.ContentProperty, "Plugins.ToolWindow.Topmost");
+        topmostToggle.Click += (_, _) =>
+        {
+            Topmost = topmostToggle.IsChecked == true;
+            PluginToolWindowPreferencesService.Save(new PluginToolWindowPreferences(Topmost));
+        };
+        DockPanel footerPanel = new();
+        DockPanel.SetDock(topmostToggle, Dock.Left);
+        DockPanel.SetDock(close, Dock.Right);
+        footerPanel.Children.Add(topmostToggle);
+        footerPanel.Children.Add(close);
         PluginUiRenderer.ApplyTheme(footer);
         PluginUiRenderer.ApplyTheme(close);
-        footer.Child = close;
+        PluginUiRenderer.ApplyTheme(topmostToggle);
+        footer.Child = footerPanel;
         Grid.SetRow(footer, 2);
         shell.Children.Add(footer);
         Content = shell;
@@ -76,21 +101,45 @@ public partial class PluginToolWindow : FluentWindow
     {
         _router ??= new PluginCommandRouter(async (commandId, values) => await _commandInvoker(commandId, values));
         ScrollViewer viewer = (ScrollViewer)((Grid)Content).Children[1];
+        double scrollOffset = viewer.VerticalOffset;
+        List<double> innerScrollOffsets = [];
+        if (viewer.Content is DependencyObject previousContent)
+        {
+            CollectScrollableViewerOffsets(previousContent, innerScrollOffsets);
+        }
+
         IReadOnlyDictionary<string, string> pendingValues = viewer.Content is DependencyObject existing
             ? PluginUiRenderer.CollectFormValues(existing)
             : new Dictionary<string, string>();
-        IReadOnlyList<UiNode>? displayNodes = nodes is null ? null : PreserveFormValues(nodes, pendingValues);
+        // Background settings are auto-saved; plugin-published nodes are authoritative. Keeping
+        // old visual values here reintroduced stale enabled/opacity state after reopening.
+        IReadOnlyList<UiNode>? displayNodes = nodes is null
+            ? null
+            : string.Equals(PluginId, "com.ducom.background-image", StringComparison.Ordinal)
+                ? nodes
+                : PreserveFormValues(nodes, pendingValues);
         viewer.Content = nodes is null || nodes.Count == 0
             ? new System.Windows.Controls.TextBlock { Text = TryFindResource("Plugins.ToolPage.Empty") as string ?? "No content", Margin = new Thickness(12) }
             : PluginUiRenderer.Render(displayNodes!, _router, PluginId);
         if (viewer.Content is FrameworkElement content)
         {
             PluginUiRenderer.ApplyTheme(content);
-            ApplyViewportWidth(viewer, viewer.ViewportWidth);
+            ApplyViewportSize(viewer, viewer.ViewportWidth, viewer.ViewportHeight);
+            if (viewer.Content is DependencyObject freshContent && innerScrollOffsets.Count > 0)
+            {
+                int restoredIndex = 0;
+                RestoreScrollableViewerOffsets(freshContent, innerScrollOffsets, ref restoredIndex);
+            }
+        }
+
+        // Refreshed pages rebuild the whole tree; keep the reader's scroll position.
+        if (scrollOffset > 0)
+        {
+            viewer.ScrollToVerticalOffset(scrollOffset);
         }
     }
 
-    private static void ApplyViewportWidth(ScrollViewer viewer, double viewportWidth)
+    private void ApplyViewportSize(ScrollViewer viewer, double viewportWidth, double viewportHeight)
     {
         if (viewer.Content is not FrameworkElement content || double.IsNaN(viewportWidth) || viewportWidth <= 0)
         {
@@ -99,6 +148,53 @@ public partial class PluginToolWindow : FluentWindow
 
         double max = double.IsNaN(content.MaxWidth) || content.MaxWidth == double.PositiveInfinity ? double.PositiveInfinity : content.MaxWidth;
         content.Width = Math.Min(viewportWidth, max);
+        if (string.Equals(PluginId, "com.ducom.timer", StringComparison.Ordinal)
+            && !double.IsNaN(viewportHeight) && viewportHeight > 0)
+        {
+            // The stopwatch page fills the viewport so its lap list owns the scrolling.
+            content.Height = viewportHeight;
+        }
+    }
+
+    private static void CollectScrollableViewerOffsets(DependencyObject root, List<double> offsets)
+    {
+        if (root is ScrollViewer viewer)
+        {
+            offsets.Add(viewer.VerticalOffset);
+        }
+
+        foreach (object child in LogicalTreeHelper.GetChildren(root))
+        {
+            if (child is DependencyObject childElement)
+            {
+                CollectScrollableViewerOffsets(childElement, offsets);
+            }
+        }
+    }
+
+    private static void RestoreScrollableViewerOffsets(DependencyObject root, List<double> offsets, ref int index)
+    {
+        if (root is ScrollViewer viewer && index < offsets.Count)
+        {
+            double offset = offsets[index++];
+            if (offset > 0)
+            {
+                viewer.ScrollToVerticalOffset(offset);
+                // Extent height is only final after the rebuilt tree is arranged; assert
+                // the same offset one dispatcher turn later so page refreshes keep the
+                // reader's position inside the lap list.
+                viewer.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
+                    new Action(() => viewer.ScrollToVerticalOffset(offset)));
+            }
+        }
+
+        foreach (object child in LogicalTreeHelper.GetChildren(root))
+        {
+            if (child is DependencyObject childElement)
+            {
+                RestoreScrollableViewerOffsets(childElement, offsets, ref index);
+            }
+        }
     }
 
     private static IReadOnlyList<UiNode> PreserveFormValues(IReadOnlyList<UiNode> nodes, IReadOnlyDictionary<string, string> values) =>
@@ -130,11 +226,32 @@ public partial class PluginFaultNoticeWindow : FluentWindow
         Title = TryFindResource("Plugins.FaultNotice.Title") as string ?? "DuCom plugin notice";
         Width = 460;
         Height = 320;
+        MinHeight = 180;
         ShowInTaskbar = false;
         ShowActivated = false;
         WindowStartupLocation = WindowStartupLocation.Manual;
         Left = SystemParameters.WorkArea.Right - 480;
         Top = SystemParameters.WorkArea.Bottom - 340;
+
+        DockPanel shell = new();
+        Border footer = new()
+        {
+            Padding = new Thickness(12, 8, 12, 10),
+            Background = FindResource("Brush.PanelRaised") as System.Windows.Media.Brush,
+            BorderBrush = FindResource("Brush.PanelBorder") as System.Windows.Media.Brush,
+            BorderThickness = new Thickness(0, 1, 0, 0),
+        };
+        DockPanel.SetDock(footer, Dock.Bottom);
+        System.Windows.Controls.Button dismiss = new()
+        {
+            Content = TryFindResource("Dialog.OK") as string ?? "OK",
+            MinWidth = 96,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        dismiss.Click += (_, _) => Close();
+        PluginUiRenderer.ApplyTheme(dismiss);
+        footer.Child = dismiss;
+        shell.Children.Add(footer);
 
         ListBox list = new()
         {
@@ -143,10 +260,12 @@ public partial class PluginFaultNoticeWindow : FluentWindow
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
         };
         list.ItemTemplate = CreateNoticeTemplate();
+        shell.Children.Add(list);
+
         SetResourceReference(ForegroundProperty, "Brush.TextPrimary");
         SetResourceReference(BackgroundProperty, "Brush.ShellSurface");
         PluginUiRenderer.ApplyTheme(list);
-        Content = list;
+        Content = shell;
     }
 
     private System.Windows.DataTemplate CreateNoticeTemplate()

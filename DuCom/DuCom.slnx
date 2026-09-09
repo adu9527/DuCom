@@ -9,6 +9,7 @@
     <Project Path="src/DuCom.PluginHost/DuCom.PluginHost.csproj" />
     <Project Path="src/DuCom.Plugins.BackgroundImage/DuCom.Plugins.BackgroundImage.csproj" />
     <Project Path="src/DuCom.Plugins.LogPackage/DuCom.Plugins.LogPackage.csproj" />
+    <Project Path="src/DuCom.Plugins.Timer/DuCom.Plugins.Timer.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DuCom.Core.Tests/DuCom.Core.Tests.csproj" />

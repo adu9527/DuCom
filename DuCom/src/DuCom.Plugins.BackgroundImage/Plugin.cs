@@ -4,11 +4,15 @@ using DuCom.Plugin.Dto;
 
 namespace DuCom.Plugins.BackgroundImage;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "CA1001:Types that own disposable fields should be disposable",
+    Justification = "The gate lives exactly as long as the plugin instance, which lives exactly as long as the worker process; the host deactivates plugins by tearing down the process.")]
 public sealed class Plugin : DuComPlugin
 {
     private static readonly string[] ImageExtensions = [".png", ".jpg", ".jpeg", ".bmp", ".webp"];
 
     private readonly Lock _gate = new();
+    private readonly SemaphoreSlim _applyGate = new(1, 1);
+    private CancellationTokenSource? _applyCancellation;
     private BackgroundConfig _config = new();
     private CancellationTokenSource? _carouselCancellation;
     private List<string> _playlist = [];
@@ -35,7 +39,7 @@ public sealed class Plugin : DuComPlugin
         }
     }
 
-    public override async Task<PluginActivation> ActivateAsync(CancellationToken cancellationToken)
+    public override Task<PluginActivation> ActivateAsync(CancellationToken cancellationToken)
     {
         PluginActivation activation = new()
         {
@@ -75,7 +79,8 @@ public sealed class Plugin : DuComPlugin
         };
 
         RestartCarousel();
-        return activation;
+        QueueApply(repaintOnly: false);
+        return Task.FromResult(activation);
     }
 
     public override async Task<SettingsApplyOutcome> OnSettingsApplyAsync(IReadOnlyDictionary<string, string> values, CancellationToken cancellationToken)
@@ -154,6 +159,11 @@ public sealed class Plugin : DuComPlugin
                 // calling control already shows the new value and a rebuild would interrupt drags.
                 await OnSettingsApplyAsync(formValues, cancellationToken);
                 return CommandInvokeOutcome.Complete();
+            case "reset-defaults":
+                // Restore factory defaults but keep the user's picked image/folder paths.
+                await ApplyConfigurationAsync(true, "single", _config.ImagePath, _config.FolderPath, 300, 0.18d, cancellationToken);
+                await PushSettingsPageAsync(cancellationToken);
+                return CommandInvokeOutcome.Complete(Zh("已恢复默认参数", "Defaults restored"));
             case "next":
                 return AdvanceNow() ? CommandInvokeOutcome.Complete() : CommandInvokeOutcome.Complete(Zh("没有可用图片", "No images available"));
             default:
@@ -167,6 +177,8 @@ public sealed class Plugin : DuComPlugin
         {
             _carouselCancellation?.Cancel();
             _carouselCancellation = null;
+            _applyCancellation?.Cancel();
+            _applyCancellation = null;
         }
 
         _ = Api.Background.ClearAsync(CancellationToken.None);
@@ -199,10 +211,56 @@ public sealed class Plugin : DuComPlugin
         {
             RestartCarousel();
         }
-        else
+
+        // The command returns as soon as the new configuration is durable. A newer request
+        // cancels any old image resolution/apply before entering the single serialized gate.
+        QueueApply(repaintOnly: !structural);
+        // Refresh the dispatcher's cached page after every configuration change (enable state,
+        // opacity), not only when the displayed image changes.
+        await PushSettingsPageAsync(cancellationToken);
+    }
+
+    private void QueueApply(bool repaintOnly)
+    {
+        CancellationToken token;
+        lock (_gate)
         {
-            // Opacity-only change: fast path that reuses the cached image token.
-            await ApplyCurrentAsync(cancellationToken, repaintOnly: true);
+            _applyCancellation?.Cancel();
+            _applyCancellation = new CancellationTokenSource();
+            token = _applyCancellation.Token;
+        }
+
+        _ = RunQueuedApplyAsync(repaintOnly, token);
+    }
+
+    private async Task RunQueuedApplyAsync(bool repaintOnly, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await EnqueueApplyAsync(cancellationToken, repaintOnly);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            Api.Diagnostics.Warning($"Background apply failed: {exception.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Serializes every background application through one gate. Each run snapshots the latest
+    /// configuration, so a slow stale run (old image, old enable state) can never overwrite a
+    /// newer transition: the newest configuration always wins.
+    /// </summary>
+    private async Task EnqueueApplyAsync(CancellationToken cancellationToken, bool repaintOnly = false)
+    {
+        await _applyGate.WaitAsync(cancellationToken);
+        try
+        {
+            await ApplyCurrentAsync(cancellationToken, repaintOnly);
+        }
+        finally
+        {
+            _applyGate.Release();
         }
     }
 
@@ -278,8 +336,10 @@ public sealed class Plugin : DuComPlugin
         {
             await Api.Ui.UpdateToolPageAsync("settings", BuildSettingsNodes(), cancellationToken);
         }
-        catch (PluginHostException)
+        catch (PluginHostException exception)
         {
+            // Silent UI staleness caused a long-living "settings memory" bug: always surface it.
+            Api.Diagnostics.Warning($"Settings page push failed: {exception.Code} {exception.Message}");
         }
     }
 
@@ -368,8 +428,8 @@ public sealed class Plugin : DuComPlugin
             startCarousel = _config.Enabled && _config.Playback != "single";
         }
 
-        // A single image has no timer, but still must be shown immediately.
-        _ = Task.Run(() => ApplyCurrentAsync(cancellation.Token));
+        // Only the slideshow timer starts here; every image application goes through the
+        // serialized EnqueueApplyAsync gate so concurrent edits cannot interleave.
         if (!startCarousel) return;
 
         new Thread(() => CarouselLoop(cancellation.Token))
@@ -439,7 +499,7 @@ public sealed class Plugin : DuComPlugin
                 }
             }
 
-            await ApplyCurrentAsync(CancellationToken.None);
+            QueueApply(repaintOnly: false);
         });
         return true;
     }
@@ -474,6 +534,7 @@ public sealed class Plugin : DuComPlugin
             new UiSelectNode { FieldId = "playback", Selected = _config.Playback, Options = [new UiSelectOption { Value = "single", Label = Zh("单张", "Single image") }, new UiSelectOption { Value = "sequential", Label = Zh("顺序轮播", "Sequential") }, new UiSelectOption { Value = "random", Label = Zh("随机轮播", "Random") }] },
             new UiSliderNode { FieldId = "opacity", Min = 0, Max = 100, Step = 1, Value = Math.Round(_config.Opacity * 100), UnitLabel = "%" },
             new UiTextNode { FieldId = "intervalSeconds", Text = _config.IntervalSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture), Placeholder = Zh("轮播间隔（秒）", "Slideshow interval (seconds)") },
+            new UiButtonNode { CommandId = "reset-defaults", Text = Zh("恢复默认参数", "Restore defaults") },
         ];
     }
 

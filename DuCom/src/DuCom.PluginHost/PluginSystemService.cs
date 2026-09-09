@@ -49,6 +49,7 @@ public sealed record PluginManagerRow
     {
         "com.ducom.background-image" => "在 DuCom 主窗口底层显示自定义图片，支持单图和目录轮播。",
         "com.ducom.log-package" => "选择当前串口会话日志，填写问题信息并生成 ZIP 压缩包。",
+        "com.ducom.timer" => "秒表计时器：正计时、计次分段对比、记录导出，工具窗口支持置顶。",
         _ => "通过 DuCom 插件运行时提供扩展功能。",
     };
 }
@@ -95,6 +96,10 @@ public sealed class PluginSystemService : IAsyncDisposable
         _isOfficialNamespace = isOfficialNamespace ?? (id => id.StartsWith("com.ducom.", StringComparison.Ordinal) && FactoryIds.Contains(id));
         _budget.Warning += sample => ProgramLog?.Invoke($"Plugin budget warning: total={sample.TotalPrivateBytes:N0} host={sample.HostPrivateBytes:N0}");
         _budget.EmergencyStop += request => _ = HandleBudgetStopAsync(request);
+        // Budget stops are protective, not faults: once memory recovers below the warning
+        // line, quietly restart the plugins that were stopped so features come back alive
+        // without asking the user to babysit the restart button.
+        _budget.Recovered += sample => _ = RecoverBudgetStoppedPluginsAsync();
         _budget.Recovered += sample => ProgramLog?.Invoke($"Plugin budget recovered: total={sample.TotalPrivateBytes:N0}");
     }
 
@@ -102,6 +107,7 @@ public sealed class PluginSystemService : IAsyncDisposable
     [
         "com.ducom.background-image",
         "com.ducom.log-package",
+        "com.ducom.timer",
     ];
 
     public event Action<string>? ProgramLog;
@@ -448,6 +454,33 @@ public sealed class PluginSystemService : IAsyncDisposable
             ProgramLog?.Invoke($"Budget emergency: stopping '{controller.Manifest.Id}' (pid {request.Pid}, {request.PrivateBytes:N0} bytes).");
             await controller.StopForBudgetAsync(request.Sample).ConfigureAwait(false);
             Changed?.Invoke();
+        }
+    }
+
+    private async Task RecoverBudgetStoppedPluginsAsync()
+    {
+        List<string> candidates;
+        lock (_controllers)
+        {
+            candidates = [.. _controllers.Values
+                .Where(candidate => candidate.State == PluginRuntimeState.StoppedByBudget)
+                .Select(candidate => candidate.Manifest.Id)];
+        }
+
+        foreach (string pluginId in candidates)
+        {
+            // Re-check state per plugin: another path may have restarted or disabled it.
+            PluginRuntimeController? controller = GetOrCreateController(pluginId);
+            if (controller?.State != PluginRuntimeState.StoppedByBudget)
+            {
+                continue;
+            }
+
+            ProgramLog?.Invoke($"Budget recovered: restarting '{pluginId}'.");
+            if (await StartRegisteredAsync(pluginId).ConfigureAwait(false))
+            {
+                Changed?.Invoke();
+            }
         }
     }
 
