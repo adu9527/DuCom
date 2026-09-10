@@ -18,13 +18,19 @@ public sealed class CommitBoundaryRegressionTests : IDisposable
     private readonly ActivationScope _scope;
     private readonly PluginBroker _broker;
     private readonly HostTempDiskBudget _budget = new(1024 * 1024);
+    private Action<string, string>? _fileIoCheckpoint;
 
     public CommitBoundaryRegressionTests()
     {
         Directory.CreateDirectory(_root);
         PluginManifest manifest = new() { Id = "org.example.commit-boundary", Permissions = [Permission.FilesUserSelectedWrite] };
         _scope = new(manifest, "activation", Path.Combine(_root, "storage"), Path.Combine(_root, "scratch"), Path.Combine(_root, "output"), Path.Combine(_root, "snapshots"), new PluginLimits(), manifest.Permissions, _budget);
-        _broker = new(_scope, new FakeEnvironment(), new PluginDiagnosticsLog(Path.Combine(_root, "diag.log"), manifest.Id));
+        _broker = new(
+            _scope,
+            new FakeEnvironment(),
+            new PluginDiagnosticsLog(Path.Combine(_root, "diag.log"), manifest.Id),
+            null,
+            (stage, path) => _fileIoCheckpoint?.Invoke(stage, path));
     }
 
     private Task<JsonElement?> Call(string op, object? data = null) =>
@@ -49,7 +55,7 @@ public sealed class CommitBoundaryRegressionTests : IDisposable
         OutputCommitRequest second = new() { Token = await Output("second"), TargetToken = target, CommitId = "second" };
         using CountdownEvent prepared = new(2);
         using ManualResetEventSlim release = new();
-        PluginBroker.FileIoTestHook = (stage, _) =>
+        _fileIoCheckpoint = (stage, _) =>
         {
             if (stage != "publish.before-commit") return;
             prepared.Signal();
@@ -79,7 +85,7 @@ public sealed class CommitBoundaryRegressionTests : IDisposable
         string path = Path.Combine(_root, "result.bin");
         string target = _scope.CreateFileGrant(path, false, true, true);
         OutputCommitRequest request = new() { Token = await Output("published"), TargetToken = target, CommitId = "published" };
-        PluginBroker.FileIoTestHook = (stage, _) =>
+        _fileIoCheckpoint = (stage, _) =>
         {
             if (stage != "publish.before-cleanup") return;
             Assert.Equal("committed", State(request.CommitId).GetAwaiter().GetResult());
@@ -87,7 +93,7 @@ public sealed class CommitBoundaryRegressionTests : IDisposable
             throw new IOException("Injected post-rename failure");
         };
         await Call(PluginOps.OutputCommit, request);
-        PluginBroker.FileIoTestHook = null;
+        _fileIoCheckpoint = null;
         Assert.Equal("published", File.ReadAllText(path));
         Assert.Equal("committed", await State(request.CommitId));
         await Call(PluginOps.OutputCommit, request);
@@ -110,7 +116,7 @@ public sealed class CommitBoundaryRegressionTests : IDisposable
         string path = Path.Combine(_root, "result.bin");
         OutputCommitRequest request = new() { Token = await Output("published"), TargetToken = _scope.CreateFileGrant(path, false, true), CommitId = "cleanup" };
         FileStream? blocker = null;
-        PluginBroker.FileIoTestHook = (stage, _) =>
+        _fileIoCheckpoint = (stage, _) =>
         {
             if (stage == "publish.before-cleanup")
                 blocker = new FileStream(Assert.Single(Directory.EnumerateFiles(_scope.HostOutputDirectory)), FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -122,7 +128,7 @@ public sealed class CommitBoundaryRegressionTests : IDisposable
             Assert.Equal(9, _budget.ReservedBytes);
             await Assert.ThrowsAsync<PluginScopeException>(() => Call(PluginOps.OutputDiscard, new FilesTokenRequest { Token = request.Token }));
         }
-        finally { blocker?.Dispose(); PluginBroker.FileIoTestHook = null; }
+        finally { blocker?.Dispose(); _fileIoCheckpoint = null; }
         await Call(PluginOps.OutputDiscard, new FilesTokenRequest { Token = request.Token });
         Assert.Equal(0, _budget.ReservedBytes);
         Assert.Equal("committed", await State(request.CommitId));
@@ -131,7 +137,7 @@ public sealed class CommitBoundaryRegressionTests : IDisposable
 
     public void Dispose()
     {
-        PluginBroker.FileIoTestHook = null;
+        _fileIoCheckpoint = null;
         _scope.Dispose();
         Directory.Delete(_root, true);
     }

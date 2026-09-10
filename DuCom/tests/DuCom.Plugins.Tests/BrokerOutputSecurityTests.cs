@@ -15,17 +15,24 @@ public sealed class BrokerOutputSecurityTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), $"ducom-output-security-{Guid.NewGuid():N}");
     private readonly List<ActivationScope> _scopes = [];
 
-    private (ActivationScope Scope, PluginBroker Broker) Create(long quota = 1024 * 1024, HostTempDiskBudget? sharedBudget = null)
-        => Create("org.example.output-test", quota, sharedBudget);
+    private (ActivationScope Scope, PluginBroker Broker) Create(
+        long quota = 1024 * 1024,
+        HostTempDiskBudget? sharedBudget = null,
+        Action<string, string>? fileIoCheckpoint = null)
+        => Create("org.example.output-test", quota, sharedBudget, fileIoCheckpoint);
 
-    private (ActivationScope Scope, PluginBroker Broker) Create(string pluginId, long quota, HostTempDiskBudget? sharedBudget = null)
+    private (ActivationScope Scope, PluginBroker Broker) Create(
+        string pluginId,
+        long quota,
+        HostTempDiskBudget? sharedBudget = null,
+        Action<string, string>? fileIoCheckpoint = null)
     {
         PluginManifest manifest = new() { Id = pluginId, Permissions = [Permission.FilesUserSelectedWrite] };
         PluginLimits limits = new() { TempQuotaBytes = quota };
         string activation = Guid.NewGuid().ToString("N");
         ActivationScope scope = new(manifest, activation, Path.Combine(_root, "storage", activation), Path.Combine(_root, "scratch", activation), Path.Combine(_root, "host-output", activation), Path.Combine(_root, "host-snapshots", activation), limits, manifest.Permissions, sharedBudget);
         _scopes.Add(scope);
-        return (scope, new PluginBroker(scope, new FakeEnvironment(), new PluginDiagnosticsLog(Path.Combine(_root, "diag.log"), manifest.Id)));
+        return (scope, new PluginBroker(scope, new FakeEnvironment(), new PluginDiagnosticsLog(Path.Combine(_root, "diag.log"), manifest.Id), null, fileIoCheckpoint));
     }
 
     private (ActivationScope Scope, PluginBroker Broker) CreateForLogs(long quota, HostTempDiskBudget budget, IPluginHostEnvironment environment)
@@ -139,30 +146,22 @@ public sealed class BrokerOutputSecurityTests : IDisposable
     [Fact]
     public async Task TargetAppearingAtCommitPointIsNeverReplacedWithoutApproval()
     {
-        var (scope, broker) = Create();
-        OutputBeginResult output = await Begin(broker);
-        await Write(broker, output.Token, 0, "new");
         string destination = Path.Combine(_root, "destination.bin");
-        PluginBroker.FileIoTestHook = (stage, _) =>
+        var (scope, broker) = Create(fileIoCheckpoint: (stage, _) =>
         {
             if (stage == "publish.before-commit") File.WriteAllText(destination, "racer");
-        };
-        try
-        {
-            await Denied(broker, PluginOps.OutputCommit, Commit(output.Token, Target(scope)), PluginErrorCode.PermissionDenied);
-            Assert.Equal("racer", File.ReadAllText(destination));
-        }
-        finally { PluginBroker.FileIoTestHook = null; }
+        });
+        OutputBeginResult output = await Begin(broker);
+        await Write(broker, output.Token, 0, "new");
+        await Denied(broker, PluginOps.OutputCommit, Commit(output.Token, Target(scope)), PluginErrorCode.PermissionDenied);
+        Assert.Equal("racer", File.ReadAllText(destination));
     }
 
     [Fact]
     public async Task OpenStagingHandlePreventsPathSubstitutionAndPublishesHostBytes()
     {
-        var (scope, broker) = Create();
-        OutputBeginResult output = await Begin(broker);
-        await Write(broker, output.Token, 0, "host");
         bool replacementDenied = false;
-        PluginBroker.FileIoTestHook = (stage, path) =>
+        var (scope, broker) = Create(fileIoCheckpoint: (stage, path) =>
         {
             if (stage != "publish.before-commit") return;
             try
@@ -172,41 +171,34 @@ public sealed class BrokerOutputSecurityTests : IDisposable
             }
             catch (IOException) { replacementDenied = true; }
             catch (UnauthorizedAccessException) { replacementDenied = true; }
-        };
-        try
-        {
-            FilesCommitResult result = (await Call(broker, PluginOps.OutputCommit, Commit(output.Token, Target(scope))))!.Value.Deserialize<FilesCommitResult>(DtoJson.Options)!;
-            Assert.True(replacementDenied);
-            Assert.Equal("host", File.ReadAllText(result.FinalPath));
-        }
-        finally { PluginBroker.FileIoTestHook = null; }
+        });
+        OutputBeginResult output = await Begin(broker);
+        await Write(broker, output.Token, 0, "host");
+        FilesCommitResult result = (await Call(broker, PluginOps.OutputCommit, Commit(output.Token, Target(scope))))!.Value.Deserialize<FilesCommitResult>(DtoJson.Options)!;
+        Assert.True(replacementDenied);
+        Assert.Equal("host", File.ReadAllText(result.FinalPath));
     }
 
     [Fact]
     public async Task CancellationBeforeCommitLeavesTargetUntouchedAndReleasesPublicationQuota()
     {
         HostTempDiskBudget budget = new(1024);
-        var (scope, broker) = Create(quota: 1024, budget);
-        OutputBeginResult output = await Begin(broker);
-        await Write(broker, output.Token, 0, new string('x', 32));
         using CancellationTokenSource cancellation = new();
-        PluginBroker.FileIoTestHook = (stage, _) =>
+        var (scope, broker) = Create(quota: 1024, budget, (stage, _) =>
         {
             if (stage == "publish.before-commit") cancellation.Cancel();
-        };
-        try
-        {
-            OutputCommitRequest commit = Commit(output.Token, Target(scope));
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => broker.ExecuteAsync(
-                PluginOps.OutputCommit,
-                JsonSerializer.SerializeToElement(commit, DtoJson.Options),
-                cancellation.Token));
-            Assert.False(File.Exists(Path.Combine(_root, "destination.bin")));
-            Assert.Equal(32, budget.ReservedBytes);
-            OutputCommitStatusResult status = (await Call(broker, PluginOps.OutputCommitStatus, new OutputCommitStatusRequest { CommitId = commit.CommitId }))!.Value.Deserialize<OutputCommitStatusResult>(DtoJson.Options)!;
-            Assert.Equal("aborted", status.State);
-        }
-        finally { PluginBroker.FileIoTestHook = null; }
+        });
+        OutputBeginResult output = await Begin(broker);
+        await Write(broker, output.Token, 0, new string('x', 32));
+        OutputCommitRequest commit = Commit(output.Token, Target(scope));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => broker.ExecuteAsync(
+            PluginOps.OutputCommit,
+            JsonSerializer.SerializeToElement(commit, DtoJson.Options),
+            cancellation.Token));
+        Assert.False(File.Exists(Path.Combine(_root, "destination.bin")));
+        Assert.Equal(32, budget.ReservedBytes);
+        OutputCommitStatusResult status = (await Call(broker, PluginOps.OutputCommitStatus, new OutputCommitStatusRequest { CommitId = commit.CommitId }))!.Value.Deserialize<OutputCommitStatusResult>(DtoJson.Options)!;
+        Assert.Equal("aborted", status.State);
     }
 
     [Fact]
@@ -294,7 +286,6 @@ public sealed class BrokerOutputSecurityTests : IDisposable
 
     public void Dispose()
     {
-        PluginBroker.FileIoTestHook = null;
         foreach (ActivationScope scope in _scopes) scope.Revoke();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
     }
