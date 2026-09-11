@@ -12,15 +12,15 @@ public partial class PluginToolWindow : FluentWindow
     private readonly Func<string, IReadOnlyDictionary<string, string>, Task<bool>> _commandInvoker;
     private PluginCommandRouter? _router;
 
-    public PluginToolWindow(string pluginId, string contributionId, string title, Func<string, IReadOnlyDictionary<string, string>, Task<bool>> commandInvoker)
+    public PluginToolWindow(string pluginId, ToolPageContribution page, string title, Func<string, IReadOnlyDictionary<string, string>, Task<bool>> commandInvoker)
     {
         _commandInvoker = commandInvoker;
         PluginId = pluginId;
-        ContributionId = contributionId;
+        ContributionId = page.ContributionId;
         Title = title;
-        Width = pluginId == "com.ducom.log-package" ? 1080 : pluginId == "com.ducom.timer" ? 720 : 820;
-        Height = pluginId == "com.ducom.log-package" ? 900 : pluginId == "com.ducom.timer" ? 760 : 720;
-        MinWidth = pluginId == "com.ducom.log-package" ? 760 : pluginId == "com.ducom.timer" ? 560 : 640;
+        Width = page.PreferredWidth ?? (pluginId == "com.ducom.log-package" ? 1080 : pluginId == "com.ducom.timer" ? 720 : 820);
+        Height = page.PreferredHeight ?? (pluginId == "com.ducom.log-package" ? 900 : pluginId == "com.ducom.timer" ? 760 : 720);
+        MinWidth = page.MinWidth ?? (pluginId == "com.ducom.log-package" ? 760 : pluginId == "com.ducom.timer" ? 560 : 640);
         MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ExtendsContentIntoTitleBar = true;
@@ -201,8 +201,9 @@ public partial class PluginToolWindow : FluentWindow
         [.. nodes.Select(node => node switch
         {
             UiPanelNode panel => panel with { Children = PreserveFormValues(panel.Children, values) },
-            UiTextNode text when !text.ReadOnly && values.TryGetValue(text.FieldId, out string? value) => text with { Text = value },
-            UiCheckBoxNode check when values.TryGetValue(check.FieldId, out string? value) => check with { IsChecked = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) },
+            UiExpanderNode expander => expander with { Children = PreserveFormValues(expander.Children, values) },
+            UiTextNode text when !text.ReadOnly && text.PreserveUserValue && values.TryGetValue(text.FieldId, out string? value) => text with { Text = value },
+            UiCheckBoxNode check when string.IsNullOrWhiteSpace(check.CommandId) && values.TryGetValue(check.FieldId, out string? value) => check with { IsChecked = string.Equals(value, "true", StringComparison.OrdinalIgnoreCase) },
             UiSelectNode select when values.TryGetValue(select.FieldId, out string? value) => select with { Selected = value },
             UiSliderNode slider when values.TryGetValue(slider.FieldId, out string? value)
                 && double.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out double parsed) => slider with { Value = parsed },

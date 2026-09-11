@@ -56,6 +56,33 @@ public sealed class BrokerOutputSecurityTests : IDisposable
     private string Target(ActivationScope scope, bool allowReplace = false) => scope.CreateFileGrant(Path.Combine(_root, "destination.bin"), false, true, allowReplace);
 
     [Fact]
+    public async Task RememberedFileCanBeSnapshottedAndReadOnlyThroughSnapshotToken()
+    {
+        string source = Path.Combine(_root, "remembered.bin");
+        Directory.CreateDirectory(_root);
+        byte[] content = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        File.WriteAllBytes(source, content);
+        PluginManifest manifest = new() { Id = "org.example.remembered-snapshot", Permissions = [Permission.FilesUserSelectedRead] };
+        string activation = Guid.NewGuid().ToString("N");
+        ActivationScope scope = new(manifest, activation, Path.Combine(_root, "storage", activation), Path.Combine(_root, "scratch", activation), Path.Combine(_root, "host-output", activation), Path.Combine(_root, "host-snapshots", activation), new PluginLimits { TempQuotaBytes = 1024 * 1024 }, manifest.Permissions);
+        _scopes.Add(scope);
+        RememberedEnvironment environment = new(source);
+        PluginBroker broker = new(scope, environment, new PluginDiagnosticsLog(Path.Combine(_root, "diag.log"), manifest.Id));
+
+        FilesPickResult remembered = (await Call(broker, PluginOps.FilesRemembered, new FilesRememberedRequest { Path = source }))!.Value.Deserialize<FilesPickResult>(DtoJson.Options)!;
+        FilesSnapshotResult snapshots = (await Call(broker, PluginOps.FilesSnapshot, new FilesSnapshotRequest { TaskId = "snapshot-test", Tokens = [remembered.Token] }))!.Value.Deserialize<FilesSnapshotResult>(DtoJson.Options)!;
+        FileSnapshotEntry snapshot = Assert.Single(snapshots.Files);
+        FilesReadResult tail = (await Call(broker, PluginOps.FilesRead, new FilesReadRequest { Token = snapshot.Token, Offset = 6, Length = 4 }))!.Value.Deserialize<FilesReadResult>(DtoJson.Options)!;
+
+        Assert.Equal(content[6..], Convert.FromBase64String(tail.B64));
+        Assert.NotEqual(remembered.Token, snapshot.Token);
+        Assert.Contains("host-snapshots", snapshot.Path, StringComparison.OrdinalIgnoreCase);
+
+        await Call(broker, PluginOps.FilesForgetRemembered, new FilesRememberedRequest { Path = source });
+        Assert.Equal(source, Assert.Single(environment.Forgotten));
+    }
+
+    [Fact]
     public async Task ExistingTargetRequiresExplicitReplacementApprovalAndRemainsIntactOnFailure()
     {
         var (scope, broker) = Create();
@@ -75,6 +102,14 @@ public sealed class BrokerOutputSecurityTests : IDisposable
     {
         PluginScopeException error = await Assert.ThrowsAsync<PluginScopeException>(() => Call(broker, op, payload));
         Assert.Equal(code, error.Code);
+    }
+
+    private sealed class RememberedEnvironment(string path) : FakeEnvironment
+    {
+        public List<string> Forgotten { get; } = [];
+        public override string? TryResolveRememberedReadPath(string pluginId, string requestedPath) =>
+            string.Equals(Path.GetFullPath(requestedPath), Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase) ? path : null;
+        public override void ForgetRememberedReadPath(string pluginId, string requestedPath) => Forgotten.Add(requestedPath);
     }
 
     [Fact]

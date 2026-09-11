@@ -18,8 +18,8 @@ public sealed class PluginUiDispatcher
 {
     private readonly object _gate = new();
     private readonly Dictionary<string, PluginPublishedActivation> _activations = new(StringComparer.Ordinal);
-    private readonly Dictionary<(string PluginId, string ContributionId), IReadOnlyList<UiNode>> _toolPages = new();
-    private readonly Dictionary<string, List<(string ContributionId, IReadOnlyList<UiNode>)>> _toolPagesByPlugin = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string PluginId, string ContributionId), ToolPageContribution> _toolPages = new();
+    private readonly Dictionary<string, List<ToolPageContribution>> _toolPagesByPlugin = new(StringComparer.Ordinal);
     private readonly ObservableCollection<HostFaultNotice> _faultNotices = [];
     private PluginFaultNoticeWindow? _faultWindow;
 
@@ -49,14 +49,14 @@ public sealed class PluginUiDispatcher
                 _toolPagesByPlugin.Remove(activation.PluginId);
                 foreach (ToolPageContribution page in activation.ToolPages)
                 {
-                    _toolPages[(activation.PluginId, page.ContributionId)] = page.Nodes;
-                    if (!_toolPagesByPlugin.TryGetValue(activation.PluginId, out List<(string, IReadOnlyList<UiNode>)>? pages))
+                    _toolPages[(activation.PluginId, page.ContributionId)] = page;
+                    if (!_toolPagesByPlugin.TryGetValue(activation.PluginId, out List<ToolPageContribution>? pages))
                     {
                         pages = [];
                         _toolPagesByPlugin[activation.PluginId] = pages;
                     }
 
-                    pages.Add((page.ContributionId, page.Nodes));
+                    pages.Add(page);
                 }
             }
 
@@ -72,14 +72,15 @@ public sealed class PluginUiDispatcher
         // UI-thread-bound, but callers that await an "open" command must not observe old nodes.
         lock (_gate)
         {
-            _toolPages[(pluginId, contributionId)] = nodes;
-            if (_toolPagesByPlugin.TryGetValue(pluginId, out List<(string, IReadOnlyList<UiNode>)>? pages))
+            if (_toolPages.TryGetValue((pluginId, contributionId), out ToolPageContribution? page))
+                _toolPages[(pluginId, contributionId)] = page with { Nodes = nodes };
+            if (_toolPagesByPlugin.TryGetValue(pluginId, out List<ToolPageContribution>? pages))
             {
                 for (int index = 0; index < pages.Count; index++)
                 {
-                    if (pages[index].Item1 == contributionId)
+                    if (pages[index].ContributionId == contributionId)
                     {
-                        pages[index] = (contributionId, nodes);
+                        pages[index] = pages[index] with { Nodes = nodes };
                     }
                 }
             }
@@ -198,16 +199,16 @@ public sealed class PluginUiDispatcher
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
         ArgumentException.ThrowIfNullOrEmpty(contributionId);
         ArgumentNullException.ThrowIfNull(commandInvoker);
-        IReadOnlyList<UiNode>? nodes;
+        ToolPageContribution? page;
         PluginPublishedActivation? activation;
         lock (_gate)
         {
-            if (!_toolPages.TryGetValue((pluginId, contributionId), out IReadOnlyList<UiNode>? found))
+            if (!_toolPages.TryGetValue((pluginId, contributionId), out ToolPageContribution? found))
             {
                 return;
             }
 
-            nodes = found;
+            page = found;
             _activations.TryGetValue(pluginId, out activation);
         }
 
@@ -221,11 +222,11 @@ public sealed class PluginUiDispatcher
                 return;
             }
 
-            PluginToolWindow window = new(pluginId, contributionId, activation?.PluginName ?? pluginId, commandInvoker)
+            PluginToolWindow window = new(pluginId, page!, activation?.PluginName ?? pluginId, commandInvoker)
             {
                 Owner = Application.Current?.MainWindow,
             };
-            window.SetContent(nodes);
+            window.SetContent(page!.Nodes);
             window.Show();
         });
     }

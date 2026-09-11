@@ -139,13 +139,19 @@ public partial class PluginManagerViewModel
 
         try
         {
+            IsChangingState = true;
             await system.Service.UninstallAsync(row.Id);
+            OperationMessage = Resource("Plugins.Uninstall.Completed");
         }
         catch (Exception exception)
         {
             Program.DiagnosticLog?.Error("Plugin uninstall failed; package and data were retained where possible.", exception);
             ThemedMessageDialog.Show(Application.Current?.MainWindow, exception.Message,
                 Resource("Plugins.Uninstall.Title"), ThemedMessageDialogKind.Error);
+        }
+        finally
+        {
+            IsChangingState = false;
         }
 
         RefreshPlugins();

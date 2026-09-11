@@ -60,6 +60,10 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
     {
         return await _serialLeases.RunPortOperationAsync(request.Port, async () =>
         {
+            PortItemViewModel? currentPort = _portsProvider().FirstOrDefault(item => string.Equals(item.PortName, request.Port, StringComparison.OrdinalIgnoreCase));
+            if (request.DeviceIdentity is not null
+                && (currentPort is null || !string.Equals(currentPort.DeviceInstanceId, request.DeviceIdentity, StringComparison.Ordinal)))
+                return new HostSerialLeaseResult(string.Empty, request.Port, "changed", false, false, "The physical serial device changed after task confirmation.");
             SessionViewModel? session = _sessionsProvider().FirstOrDefault(item => string.Equals(item.PortName, request.Port, StringComparison.OrdinalIgnoreCase));
             bool wasOpen = session?.IsOpen == true;
             SerialLeaseSnapshot lease;
@@ -84,7 +88,11 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
         bool restored = false;
         string? message = null;
         SessionViewModel? session = _sessionsProvider().FirstOrDefault(item => string.Equals(item.PortName, lease.Port, StringComparison.OrdinalIgnoreCase));
-        if (lease.RestoreSession && lease.SessionWasOpen && session is not null)
+        PortItemViewModel? currentPort = _portsProvider().FirstOrDefault(item => string.Equals(item.PortName, lease.Port, StringComparison.OrdinalIgnoreCase));
+        bool identityMatches = lease.DeviceIdentity is not null
+            && currentPort is not null
+            && string.Equals(currentPort.DeviceInstanceId, lease.DeviceIdentity, StringComparison.Ordinal);
+        if (lease.RestoreSession && lease.SessionWasOpen && session is not null && identityMatches)
         {
             try
             {
@@ -93,6 +101,7 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
             }
             catch (Exception exception) { message = exception.Message; }
         }
+        else if (lease.RestoreSession && lease.SessionWasOpen) message = "The previous DuCom session was not restored because physical device identity could not be confirmed.";
         _serialLeases.Release(lease.LeaseId);
         return new HostSerialLeaseResult(lease.LeaseId, lease.Port, restored ? "released-restored" : "released", lease.SessionWasOpen, restored, message);
     }
@@ -404,6 +413,8 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
     }
 
     public string? TryResolveRememberedReadPath(string pluginId, string requestedPath) => _rememberedGrants.Resolve(pluginId, requestedPath);
+
+    public void ForgetRememberedReadPath(string pluginId, string path) => _rememberedGrants.Remove(pluginId, path);
 
     public string GetLogDirectory()
     {

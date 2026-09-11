@@ -15,6 +15,7 @@ public sealed class NativeHelperTaskManagerTests : IDisposable
     [InlineData("missing", "failed")]
     [InlineData("contradict", "failed")]
     [InlineData("fail", "failed")]
+    [InlineData("corrupt-progress", "failed")]
     public async Task ReconcilesResultDocumentAndExitCode(string mode, string expected)
     {
         using NativeHelperTaskManager manager = CreateManager();

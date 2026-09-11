@@ -19,6 +19,14 @@ internal sealed class NativeHelperTaskManager : IDisposable
     private readonly Dictionary<string, RunningHelperTask> _tasks = new(StringComparer.Ordinal);
     private bool _disposed;
 
+    public bool AllExitsConfirmed
+    {
+        get
+        {
+            lock (_gate) return _tasks.Values.All(task => task.ExitConfirmed);
+        }
+    }
+
     public NativeHelperTaskManager(PluginManifest manifest, string packageDirectory, string taskRoot)
     {
         _manifest = manifest;
@@ -125,6 +133,13 @@ internal sealed class NativeHelperTaskManager : IDisposable
         }
 
         int exitCode = task.ExitCode;
+        task.RefreshProgressEvidence(strict: true);
+        if (task.ProgressError is { } progressError)
+        {
+            task.Complete("failed", exitCode, null, progressError, true);
+            task.DisposeHandles();
+            return;
+        }
         HelperResultDocument? document = null;
         try
         {
@@ -254,6 +269,7 @@ internal sealed class NativeHelperTaskManager : IDisposable
         private string? _error;
         private int? _percent;
         private string? _message;
+        private string? _progressError;
         private int _handlesDisposed;
         private bool _exitConfirmed;
         private readonly TaskCompletionSource _terminal = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -263,6 +279,8 @@ internal sealed class NativeHelperTaskManager : IDisposable
         public string Id { get; } public IntPtr Process { get; } public IntPtr Job { get; } public uint ProcessId { get; }
         public string ResultPath { get; } public string CancelPath { get; } public string ProgressPath { get; } public int TimeoutMs { get; } public DateTimeOffset Started { get; }
         public bool IsTerminal { get { lock (_gate) return _ended.HasValue; } }
+        public bool ExitConfirmed { get { lock (_gate) return _ended.HasValue && _exitConfirmed; } }
+        public string? ProgressError { get { lock (_gate) return _progressError; } }
         public Task Terminal => _terminal.Task;
         public int ExitCode { get { WindowsInterop.GetExitCodeProcess(Process, out uint code); return unchecked((int)code); } }
         public void MarkCancelling() { lock (_gate) if (!_ended.HasValue) _state = "cancelling"; }
@@ -274,19 +292,27 @@ internal sealed class NativeHelperTaskManager : IDisposable
         { lock (_gate) { if (_ended.HasValue) return; _state = state; _exitCode = exitCode; _result = result; _error = error; _exitConfirmed = exitConfirmed; _ended = DateTimeOffset.UtcNow; } _terminal.TrySetResult(); }
         public HelperTaskResult Snapshot()
         {
-            RefreshProgress();
+            RefreshProgressEvidence(strict: false);
             lock (_gate) return new HelperTaskResult { TaskId = Id, State = _state, StartedUtc = Started, EndedUtc = _ended, ExitCode = _exitCode, Result = _result, Error = _error, ExitConfirmed = _exitConfirmed, Percent = _percent, Message = _message };
         }
-        private void RefreshProgress()
+        public void RefreshProgressEvidence(bool strict)
         {
-            if (IsTerminal || string.IsNullOrEmpty(ProgressPath)) return;
+            if (string.IsNullOrEmpty(ProgressPath) || !File.Exists(ProgressPath)) return;
             try
             {
                 ProgressDocument? progress = JsonSerializer.Deserialize<ProgressDocument>(File.ReadAllText(ProgressPath), DtoJson.Options);
-                if (progress is null) return;
-                lock (_gate) { _percent = Math.Clamp(progress.Percent, 0, 100); _message = progress.Message; }
+                if (progress is null || progress.Percent is < 0 or > 100)
+                    throw new JsonException("Progress document is empty or contains an out-of-range percentage.");
+                lock (_gate) { _percent = progress.Percent; _message = progress.Message; }
             }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException) { }
+            catch (IOException exception)
+            {
+                if (strict) lock (_gate) _progressError ??= $"Helper progress could not be read after process exit: {exception.Message}";
+            }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or JsonException)
+            {
+                lock (_gate) _progressError ??= $"Helper progress is invalid: {exception.Message}";
+            }
         }
         public void CleanupFiles() { try { string? directory = Path.GetDirectoryName(ResultPath); if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory)) Directory.Delete(directory, true); } catch { } }
         public void DisposeHandles() { if (Interlocked.Exchange(ref _handlesDisposed, 1) != 0) return; if (Process != IntPtr.Zero) WindowsInterop.CloseHandle(Process); if (Job != IntPtr.Zero) WindowsInterop.CloseHandle(Job); }

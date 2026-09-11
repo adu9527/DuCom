@@ -770,6 +770,9 @@
     <system:String x:Key="Plugins.State.FaultDisabled">故障禁用</system:String>
     <system:String x:Key="Plugins.State.Rejected">校验拒绝</system:String>
     <system:String x:Key="Plugins.Uninstall">卸载</system:String>
+    <system:String x:Key="Plugins.PackageActions">插件包管理</system:String>
+    <system:String x:Key="Plugins.PackageActions.Hint">安装新的 .dcpack，或卸载当前选中的外部插件。三个内置插件只能停用，不能卸载。</system:String>
+    <system:String x:Key="Plugins.Uninstall.Completed">插件已卸载。私有数据已保留，之后重新安装仍可恢复配置。</system:String>
     <system:String x:Key="Plugins.Install.PickTitle">选择 .dcpack 插件包</system:String>
     <system:String x:Key="Plugins.Install.RejectedTitle">插件包校验未通过</system:String>
     <system:String x:Key="Plugins.Install.ConfirmTitle">安装插件</system:String>

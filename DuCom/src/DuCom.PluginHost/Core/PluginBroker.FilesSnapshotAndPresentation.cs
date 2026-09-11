@@ -45,7 +45,8 @@ public sealed partial class PluginBroker
                     totalLength = checked(totalLength + read);
                 }
                 await target.FlushAsync(cancellationToken).ConfigureAwait(false);
-                files.Add(new FileSnapshotEntry { Token = token, Path = destination, Name = Path.GetFileName(grant.Path), Length = length, Sha256 = Convert.ToHexString(hash.GetHashAndReset()) });
+                string snapshotToken = _scope.CreateFileGrant(destination, isDirectory: false, write: false);
+                files.Add(new FileSnapshotEntry { Token = snapshotToken, Path = destination, Name = Path.GetFileName(grant.Path), Length = length, Sha256 = Convert.ToHexString(hash.GetHashAndReset()) });
             }
             return new FilesSnapshotResult { Files = files };
         }

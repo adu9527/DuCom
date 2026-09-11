@@ -76,7 +76,9 @@ public partial class MainViewModel
             return false;
         }
 
-        return await controller.InvokeCommandAsync(commandId, values);
+        return string.Equals(commandId, "stop", StringComparison.Ordinal)
+            ? await controller.NotifyPriorityCommandAsync(commandId, values)
+            : await controller.InvokeCommandAsync(commandId, values);
     }
 
     internal Task<bool> InvokePluginCommandForManagerAsync(string pluginId, string commandId, IReadOnlyDictionary<string, string> values) =>

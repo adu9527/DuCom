@@ -113,6 +113,8 @@ public interface IPluginHostEnvironment
 
     string? TryResolveRememberedReadPath(string pluginId, string requestedPath);
 
+    void ForgetRememberedReadPath(string pluginId, string path);
+
     /// <summary>Returns true only after the notice is displayed, never merely queued. Failure or shutdown leaves it pending.</summary>
     Task<bool> ShowFaultNoticeAsync(HostFaultNotice notice);
 

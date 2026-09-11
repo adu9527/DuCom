@@ -134,6 +134,7 @@ public sealed partial class PluginSystemService
     public void Uninstall(string pluginId)
     {
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
+        ThrowIfBuiltIn(pluginId);
         lock (_controllers)
         {
             if (_controllers.TryGetValue(pluginId, out PluginRuntimeController? controller)
@@ -160,6 +161,7 @@ public sealed partial class PluginSystemService
     public async Task UninstallAsync(string pluginId)
     {
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
+        ThrowIfBuiltIn(pluginId);
         await _lifecycleGate.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -192,6 +194,7 @@ public sealed partial class PluginSystemService
 
     private void UninstallStopped(string pluginId, bool exitConfirmed = false)
     {
+        ThrowIfBuiltIn(pluginId);
         if (!_registry.Current.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? entry))
         {
             return;
@@ -223,5 +226,11 @@ public sealed partial class PluginSystemService
             _startupRejections.TryRemove(pluginId, out _);
         }
         Changed?.Invoke();
+    }
+
+    private static void ThrowIfBuiltIn(string pluginId)
+    {
+        if (FactoryIds.Contains(pluginId, StringComparer.Ordinal))
+            throw new InvalidOperationException("Built-in plugins cannot be uninstalled.");
     }
 }

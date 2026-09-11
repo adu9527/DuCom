@@ -125,7 +125,8 @@ public sealed class RememberedGrantsStore
                 return normalized;
             }
 
-            if (normalized.StartsWith(grantedNormalized + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            if (Directory.Exists(grantedNormalized)
+                && normalized.StartsWith(grantedNormalized + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             {
                 return normalized;
             }

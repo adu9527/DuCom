@@ -15,11 +15,13 @@ public partial class PluginManagerViewModel
     [NotifyPropertyChangedFor(nameof(ToggleLabel))]
     [NotifyPropertyChangedFor(nameof(SelectedStateText))]
     [NotifyPropertyChangedFor(nameof(CanToggle))]
+    [NotifyPropertyChangedFor(nameof(CanUninstall))]
     public partial PluginManagerRow? SelectedPlugin { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToggleLabel))]
     [NotifyPropertyChangedFor(nameof(CanToggle))]
+    [NotifyPropertyChangedFor(nameof(CanUninstall))]
     public partial bool IsChangingState { get; set; }
 
     [ObservableProperty]
@@ -27,6 +29,8 @@ public partial class PluginManagerViewModel
 
     public bool CanToggle => IsRowSelected && !IsChangingState
         && SelectedPlugin?.State is not (PluginRuntimeState.Starting or PluginRuntimeState.Activating or PluginRuntimeState.Stopping);
+
+    public bool CanUninstall => CanToggle && SelectedPlugin?.IsBuiltIn == false;
 
     public string ToggleLabel => Resource(IsChangingState ? "Plugins.Working"
         : SelectedPlugin?.State is PluginRuntimeState.Active or PluginRuntimeState.Activating

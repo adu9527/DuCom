@@ -247,7 +247,9 @@ public class FakeEnvironment : IPluginHostEnvironment
         return Task.FromResult(true);
     }
 
-    public string? TryResolveRememberedReadPath(string pluginId, string requestedPath) => null;
+    public virtual string? TryResolveRememberedReadPath(string pluginId, string requestedPath) => null;
+
+    public virtual void ForgetRememberedReadPath(string pluginId, string path) { }
 
     public Task<bool> ShowFaultNoticeAsync(HostFaultNotice notice)
     {

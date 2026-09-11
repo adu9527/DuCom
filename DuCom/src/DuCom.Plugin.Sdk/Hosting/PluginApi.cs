@@ -46,6 +46,8 @@ public sealed record LogSnapshot(string Token, IReadOnlyList<LogSnapshotFileEntr
 }
 
 public sealed record OutputHandle(string Token, long MaxBytes, int ChunkMaxBytes);
+public sealed record PluginStorageSnapshot(string? Data, long Revision);
+public sealed record PluginStorageCompareExchangeResult(bool Exchanged, string? Data, long Revision);
 public sealed record OutputCommitStatus(string State, string? FinalPath, long Bytes, string? ErrorCode)
 {
     public bool IsCommitted => State == "committed";
@@ -57,6 +59,10 @@ public interface IPluginStorage
     Task<string?> ReadAsync(CancellationToken cancellationToken = default);
 
     Task WriteAsync(string json, CancellationToken cancellationToken = default);
+
+    Task<PluginStorageSnapshot> ReadVersionedAsync(CancellationToken cancellationToken = default);
+
+    Task<PluginStorageCompareExchangeResult> CompareExchangeAsync(long expectedRevision, string json, CancellationToken cancellationToken = default);
 }
 
 public interface IPluginFiles
@@ -76,6 +82,8 @@ public interface IPluginFiles
     Task<FilesPickResult?> CreateWriteTargetAsync(string? directory, string suggestName, CancellationToken cancellationToken = default);
 
     Task<string?> RequestRememberedReadTokenAsync(string path, CancellationToken cancellationToken = default);
+
+    Task ForgetRememberedReadPathAsync(string path, CancellationToken cancellationToken = default);
 
     Task<FilesStatResult> StatAsync(string token, CancellationToken cancellationToken = default);
 

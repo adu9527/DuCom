@@ -171,6 +171,19 @@ public sealed partial class PluginRuntimeController : IAsyncDisposable
         return response?.Error is null;
     }
 
+    public async Task<bool> NotifyPriorityCommandAsync(string commandId, IReadOnlyDictionary<string, string>? values = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(commandId);
+        if (_state != PluginRuntimeState.Active || _pipe is null) return false;
+        PluginWireMessage notification = PluginWireMessage.Notify(
+            _sessionId,
+            _activationId,
+            PluginOps.CommandPriority,
+            JsonSerializer.SerializeToElement(new CommandInvokeNotice { CommandId = commandId, Values = values ?? new Dictionary<string, string>() }));
+        await _pipe.SendControlMessageAsync(notification, CancellationToken.None).ConfigureAwait(false);
+        return true;
+    }
+
     public async Task<DuCom.Plugin.SettingsApplyOutcome?> ApplySettingsAsync(IReadOnlyDictionary<string, string> values)
     {
         ArgumentNullException.ThrowIfNull(values);

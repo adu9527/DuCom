@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
 using DuCom.Core.Persistence;
@@ -20,6 +22,8 @@ public sealed partial class PluginBroker : IDisposable
     private readonly IPluginHostEnvironment _environment;
     private readonly PluginDiagnosticsLog _diagnostics;
     private readonly string _storageFilePath;
+    private readonly string _storageRevisionPath;
+    private readonly string _storageMutexName;
     private readonly int _diagAllowancePerMinute;
     private readonly Queue<long> _diagWindow = new();
     private readonly Queue<long> _uiWindow = new();
@@ -45,6 +49,8 @@ public sealed partial class PluginBroker : IDisposable
         _diagnostics = diagnostics ?? throw new ArgumentNullException(nameof(diagnostics));
         _fileIoCheckpoint = fileIoCheckpoint;
         _storageFilePath = Path.Combine(scope.StorageDirectory, "config.json");
+        _storageRevisionPath = Path.Combine(scope.StorageDirectory, "config.revision");
+        _storageMutexName = "Local\\DuCom.PluginStorage." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(_storageFilePath).ToUpperInvariant())));
         _diagAllowancePerMinute = Math.Max(scope.Limits.DiagMessagesPerMinute, 1);
         _helperTasks = new NativeHelperTaskManager(scope.Manifest, packageDirectory ?? scope.TempDirectory, Path.Combine(scope.TempDirectory, "HelperTasks"));
     }
@@ -59,8 +65,9 @@ public sealed partial class PluginBroker : IDisposable
         _scope.ThrowIfRevoked();
         return operation switch
         {
-            PluginOps.StorageRead => Json(StorageRead()),
+            PluginOps.StorageRead => Json(await StorageReadAsync(cancellationToken)),
             PluginOps.StorageWrite => Json(await StorageWriteAsync(Require<StorageWriteRequest>(data))),
+            PluginOps.StorageCompareExchange => Json(await StorageCompareExchangeAsync(Require<StorageCompareExchangeRequest>(data), cancellationToken)),
             PluginOps.FilesPickRead => Json(await PickReadAsync(Require<FilesPickReadRequest>(data), cancellationToken)),
             PluginOps.FilesPickWrite => Json(await PickWriteAsync(Require<FilesPickWriteRequest>(data), cancellationToken)),
             PluginOps.FilesHostPaths => Json(HostPaths()),
@@ -69,6 +76,7 @@ public sealed partial class PluginBroker : IDisposable
             PluginOps.FilesRead => Json(await ReadChunkAsync(Require<FilesReadRequest>(data))),
             PluginOps.FilesList => Json(List(Require<FilesListRequest>(data))),
             PluginOps.FilesRemembered => Json(Remembered(Require<FilesRememberedRequest>(data))),
+            PluginOps.FilesForgetRemembered => Json(ForgetRemembered(Require<FilesRememberedRequest>(data))),
             PluginOps.FilesSnapshot => Json(await SnapshotFilesAsync(Require<FilesSnapshotRequest>(data), cancellationToken)),
             PluginOps.SerialList => Json(SerialList()),
             PluginOps.SerialPorts => Json(SerialPorts()),
@@ -99,7 +107,10 @@ public sealed partial class PluginBroker : IDisposable
     public void Dispose()
     {
         _helperTasks.Dispose();
-        _environment.RevokeSerialLeases(_scope.Manifest.Id, _scope.ActivationId);
+        // An unconfirmed helper may still own the physical port. Keep its lease quarantined
+        // instead of making the port available to the host or another plugin activation.
+        if (_helperTasks.AllExitsConfirmed)
+            _environment.RevokeSerialLeases(_scope.Manifest.Id, _scope.ActivationId);
     }
 
     public void WriteDiagnostic(string level, string message)
@@ -147,16 +158,16 @@ public sealed partial class PluginBroker : IDisposable
         }
     }
 
-    private StorageReadResult StorageRead()
+    private async Task<StorageReadResult> StorageReadAsync(CancellationToken cancellationToken)
     {
         RequirePermission(Permission.StorageOwn);
-        if (!File.Exists(_storageFilePath))
+        return await WithStorageLockAsync(() =>
         {
-            return new StorageReadResult { Data = null, Bytes = 0 };
-        }
-
-        string json = File.ReadAllText(_storageFilePath);
-        return new StorageReadResult { Data = json, Bytes = json.Length };
+            if (!File.Exists(_storageFilePath))
+                return new StorageReadResult { Data = null, Bytes = 0, Revision = ReadStorageRevision() };
+            string json = File.ReadAllText(_storageFilePath);
+            return new StorageReadResult { Data = json, Bytes = json.Length, Revision = ReadStorageRevision() };
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<object> StorageWriteAsync(StorageWriteRequest request)
@@ -167,11 +178,75 @@ public sealed partial class PluginBroker : IDisposable
             throw new PluginScopeException(PluginErrorCode.ResourceLimit, $"Storage exceeds the {_scope.Limits.StorageQuotaBytes} byte quota.");
         }
 
-        Directory.CreateDirectory(_scope.StorageDirectory);
-        await Task.Run(() => AtomicFileStore.WriteAllText(_storageFilePath, request.Data), CancellationToken.None).ConfigureAwait(false);
+        await WithStorageLockAsync(() =>
+        {
+            Directory.CreateDirectory(_scope.StorageDirectory);
+            AtomicFileStore.WriteAllText(_storageFilePath, request.Data);
+            WriteStorageRevision(checked(ReadStorageRevision() + 1));
+            return true;
+        }, CancellationToken.None).ConfigureAwait(false);
         _scope.AddStorageBytes(request.Data.Length);
         return new { bytes = request.Data.Length };
     }
+
+    private async Task<StorageCompareExchangeResult> StorageCompareExchangeAsync(StorageCompareExchangeRequest request, CancellationToken cancellationToken)
+    {
+        RequirePermission(Permission.StorageOwn);
+        if (request.ExpectedRevision < 0)
+            throw new PluginScopeException(PluginErrorCode.InvalidArgument, "Storage revision cannot be negative.");
+        if (request.Data.Length > _scope.Limits.StorageQuotaBytes)
+            throw new PluginScopeException(PluginErrorCode.ResourceLimit, $"Storage exceeds the {_scope.Limits.StorageQuotaBytes} byte quota.");
+
+        StorageCompareExchangeResult result = await WithStorageLockAsync(() =>
+        {
+            long revision = ReadStorageRevision();
+            if (revision != request.ExpectedRevision)
+            {
+                string? current = File.Exists(_storageFilePath) ? File.ReadAllText(_storageFilePath) : null;
+                return new StorageCompareExchangeResult { Exchanged = false, Data = current, Revision = revision };
+            }
+
+            Directory.CreateDirectory(_scope.StorageDirectory);
+            AtomicFileStore.WriteAllText(_storageFilePath, request.Data);
+            long next = checked(revision + 1);
+            WriteStorageRevision(next);
+            return new StorageCompareExchangeResult { Exchanged = true, Data = request.Data, Revision = next };
+        }, cancellationToken).ConfigureAwait(false);
+        if (result.Exchanged) _scope.AddStorageBytes(request.Data.Length);
+        return result;
+    }
+
+    private async Task<T> WithStorageLockAsync<T>(Func<T> action, CancellationToken cancellationToken)
+    {
+        return await Task.Run(() =>
+        {
+            using Mutex mutex = new(false, _storageMutexName);
+            bool acquired = false;
+            try
+            {
+                int signaled;
+                try { signaled = WaitHandle.WaitAny([mutex, cancellationToken.WaitHandle]); }
+                catch (AbandonedMutexException) { signaled = 0; }
+                if (signaled != 0) throw new OperationCanceledException(cancellationToken);
+                acquired = true;
+                return action();
+            }
+            finally
+            {
+                if (acquired) mutex.ReleaseMutex();
+            }
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private long ReadStorageRevision()
+    {
+        if (!File.Exists(_storageRevisionPath)) return File.Exists(_storageFilePath) ? 1 : 0;
+        return long.TryParse(File.ReadAllText(_storageRevisionPath), System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out long revision) && revision >= 0 ? revision : 0;
+    }
+
+    private void WriteStorageRevision(long revision) => AtomicFileStore.WriteAllText(
+        _storageRevisionPath, revision.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     private async Task<FilesPickResult?> PickReadAsync(FilesPickReadRequest request, CancellationToken cancellationToken)
     {
@@ -437,6 +512,14 @@ public sealed partial class PluginBroker : IDisposable
 
         string token = _scope.CreateFileGrant(resolved, isDirectory, write: false);
         return new FilesPickResult { Token = token, DisplayPath = resolved, IsDirectory = isDirectory, Entries = [] };
+    }
+
+    private object ForgetRemembered(FilesRememberedRequest request)
+    {
+        RequirePermission(Permission.FilesUserSelectedRead);
+        ArgumentException.ThrowIfNullOrEmpty(request.Path);
+        _environment.ForgetRememberedReadPath(_scope.Manifest.Id, request.Path);
+        return new { removed = true };
     }
 
 }

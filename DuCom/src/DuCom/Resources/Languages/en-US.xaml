@@ -770,6 +770,9 @@
     <system:String x:Key="Plugins.State.FaultDisabled">Fault disabled</system:String>
     <system:String x:Key="Plugins.State.Rejected">Rejected</system:String>
     <system:String x:Key="Plugins.Uninstall">Uninstall</system:String>
+    <system:String x:Key="Plugins.PackageActions">Plugin packages</system:String>
+    <system:String x:Key="Plugins.PackageActions.Hint">Install a new .dcpack or uninstall the selected external plugin. The three built-in plugins can be disabled but not uninstalled.</system:String>
+    <system:String x:Key="Plugins.Uninstall.Completed">The plugin was uninstalled. Private data was retained for a later reinstall.</system:String>
     <system:String x:Key="Plugins.Install.PickTitle">Choose a .dcpack plugin package</system:String>
     <system:String x:Key="Plugins.Install.RejectedTitle">Plugin package validation failed</system:String>
     <system:String x:Key="Plugins.Install.ConfirmTitle">Install plugin</system:String>

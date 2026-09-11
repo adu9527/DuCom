@@ -15,11 +15,25 @@ public sealed record StorageReadResult
 {
     [JsonPropertyName("data")] public string? Data { get; init; }
     [JsonPropertyName("bytes")] public long Bytes { get; init; }
+    [JsonPropertyName("revision")] public long Revision { get; init; }
 }
 
 public sealed record StorageWriteRequest
 {
     [JsonPropertyName("data")] public string Data { get; init; } = string.Empty;
+}
+
+public sealed record StorageCompareExchangeRequest
+{
+    [JsonPropertyName("expectedRevision")] public long ExpectedRevision { get; init; }
+    [JsonPropertyName("data")] public string Data { get; init; } = string.Empty;
+}
+
+public sealed record StorageCompareExchangeResult
+{
+    [JsonPropertyName("exchanged")] public bool Exchanged { get; init; }
+    [JsonPropertyName("data")] public string? Data { get; init; }
+    [JsonPropertyName("revision")] public long Revision { get; init; }
 }
 
 public sealed record LogDiagNotice

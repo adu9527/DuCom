@@ -82,6 +82,23 @@ internal sealed class PluginApiFacades(IPluginRequestChannel channel) : IPluginH
             ArgumentNullException.ThrowIfNull(json);
             await RequestAsync(channel, PluginOps.StorageWrite, new StorageWriteRequest { Data = json }, cancellationToken);
         }
+
+        public async Task<PluginStorageSnapshot> ReadVersionedAsync(CancellationToken cancellationToken = default)
+        {
+            StorageReadResult? result = await RequestTypedAsync<StorageReadResult>(channel, PluginOps.StorageRead, null, cancellationToken);
+            return new PluginStorageSnapshot(result?.Data, result?.Revision ?? 0);
+        }
+
+        public async Task<PluginStorageCompareExchangeResult> CompareExchangeAsync(long expectedRevision, string json, CancellationToken cancellationToken = default)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
+            ArgumentNullException.ThrowIfNull(json);
+            StorageCompareExchangeResult? result = await RequestTypedAsync<StorageCompareExchangeResult>(channel, PluginOps.StorageCompareExchange,
+                new StorageCompareExchangeRequest { ExpectedRevision = expectedRevision, Data = json }, cancellationToken);
+            return result is null
+                ? throw new PluginHostException(PluginErrorCode.InternalError, "Missing storage compare-exchange response.")
+                : new PluginStorageCompareExchangeResult(result.Exchanged, result.Data, result.Revision);
+        }
     }
 
     private sealed class FilesFacade(IPluginRequestChannel channel) : IPluginFiles
@@ -136,6 +153,12 @@ internal sealed class PluginApiFacades(IPluginRequestChannel channel) : IPluginH
             }
 
             return response.Value.TryGetProperty("token", out JsonElement token) ? token.GetString() : null;
+        }
+
+        public Task ForgetRememberedReadPathAsync(string path, CancellationToken cancellationToken = default)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(path);
+            return RequestAsync(channel, PluginOps.FilesForgetRemembered, new FilesRememberedRequest { Path = path }, cancellationToken);
         }
 
         public async Task<FilesStatResult> StatAsync(string token, CancellationToken cancellationToken = default)

@@ -63,6 +63,7 @@ public static class PluginOps
     public const string PluginActivate = "plugin.activate";
     public const string PluginDeactivate = "plugin.deactivate";
     public const string CommandInvoke = "command.invoke";
+    public const string CommandPriority = "command.priority";
     public const string SettingsApply = "settings.apply";
     public const string TaskCancel = "task.cancel";
     public const string TaskProgress = "task.progress";
@@ -70,6 +71,7 @@ public static class PluginOps
     public const string SessionClosed = "session.closed";
     public const string StorageRead = "storage.read";
     public const string StorageWrite = "storage.write";
+    public const string StorageCompareExchange = "storage.compareExchange";
     public const string LogDiag = "log.diag";
     public const string FilesPickRead = "files.pickRead";
     public const string FilesPickWrite = "files.pickWrite";
@@ -79,6 +81,7 @@ public static class PluginOps
     public const string FilesRead = "files.read";
     public const string FilesList = "files.list";
     public const string FilesRemembered = "files.remembered";
+    public const string FilesForgetRemembered = "files.forgetRemembered";
     public const string FilesSnapshot = "files.snapshot";
     public const string SerialList = "serial.list";
     public const string SerialPorts = "serial.ports";

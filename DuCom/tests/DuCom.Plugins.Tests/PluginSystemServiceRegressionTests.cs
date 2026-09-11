@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using DuCom.PluginHost;
 using DuCom.PluginHost.Core;
+using DuCom.PluginHost.Packages;
 using DuCom.PluginHost.Registry;
 using Xunit;
 
@@ -252,6 +253,55 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         Assert.Null(service.GetOrCreateController(Id));
         Assert.True(service.InstallPack(pack).Accepted);
         Assert.NotSame(first, service.GetOrCreateController(Id));
+    }
+
+    [Fact]
+    public async Task UninstallAllowsSameVersionDifferentContentReplacement()
+    {
+        PluginSystemService service = Create();
+        await service.InitializeAsync([]);
+        string first = Pack("1.0.0");
+        Assert.True(service.InstallPack(first).Accepted);
+        service.Uninstall(Id);
+
+        string stage = Path.Combine(_root, "stage-1.0.0");
+        File.WriteAllText(Path.Combine(stage, "Test.dll"), "replacement content");
+        File.Delete(first);
+        ZipFile.CreateFromDirectory(stage, first);
+
+        PackageValidationResult installed = service.InstallPack(first);
+        Assert.True(installed.Accepted);
+        Assert.Equal(installed.Digest, service.Registry.Current.Plugins[Id].InstalledVersions.Single().Digest);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BuiltInPluginCannotBeUninstalled(bool asynchronous)
+    {
+        PluginSystemService service = Create();
+        const string builtInId = "com.ducom.timer";
+        string stage = Path.Combine(_root, "built-in-stage");
+        Directory.CreateDirectory(stage);
+        File.WriteAllText(Path.Combine(stage, "plugin.manifest.json"), "{}");
+        FactoryPackDefinition factory = new()
+        {
+            PluginId = builtInId,
+            Version = "1.0.0",
+            Files = [new FactoryPackFile("plugin.manifest.json", () => File.ReadAllBytes(Path.Combine(stage, "plugin.manifest.json")))],
+        };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.InitializeAsync([factory]));
+
+        service.Registry.Mutate(data => data.Plugins[builtInId] = new PluginRegistryEntry
+        {
+            Id = builtInId,
+            InstalledVersions = [new InstalledVersionRecord { Version = "1.0.0", Path = stage, Source = InstalledVersionRecord.SourceBuiltIn }],
+        });
+        if (asynchronous)
+            await Assert.ThrowsAsync<InvalidOperationException>(() => service.UninstallAsync(builtInId));
+        else
+            Assert.Throws<InvalidOperationException>(() => service.Uninstall(builtInId));
+        Assert.True(Directory.Exists(stage));
     }
 
     [Theory]
@@ -652,6 +702,7 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         public string GetLogDirectory() => throw new NotSupportedException();
         public Task<bool> ShowNoticeAsync(HostPluginNotice notice) => Task.FromResult(false);
         public string? TryResolveRememberedReadPath(string pluginId, string requestedPath) => null;
+        public void ForgetRememberedReadPath(string pluginId, string path) { }
         public void PublishActivation(PluginPublishedActivation activation) => throw new NotSupportedException();
         public void UpdateToolPage(string pluginId, string contributionId, IReadOnlyList<DuCom.Plugin.UiNode> nodes) => throw new NotSupportedException();
         public void RemoveActivation(string pluginId) { }
