@@ -22,7 +22,5 @@ public partial class FeedbackWindow : FluentWindow
 
     private void OpenSystemLog_Click(object sender, RoutedEventArgs e) => SystemLogAccess.OpenCurrent();
 
-    private void TitleBar_CloseClicked(object sender, RoutedEventArgs e) => Close();
-
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 }

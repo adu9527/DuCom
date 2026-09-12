@@ -2,7 +2,8 @@
                  x:Name="SettingsRoot"
                   xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                   xmlns:converters="clr-namespace:DuCom.Converters"
+                    xmlns:converters="clr-namespace:DuCom.Converters"
+                    xmlns:controls="clr-namespace:DuCom.Controls"
                     xmlns:local="clr-namespace:DuCom"
                    xmlns:sending="clr-namespace:DuCom.Core.Sending;assembly=DuCom.Core"
                    xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -35,7 +36,9 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <ui:TitleBar x:Name="SettingsTitleBar" Title="{DynamicResource Settings.Title}" />
+        <ui:TitleBar x:Name="SettingsTitleBar" Title="{DynamicResource Settings.Title}" ShowClose="False" ShowMaximize="False" ShowMinimize="False">
+            <ui:TitleBar.TrailingContent><controls:WindowCaptionButtons ShowMaximize="True" ShowMinimize="True" /></ui:TitleBar.TrailingContent>
+        </ui:TitleBar>
 
         <Grid Grid.Row="1" Margin="12,4,12,12">
             <Grid.ColumnDefinitions>
@@ -370,10 +373,13 @@
                     <TabItem>
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
-                            <StackPanel>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Menu.Tools.Plugins}" />
-                                <TextBlock Style="{DynamicResource Style.SettingsPageDescription}" Text="{DynamicResource Settings.Plugins.Description}" />
-                            </StackPanel>
+                                <ui:Button Grid.Column="1" Appearance="Primary" Padding="16,7"
+                                           Command="{Binding PluginManager.InstallPluginCommand}"
+                                           Content="{DynamicResource Plugins.Install}" />
+                            </Grid>
                             <local:PluginManagerControl Grid.Row="1"
                                                         HorizontalAlignment="Stretch"
                                                         VerticalAlignment="Stretch"

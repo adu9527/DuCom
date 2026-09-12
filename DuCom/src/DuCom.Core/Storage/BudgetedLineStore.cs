@@ -9,6 +9,7 @@ public sealed class BudgetedLineStore
     private readonly int _maxTextBytes;
     private readonly int _maxSegmentCharacters;
     private readonly List<LogicalLine> _logicalLines = [];
+    private int _firstLogicalLineIndex;
     private long _evictedLineCount;
     private long _nextLogicalId = 1;
     private int _textBytes;
@@ -35,11 +36,9 @@ public sealed class BudgetedLineStore
 
             while (_textBytes > _maxTextBytes)
             {
-                LogicalLine evicted = _logicalLines[0];
-                _logicalLines.RemoveAt(0);
-                _textBytes -= evicted.TextBytes;
-                _evictedLineCount++;
+                EvictOldest();
             }
+            CompactIfNeeded();
 
             return logicalId;
         }
@@ -68,13 +67,11 @@ public sealed class BudgetedLineStore
 
             existing.TextBytes += continuation.TextBytes;
             _textBytes += continuation.TextBytes;
-            while (_textBytes > _maxTextBytes && _logicalLines.Count > 0)
+            while (_textBytes > _maxTextBytes && LiveLineCount > 0)
             {
-                LogicalLine evicted = _logicalLines[0];
-                _logicalLines.RemoveAt(0);
-                _textBytes -= evicted.TextBytes;
-                _evictedLineCount++;
+                EvictOldest();
             }
+            CompactIfNeeded();
         }
     }
 
@@ -96,8 +93,9 @@ public sealed class BudgetedLineStore
     {
         lock (_gate)
         {
-            _evictedLineCount += _logicalLines.Count;
+            _evictedLineCount += LiveLineCount;
             _logicalLines.Clear();
+            _firstLogicalLineIndex = 0;
             _textBytes = 0;
         }
     }
@@ -106,20 +104,25 @@ public sealed class BudgetedLineStore
     {
         lock (_gate)
         {
-            int segmentCount = _logicalLines.Sum(line => line.Segments.Count);
+            int segmentCount = 0;
+            for (int index = _firstLogicalLineIndex; index < _logicalLines.Count; index++)
+            {
+                segmentCount += _logicalLines[index].Segments.Count;
+            }
             StoredLine[] lines = new StoredLine[segmentCount];
             int destinationIndex = 0;
 
-            foreach (LogicalLine logicalLine in _logicalLines)
+            for (int index = _firstLogicalLineIndex; index < _logicalLines.Count; index++)
             {
+                LogicalLine logicalLine = _logicalLines[index];
                 logicalLine.Segments.CopyTo(lines, destinationIndex);
                 destinationIndex += logicalLine.Segments.Count;
             }
 
             ReadOnlyCollection<StoredLine> immutableLines = Array.AsReadOnly(lines);
             return new LineStoreSnapshot(
-                _logicalLines.Count == 0 ? null : _logicalLines[0].LogicalId,
-                _logicalLines.Count == 0 ? null : _logicalLines[^1].LogicalId,
+                LiveLineCount == 0 ? null : _logicalLines[_firstLogicalLineIndex].LogicalId,
+                LiveLineCount == 0 ? null : _logicalLines[^1].LogicalId,
                 _evictedLineCount,
                 immutableLines);
         }
@@ -131,11 +134,11 @@ public sealed class BudgetedLineStore
         lock (_gate)
         {
             List<StoredLine> lines = new(Math.Min(maximumSegments, 256));
-            int logicalLineIndex = 0;
+            int logicalLineIndex = _firstLogicalLineIndex;
             if (cursor.HasValue)
             {
                 long cursorLogicalId = cursor.Value.LogicalId;
-                int low = 0;
+                int low = _firstLogicalLineIndex;
                 int high = _logicalLines.Count;
                 while (low < high)
                 {
@@ -178,8 +181,8 @@ public sealed class BudgetedLineStore
     }
 
     private LineStoreSnapshot CreateSnapshot(IReadOnlyList<StoredLine> lines) => new(
-        _logicalLines.Count == 0 ? null : _logicalLines[0].LogicalId,
-        _logicalLines.Count == 0 ? null : _logicalLines[^1].LogicalId,
+        LiveLineCount == 0 ? null : _logicalLines[_firstLogicalLineIndex].LogicalId,
+        LiveLineCount == 0 ? null : _logicalLines[^1].LogicalId,
         _evictedLineCount,
         Array.AsReadOnly(lines.ToArray()));
 
@@ -214,7 +217,7 @@ public sealed class BudgetedLineStore
 
     private LogicalLine? FindLogicalLine(long logicalId)
     {
-        for (int index = _logicalLines.Count - 1; index >= 0; index--)
+        for (int index = _logicalLines.Count - 1; index >= _firstLogicalLineIndex; index--)
         {
             LogicalLine line = _logicalLines[index];
             if (line.LogicalId == logicalId)
@@ -229,6 +232,28 @@ public sealed class BudgetedLineStore
         }
 
         return null;
+    }
+
+    private int LiveLineCount => _logicalLines.Count - _firstLogicalLineIndex;
+
+    private void EvictOldest()
+    {
+        LogicalLine evicted = _logicalLines[_firstLogicalLineIndex++];
+        _textBytes -= evicted.TextBytes;
+        _evictedLineCount++;
+    }
+
+    private void CompactIfNeeded()
+    {
+        const int MinimumDeadPrefixForCompaction = 1_024;
+        if (_firstLogicalLineIndex < MinimumDeadPrefixForCompaction ||
+            _firstLogicalLineIndex * 2 < _logicalLines.Count)
+        {
+            return;
+        }
+
+        _logicalLines.RemoveRange(0, _firstLogicalLineIndex);
+        _firstLogicalLineIndex = 0;
     }
 
     private sealed class LogicalLine(long logicalId, int textBytes, List<StoredLine> segments)

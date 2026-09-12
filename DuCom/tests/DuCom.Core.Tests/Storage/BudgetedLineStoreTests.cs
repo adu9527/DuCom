@@ -203,6 +203,25 @@ public sealed class BudgetedLineStoreTests
         Assert.Equal([1, 0, 1, 0, 1, 0, 1, 0], snapshot.Lines.Select(line => line.SegmentIndex));
     }
 
+    [Fact]
+    public void SustainedEvictionPreservesSnapshotAndCursorSemantics()
+    {
+        BudgetedLineStore store = new(maxTextBytes: 2_000, maxSegmentCharacters: 8);
+        for (int index = 0; index < 20_000; index++)
+        {
+            store.Append(LineDirection.Rx, DateTimeOffset.UtcNow, $"{index:D8}", isTerminated: true);
+        }
+
+        LineStoreSnapshot snapshot = store.Snapshot();
+        Assert.Equal(250, snapshot.Lines.Count);
+        Assert.Equal(19_751, snapshot.FirstLogicalId);
+        Assert.Equal(20_000, snapshot.LastLogicalId);
+        Assert.Equal(19_750, snapshot.EvictedLineCount);
+
+        LineStoreSnapshot tail = store.SnapshotAfter(new LineCursor(19_995, 0), maximumSegments: 5);
+        Assert.Equal([19_996L, 19_997L, 19_998L, 19_999L, 20_000L], tail.Lines.Select(line => line.LogicalId));
+    }
+
     private static void AssertSnapshotIsConsistent(LineStoreSnapshot snapshot)
     {
         StoredLine[] lines = snapshot.Lines.ToArray();

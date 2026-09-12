@@ -8,10 +8,10 @@ public sealed partial class PluginSystemService
 {
     public PackageValidationResult InspectPack(string dcpackPath) => _installer.InspectDcPack(dcpackPath, _isOfficialNamespace);
 
-    public PackageValidationResult InstallPack(string dcpackPath, string? expectedDigest = null)
+    public PackageValidationResult InstallPack(string dcpackPath, string? expectedDigest = null, bool replaceExisting = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(dcpackPath);
-        PackageValidationResult result = _installer.InstallDcPack(dcpackPath, _isOfficialNamespace, expectedDigest);
+        PackageValidationResult result = _installer.InstallDcPack(dcpackPath, _isOfficialNamespace, expectedDigest, replaceExisting);
         if (result.Accepted)
         {
             _registry.Mutate(data =>
@@ -44,9 +44,9 @@ public sealed partial class PluginSystemService
         return result;
     }
 
-    public bool StageUpdate(string dcpackPath, bool approveNewPermissions = false)
+    public bool StageUpdate(string dcpackPath, string? expectedDigest = null, bool approveNewPermissions = false)
     {
-        PackageValidationResult result = InstallPack(dcpackPath);
+        PackageValidationResult result = InstallPack(dcpackPath, expectedDigest);
         if (!result.Accepted)
         {
             return false;
@@ -84,6 +84,50 @@ public sealed partial class PluginSystemService
         });
         Changed?.Invoke();
         return true;
+    }
+
+    public bool StageUpdate(string dcpackPath, bool approveNewPermissions) =>
+        StageUpdate(dcpackPath, expectedDigest: null, approveNewPermissions);
+
+    public async Task<PackageValidationResult> ReplaceSameVersionAsync(string dcpackPath, string expectedDigest)
+    {
+        PackageValidationResult inspected = InspectPack(dcpackPath);
+        if (!inspected.Accepted)
+        {
+            return inspected;
+        }
+
+        bool restart = false;
+        PackageValidationResult installed;
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!_registry.Current.Plugins.TryGetValue(inspected.Manifest.Id, out PluginRegistryEntry? entry) ||
+                !string.Equals(entry.SelectedVersion, inspected.Manifest.Version, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("Same-version replacement requires the package's version to be selected.");
+            }
+            ThrowIfBuiltIn(inspected.Manifest.Id);
+            await StopAsync(inspected.Manifest.Id).ConfigureAwait(false);
+            EnsurePluginExitConfirmed(inspected.Manifest.Id);
+
+            installed = InstallPack(dcpackPath, expectedDigest, replaceExisting: true);
+            lock (_controllers)
+            {
+                _controllers.Remove(inspected.Manifest.Id);
+            }
+            restart = entry.Enabled;
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+
+        if (restart)
+        {
+            _ = await StartRegisteredAsync(inspected.Manifest.Id).ConfigureAwait(false);
+        }
+        return installed;
     }
 
     public IReadOnlyList<string> ApplyPendingUpdates()
@@ -208,8 +252,7 @@ public sealed partial class PluginSystemService
             }
             if (!exitConfirmed && (entry.FaultDisabled is { ExitConfirmed: false }
                 || entry.LastAttempt is { EndedCleanly: null or false }
-                    && !(entry.FaultDisabled is { ExitConfirmed: true } fault && fault.ActivationId == entry.LastAttempt.ActivationId)
-                || controller is not null && controller.ActivationId.Length != 0))
+                    && !(entry.FaultDisabled is { ExitConfirmed: true } fault && fault.ActivationId == entry.LastAttempt.ActivationId)))
             {
                 throw new InvalidOperationException("Plugin exit has not been confirmed; package retained.");
             }
@@ -226,6 +269,25 @@ public sealed partial class PluginSystemService
             _startupRejections.TryRemove(pluginId, out _);
         }
         Changed?.Invoke();
+    }
+
+    private void EnsurePluginExitConfirmed(string pluginId)
+    {
+        PluginRegistryEntry entry = _registry.Current.Plugins[pluginId];
+        lock (_controllers)
+        {
+            if (_controllers.TryGetValue(pluginId, out PluginRuntimeController? controller) &&
+                (controller.WorkerPid != 0 || controller.State is PluginRuntimeState.Starting or PluginRuntimeState.Activating or PluginRuntimeState.Active or PluginRuntimeState.Stopping))
+            {
+                throw new InvalidOperationException("Plugin exit has not been confirmed; existing package retained.");
+            }
+        }
+        if (entry.FaultDisabled is { ExitConfirmed: false } ||
+            entry.LastAttempt is { EndedCleanly: null or false } &&
+            !(entry.FaultDisabled is { ExitConfirmed: true } fault && fault.ActivationId == entry.LastAttempt.ActivationId))
+        {
+            throw new InvalidOperationException("Plugin exit has not been confirmed; existing package retained.");
+        }
     }
 
     private static void ThrowIfBuiltIn(string pluginId)

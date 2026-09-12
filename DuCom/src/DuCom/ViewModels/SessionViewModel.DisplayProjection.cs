@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DuCom.Core.Parsing;
@@ -12,11 +13,12 @@ public partial class SessionViewModel
     private readonly AnsiDisplayProjector _projector = new();
     private long? _renderedLastLogicalId;
     private int _renderedLastSegmentIndex = -1;
-    private const int MaximumVisibleSegments = 30_000;
-    private const int MaximumVisibleCharacters = 4 * 1024 * 1024;
+    private const int MaximumVisibleSegments = 10_000;
+    private const int MaximumVisibleCharacters = 1_400_000;
     private const int MaximumSegmentsPerRender = 128;
     private LineStoreSnapshot _visibleSearchSnapshot = new(null, null, 0, []);
     private bool _visibleSearchSnapshotDirty = true;
+    private long _nextSearchSnapshotTimestamp;
     private int _visibleCharacterCount;
     private const char EscapeCharacter = '\u001B';
 
@@ -64,9 +66,12 @@ public partial class SessionViewModel
         // Keep each workspace's projection batch small enough for a stable UI frame.
         // Split panes call this independently and never share a quota or cursor.
         LineStoreSnapshot snapshot = _session.GetDisplaySnapshot(cursor, MaximumSegmentsPerRender);
-        EvictedLineCount = snapshot.EvictedLineCount;
-        OnPropertyChanged(nameof(HasEvictions));
-        OnPropertyChanged(nameof(EvictionDisplay));
+        if (EvictedLineCount != snapshot.EvictedLineCount)
+        {
+            EvictedLineCount = snapshot.EvictedLineCount;
+            OnPropertyChanged(nameof(HasEvictions));
+            OnPropertyChanged(nameof(EvictionDisplay));
+        }
 
         if (snapshot.FirstLogicalId is null)
         {
@@ -79,7 +84,7 @@ public partial class SessionViewModel
             _projector.Reset();
             _renderedLastLogicalId = null;
             _renderedLastSegmentIndex = -1;
-            if (publishSearchSnapshot && _visibleSearchSnapshotDirty)
+            if (publishSearchSnapshot && ShouldPublishSearchSnapshot())
             {
                 UpdateVisibleSearchSnapshot();
             }
@@ -158,26 +163,40 @@ public partial class SessionViewModel
             _renderedLastSegmentIndex = line.SegmentIndex;
         }
 
-        if (FollowEnd)
+        int trimCount = 0;
+        while (VisibleLines.Count - trimCount > MaximumVisibleSegments ||
+               _visibleCharacterCount > MaximumVisibleCharacters && VisibleLines.Count - trimCount > 1)
         {
-            int trimCount = 0;
-            while (VisibleLines.Count - trimCount > MaximumVisibleSegments ||
-                   _visibleCharacterCount > MaximumVisibleCharacters && VisibleLines.Count - trimCount > 1)
-            {
-                _visibleCharacterCount -= GetDisplayCharacterCount(VisibleLines[trimCount]);
-                trimCount++;
-            }
-            if (trimCount > 0)
-            {
-                VisibleLines.RemoveFirst(trimCount);
-                _visibleSearchSnapshotDirty = true;
-            }
+            _visibleCharacterCount -= GetDisplayCharacterCount(VisibleLines[trimCount]);
+            trimCount++;
         }
-        if (publishSearchSnapshot && _visibleSearchSnapshotDirty)
+        if (trimCount > 0)
+        {
+            VisibleLines.RemoveFirst(trimCount);
+            _visibleSearchSnapshotDirty = true;
+        }
+        if (publishSearchSnapshot && ShouldPublishSearchSnapshot())
         {
             UpdateVisibleSearchSnapshot();
         }
         return stateChanged;
+    }
+
+    private bool ShouldPublishSearchSnapshot()
+    {
+        if (!_visibleSearchSnapshotDirty)
+        {
+            return false;
+        }
+
+        long now = Stopwatch.GetTimestamp();
+        if (now < _nextSearchSnapshotTimestamp)
+        {
+            return false;
+        }
+
+        _nextSearchSnapshotTimestamp = now + Stopwatch.Frequency / 5;
+        return true;
     }
 
     [RelayCommand]

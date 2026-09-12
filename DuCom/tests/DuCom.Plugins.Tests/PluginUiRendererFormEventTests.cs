@@ -196,6 +196,35 @@ public sealed class PluginUiRendererFormEventTests
         if (failure is not null) throw failure;
     }
 
+    [Fact]
+    public void LogPackageRendererToleratesDuplicateSessionFields()
+    {
+        Exception? failure = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                Application app = Application.Current ?? new Application();
+                app.Resources["Brush.PanelRaised"] = Brushes.Transparent;
+                app.Resources["Brush.PanelBorder"] = Brushes.Transparent;
+                FrameworkElement root = PluginUiRenderer.Render(
+                [
+                    new UiCheckBoxNode { FieldId = "selection:s1", Label = "COM43" },
+                    new UiTextNode { FieldId = "device:COM43", Text = "first" },
+                    new UiCheckBoxNode { FieldId = "selection:s1", Label = "COM43" },
+                    new UiTextNode { FieldId = "device:COM43", Text = "duplicate" },
+                ], new PluginCommandRouter((_, _) => Task.FromResult(true)), "com.ducom.log-package");
+
+                Assert.Single(FindAll<CheckBox>(root), check => Equals(check.Tag, "selection:s1"));
+            }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) throw failure;
+    }
+
     private static T Find<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T match) return match;

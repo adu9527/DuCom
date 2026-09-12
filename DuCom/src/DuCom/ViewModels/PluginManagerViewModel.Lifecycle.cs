@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
 using DuCom.PluginHost;
 using DuCom.PluginHost.Core;
@@ -11,6 +12,7 @@ namespace DuCom.ViewModels;
 public partial class PluginManagerViewModel
 {
     private PluginSystemHost? _attachedSystem;
+    private DispatcherOperation? _pendingRefresh;
 
     internal void AttachPluginSystem(PluginSystemHost system)
     {
@@ -22,16 +24,12 @@ public partial class PluginManagerViewModel
         if (_attachedSystem is not null)
         {
             _attachedSystem.Service.Changed -= ScheduleRefresh;
-            _attachedSystem.Ui.Changed -= OnUiChanged;
         }
 
         _attachedSystem = system;
         system.Service.Changed += ScheduleRefresh;
-        system.Ui.Changed += OnUiChanged;
         RefreshPlugins();
     }
-
-    private void OnUiChanged(object? sender, EventArgs args) => ScheduleRefresh();
 
     [RelayCommand]
     private void RefreshPlugins()
@@ -203,6 +201,18 @@ public partial class PluginManagerViewModel
         OperationMessage = Resource("Plugins.NotActive");
     }
 
-    private void ScheduleRefresh() =>
-        Application.Current?.Dispatcher.BeginInvoke(RefreshPlugins);
+    private void ScheduleRefresh()
+    {
+        Dispatcher? dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || _pendingRefresh is { Status: DispatcherOperationStatus.Pending })
+        {
+            return;
+        }
+
+        _pendingRefresh = dispatcher.BeginInvoke(() =>
+        {
+            _pendingRefresh = null;
+            RefreshPlugins();
+        }, DispatcherPriority.Background);
+    }
 }

@@ -1,7 +1,8 @@
 ﻿<ui:FluentWindow x:Class="DuCom.ToolCenterWindow"
                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                  xmlns:diag="clr-namespace:DuCom.Core.Diagnostics;assembly=DuCom.Core"
+                   xmlns:diag="clr-namespace:DuCom.Core.Diagnostics;assembly=DuCom.Core"
+                   xmlns:controls="clr-namespace:DuCom.Controls"
                   xmlns:local="clr-namespace:DuCom"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                   Title="{DynamicResource Tools.Title}"
@@ -21,7 +22,9 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <ui:TitleBar Title="{DynamicResource Tools.Title}" />
+        <ui:TitleBar Title="{DynamicResource Tools.Title}" ShowClose="False" ShowMaximize="False" ShowMinimize="False">
+            <ui:TitleBar.TrailingContent><controls:WindowCaptionButtons ShowMaximize="True" ShowMinimize="True" /></ui:TitleBar.TrailingContent>
+        </ui:TitleBar>
         <TabControl x:Name="RootTabs"
                     Grid.Row="1"
                     Margin="8"

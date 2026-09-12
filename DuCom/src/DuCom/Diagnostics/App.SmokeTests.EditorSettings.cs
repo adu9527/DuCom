@@ -167,7 +167,8 @@ public partial class App
             editor.PauseFollow();
             editor.FollowEnd = false;
             double pausedOffset = editor.VerticalOffset;
-            double pausedExtent = editor.ExtentHeight;
+            string pausedDocument = editor.Document.Text;
+            string pausedSelection = editor.SelectedText;
             for (int index = 0; index < 100; index++)
             {
                 string text = $"paused-{index:D4}";
@@ -185,18 +186,22 @@ public partial class App
                 throw new InvalidOperationException("AvalonEdit continued following the end after follow mode was disabled.");
             }
 
-            if (!editor.Document.Text.Contains("paused-0099", StringComparison.Ordinal))
+            if (!string.Equals(editor.Document.Text, pausedDocument, StringComparison.Ordinal))
             {
-                throw new InvalidOperationException("AvalonEdit stopped updating the document while follow mode was disabled.");
+                throw new InvalidOperationException("AvalonEdit changed the frozen document while follow mode was disabled.");
             }
-            if (editor.ExtentHeight <= pausedExtent)
+            if (!string.Equals(editor.SelectedText, pausedSelection, StringComparison.Ordinal))
             {
-                throw new InvalidOperationException("AvalonEdit did not update the scrollbar extent while follow mode was disabled.");
+                throw new InvalidOperationException("AvalonEdit changed the selection while the document was frozen.");
             }
 
             editor.FollowEnd = true;
             editor.ResumeFollow();
             await Task.Delay(250);
+            if (!editor.Document.Text.Contains("paused-0099", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("AvalonEdit did not synchronize accumulated logs after follow mode resumed.");
+            }
 
             probe.Close();
             DiagnosticLog?.Information("AvalonEdit log smoke test passed.");

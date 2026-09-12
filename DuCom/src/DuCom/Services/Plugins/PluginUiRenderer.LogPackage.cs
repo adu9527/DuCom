@@ -10,8 +10,14 @@ public static partial class PluginUiRenderer
     {
         List<UiNode> flat = [];
         Flatten(nodes, flat);
-        Dictionary<string, UiTextNode> fields = flat.OfType<UiTextNode>().ToDictionary(node => node.FieldId, StringComparer.Ordinal);
-        Dictionary<string, UiButtonNode> buttons = flat.OfType<UiButtonNode>().ToDictionary(node => node.CommandId, StringComparer.Ordinal);
+        Dictionary<string, UiTextNode> fields = flat.OfType<UiTextNode>()
+            .Where(node => !string.IsNullOrWhiteSpace(node.FieldId))
+            .GroupBy(node => node.FieldId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+        Dictionary<string, UiButtonNode> buttons = flat.OfType<UiButtonNode>()
+            .Where(node => !string.IsNullOrWhiteSpace(node.CommandId))
+            .GroupBy(node => node.CommandId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
         UiCheckBoxNode? followLogDirectory = flat.OfType<UiCheckBoxNode>().FirstOrDefault(node => node.FieldId == "followLogDirectory");
         UiProgressNode? progress = flat.OfType<UiProgressNode>().LastOrDefault();
         UiLabelNode? status = flat.OfType<UiLabelNode>().LastOrDefault(label => label.Style == UiTextStyle.Caption);
@@ -104,7 +110,9 @@ public static partial class PluginUiRenderer
         StackPanel selection = new();
         selection.Children.Add(Section("LogPackage.LogSelection"));
         selection.Children.Add(Muted("LogPackage.LogSelectionHint"));
-        foreach (UiCheckBoxNode session in flat.OfType<UiCheckBoxNode>().Where(node => node.FieldId.StartsWith("selection:", StringComparison.Ordinal)))
+        foreach (UiCheckBoxNode session in flat.OfType<UiCheckBoxNode>()
+                     .Where(node => node.FieldId.StartsWith("selection:", StringComparison.Ordinal))
+                     .DistinctBy(node => node.FieldId, StringComparer.Ordinal))
         {
             Grid row = new() { Margin = new Thickness(0, 5, 0, 5) };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });

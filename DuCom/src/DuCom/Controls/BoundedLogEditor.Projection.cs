@@ -5,7 +5,7 @@ namespace DuCom.Controls;
 
 public sealed partial class BoundedLogEditor
 {
-    private const int MaximumDocumentCharacters = 4 * 1024 * 1024;
+    private const int MaximumDocumentCharacters = 1_400_000;
     private readonly List<ProjectedLine> _projected = [];
 
     private void SynchronizeDocument(List<LogLineViewModel> target, ViewportAnchor? viewportAnchor)
@@ -33,11 +33,7 @@ public sealed partial class BoundedLogEditor
             ShiftSpans(-removeCharacters);
         }
 
-        int matchingPrefix = 0;
-        while (matchingPrefix < retainedCount && Matches(_projected[matchingPrefix], target[matchingPrefix]))
-        {
-            matchingPrefix++;
-        }
+        int matchingPrefix = FindMatchingPrefix(target, retainedCount);
         retainedCount = matchingPrefix;
         if (retainedCount < _projected.Count)
         {
@@ -52,14 +48,14 @@ public sealed partial class BoundedLogEditor
         Document.UndoStack.ClearAll();
 
         _colorizer.SetSpans(_spans);
-        TextArea.TextView.InvalidateMeasure();
         RestoreSelection(oldSelectionStart, oldSelectionLength, removeCharacters);
         if (follow && SelectionLength == 0)
         {
-            ScrollToEnd();
+            ScheduleFollowRender();
         }
         else
         {
+            TextArea.TextView.InvalidateMeasure();
             ScheduleViewportRestore(viewportAnchor);
         }
         ApplyCurrentMatch();
@@ -90,7 +86,7 @@ public sealed partial class BoundedLogEditor
 
             text.Append(line.Text).AppendLine();
             documentOffset += line.Text.Length + Environment.NewLine.Length;
-            _projected.Add(new ProjectedLine(line.LogicalId, line.SegmentIndex, line.Text, line.StyledRuns, lineStart, documentOffset));
+            _projected.Add(new ProjectedLine(line, lineStart, documentOffset));
         }
 
         Document.Text = text.ToString();
@@ -99,7 +95,7 @@ public sealed partial class BoundedLogEditor
         TextArea.TextView.InvalidateMeasure();
         if (FollowEnd && !_followSuppressed)
         {
-            ScrollToEnd();
+            ScheduleFollowRender();
         }
         else
         {
@@ -110,15 +106,15 @@ public sealed partial class BoundedLogEditor
 
     private List<LogLineViewModel> BuildBoundedTarget()
     {
-        LogLineViewModel[] lines = Lines?.ToArray() ?? [];
-        if (!FollowEnd || _followSuppressed)
+        IReadOnlyList<LogLineViewModel> lines = Lines switch
         {
-            return [.. lines];
-        }
-
+            IReadOnlyList<LogLineViewModel> list => list,
+            null => [],
+            _ => Lines.ToArray(),
+        };
         List<LogLineViewModel> target = [];
         int characters = 0;
-        for (int index = lines.Length - 1; index >= 0; index--)
+        for (int index = lines.Count - 1; index >= 0; index--)
         {
             int length = lines[index].Text.Length + Environment.NewLine.Length;
             if (target.Count > 0 && characters + length > MaximumDocumentCharacters)
@@ -151,6 +147,51 @@ public sealed partial class BoundedLogEditor
         return -1;
     }
 
+    private int FindMatchingPrefix(List<LogLineViewModel> target, int retainedCount)
+    {
+        if (retainedCount == 0)
+        {
+            return 0;
+        }
+
+        // Session projection mutates only by removing a prefix, appending a tail, or replacing
+        // the final partial line. Immutable row identity avoids scanning the complete document
+        // for the common append path.
+        if (ReferenceEquals(_projected[retainedCount - 1].Source, target[retainedCount - 1]))
+        {
+            return retainedCount;
+        }
+        if (retainedCount > 1 && ReferenceEquals(_projected[retainedCount - 2].Source, target[retainedCount - 2]))
+        {
+            return retainedCount - 1;
+        }
+
+        int matchingPrefix = 0;
+        while (matchingPrefix < retainedCount && Matches(_projected[matchingPrefix], target[matchingPrefix]))
+        {
+            matchingPrefix++;
+        }
+        return matchingPrefix;
+    }
+
+    private void ScheduleFollowRender()
+    {
+        if (_pendingFollowRender is { Status: System.Windows.Threading.DispatcherOperationStatus.Pending })
+        {
+            return;
+        }
+
+        _pendingFollowRender = Dispatcher.BeginInvoke(() =>
+        {
+            _pendingFollowRender = null;
+            TextArea.TextView.InvalidateMeasure();
+            if (FollowEnd && !_followSuppressed && SelectionLength == 0)
+            {
+                ScrollToEnd();
+            }
+        }, System.Windows.Threading.DispatcherPriority.Render);
+    }
+
     private void AppendLines(List<LogLineViewModel> lines, int startIndex)
     {
         if (startIndex >= lines.Count)
@@ -176,7 +217,7 @@ public sealed partial class BoundedLogEditor
 
             text.Append(line.Text).AppendLine();
             documentOffset += line.Text.Length + Environment.NewLine.Length;
-            _projected.Add(new ProjectedLine(line.LogicalId, line.SegmentIndex, line.Text, line.StyledRuns, lineStart, documentOffset));
+            _projected.Add(new ProjectedLine(line, lineStart, documentOffset));
         }
         Document.Insert(Document.TextLength, text.ToString());
     }

@@ -36,18 +36,22 @@ public sealed partial class BoundedLogEditor
     }
 
     private static bool Matches(ProjectedLine projected, LogLineViewModel line) =>
-        projected.LogicalId == line.LogicalId &&
-        projected.SegmentIndex == line.SegmentIndex &&
-        string.Equals(projected.Text, line.Text, StringComparison.Ordinal) &&
-        projected.StyledRuns.SequenceEqual(line.StyledRuns);
+        ReferenceEquals(projected.Source, line) ||
+        projected.Source.LogicalId == line.LogicalId &&
+        projected.Source.SegmentIndex == line.SegmentIndex &&
+        string.Equals(projected.Source.Text, line.Text, StringComparison.Ordinal) &&
+        projected.Source.StyledRuns.SequenceEqual(line.StyledRuns);
 
     private sealed record ProjectedLine(
-        long LogicalId,
-        int SegmentIndex,
-        string Text,
-        IReadOnlyList<StyleRun> StyledRuns,
+        LogLineViewModel Source,
         int StartOffset,
-        int EndOffset);
+        int EndOffset)
+    {
+        public long LogicalId => Source.LogicalId;
+        public int SegmentIndex => Source.SegmentIndex;
+        public string Text => Source.Text;
+        public IReadOnlyList<StyleRun> StyledRuns => Source.StyledRuns;
+    }
 
     private sealed record ViewportAnchor(long LogicalId, int SegmentIndex, double OffsetWithinLine);
 

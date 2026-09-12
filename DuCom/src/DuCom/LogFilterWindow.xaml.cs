@@ -17,7 +17,7 @@ namespace DuCom;
 /// <summary>
 /// Per-port real-time log filter window mirroring the reference tool's behavior 1:1: the
 /// surface shows only complete lines that contain at least one keyword (keywords split on
-/// spaces, commas, semicolons and tabs; case-insensitive). Data comes from the same session
+/// pipes, spaces, commas, semicolons and tabs; case-insensitive). Data comes from the same session
 /// display tap stream as the float send window, with its own STR/HEX display switch, fixed
 /// scroll, clear, and save-as snapshot. The tap publish callback runs on the receive
 /// pipeline thread and only enqueues work.
@@ -27,7 +27,8 @@ public partial class LogFilterWindow : FluentWindow
     private const string TapId = "log-filter";
     private const int MaximumBufferCharacters = 2 * 1024 * 1024;
     private const int MaximumLineCount = 5_000;
-    private static readonly char[] KeywordSeparators = [' ', ',', ';', '\t', '\uFF0C', '\uFF1B'];
+    private const int MaximumPartialLineCharacters = 16 * 1024;
+    private static readonly char[] KeywordSeparators = ['|', ' ', ',', ';', '\t', '\uFF0C', '\uFF1B'];
 
     private readonly SessionViewModel _session;
     private readonly Queue<string> _pendingText = new();
@@ -153,7 +154,9 @@ public partial class LogFilterWindow : FluentWindow
 
         if (start < buffer.Length)
         {
-            _lineBuffer.Append(buffer[start..]);
+            int remainingLength = buffer.Length - start;
+            int retainedLength = Math.Min(remainingLength, MaximumPartialLineCharacters);
+            _lineBuffer.Append(buffer, buffer.Length - retainedLength, retainedLength);
         }
 
         if (!added)
@@ -198,10 +201,11 @@ public partial class LogFilterWindow : FluentWindow
             return;
         }
 
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
         foreach (string part in text.Split(KeywordSeparators, StringSplitOptions.RemoveEmptyEntries))
         {
             string keyword = part.Trim();
-            if (keyword.Length > 0 && !_keywords.Contains(keyword))
+            if (keyword.Length > 0 && seen.Add(keyword))
             {
                 _keywords.Add(keyword);
             }

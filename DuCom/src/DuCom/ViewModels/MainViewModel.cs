@@ -26,7 +26,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     private static readonly JsonSerializerOptions ConfigurationJsonOptions = new() { WriteIndented = true };
     private readonly Func<WorkspaceSessionOptions, IWorkspaceSession> _sessionFactory;
     private readonly IPortDiscovery _portDiscovery;
-    private static readonly TimeSpan MinimumRenderInterval = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly TimeSpan MinimumRenderInterval = TimeSpan.FromSeconds(1d / 85d);
     private static readonly TimeSpan StatusRefreshInterval = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan SlowOperationThreshold = TimeSpan.FromMilliseconds(50);
     private readonly HashSet<string> _hiddenPorts = new(StringComparer.OrdinalIgnoreCase);
@@ -50,6 +50,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
     private bool _sessionsRestored;
     private SessionViewModel? _activeLogSession;
     private TimeSpan _lastRenderTime;
+    private TimeSpan _nextRenderTime;
     private TimeSpan _lastStatusRefreshTime;
     private readonly object _portRefreshSync = new();
     private bool _portRefreshRequested;

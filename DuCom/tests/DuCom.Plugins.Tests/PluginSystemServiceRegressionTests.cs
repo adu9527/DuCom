@@ -274,6 +274,31 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         Assert.Equal(installed.Digest, service.Registry.Current.Plugins[Id].InstalledVersions.Single().Digest);
     }
 
+    [Fact]
+    public async Task ReplaceSameVersionPreservesRegistryStateAndUsesNewContent()
+    {
+        PluginSystemService service = Create();
+        await service.InitializeAsync([]);
+        string pack = Pack("1.0.0", ["storage.own"]);
+        PackageValidationResult first = service.InstallPack(pack);
+        Assert.True(first.Accepted);
+        service.SetEnabled(Id, false);
+
+        string stage = Path.Combine(_root, "stage-1.0.0");
+        File.WriteAllText(Path.Combine(stage, "Test.dll"), "replacement content");
+        File.Delete(pack);
+        ZipFile.CreateFromDirectory(stage, pack);
+        PackageValidationResult inspected = service.InspectPack(pack);
+
+        PackageValidationResult replaced = await service.ReplaceSameVersionAsync(pack, inspected.Digest);
+
+        PluginRegistryEntry entry = service.Registry.Current.Plugins[Id];
+        Assert.True(replaced.Accepted);
+        Assert.Equal(inspected.Digest, entry.InstalledVersions.Single().Digest);
+        Assert.Contains("storage.own", entry.ApprovedPermissions);
+        Assert.False(entry.Enabled);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -9,7 +9,6 @@ namespace DuCom.Controls;
 
 public sealed partial class BoundedLogEditor
 {
-    private ScrollViewer? _observedScrollViewer;
     private DispatcherOperation? _pendingViewportRestore;
     private ViewportAnchor? _viewportAnchor;
 
@@ -43,39 +42,6 @@ public sealed partial class BoundedLogEditor
             {
                 yield return descendant;
             }
-        }
-    }
-
-    private void HookScrollViewer()
-    {
-        if (_observedScrollViewer is not null)
-        {
-            return;
-        }
-
-        ScrollViewer? viewer = FindVisualDescendants<ScrollViewer>(this).FirstOrDefault();
-        if (viewer is null)
-        {
-            return;
-        }
-
-        _observedScrollViewer = viewer;
-        viewer.ScrollChanged += OnScrollViewerScrollChanged;
-    }
-
-    private void OnScrollViewerScrollChanged(object sender, ScrollChangedEventArgs e)
-    {
-        if (FollowEnd && !_followSuppressed)
-        {
-            return;
-        }
-
-        double maximumOffset = Math.Max(0d, e.ExtentHeight - e.ViewportHeight);
-        if (maximumOffset <= 0d || e.VerticalOffset >= maximumOffset - 1d)
-        {
-            // The user scrolled the paused log back to the bottom; a click that never
-            // moved the viewport stays frozen (selection/inspection workflow).
-            FollowEndResumedFromBottom?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -143,5 +109,12 @@ public sealed partial class BoundedLogEditor
             TextArea.TextView.EnsureVisualLines();
             RestoreViewport(_viewportAnchor);
         }, DispatcherPriority.Background);
+    }
+
+    private void CancelViewportRestore()
+    {
+        _pendingViewportRestore?.Abort();
+        _pendingViewportRestore = null;
+        _viewportAnchor = null;
     }
 }

@@ -15,7 +15,9 @@ public partial class App
         {
             ViewModels.MainViewModel mainViewModel = _compositionRoot.MainViewModel;
             Services.Plugins.PluginSystemHost pluginSystem = new(
-                () => mainViewModel.Sessions.Concat(mainViewModel.RightSessions),
+                () => mainViewModel.Sessions
+                    .Concat(mainViewModel.RightSessions)
+                    .DistinctBy(session => session.WorkspaceSession.RuntimeId),
                 () => mainViewModel.AvailablePorts,
                 _compositionRoot.SerialLeases,
                 logDirectoryProvider: () => mainViewModel.LogDirectory);

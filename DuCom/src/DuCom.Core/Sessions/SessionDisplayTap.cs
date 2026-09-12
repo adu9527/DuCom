@@ -115,13 +115,14 @@ public sealed class SessionTapHub
             return;
         }
 
-        List<TapPublication> publications = [];
+        List<TapPublication> publications;
         lock (_gate)
         {
             if (_runtimesByTapId.Count == 0)
             {
                 return;
             }
+            publications = new List<TapPublication>(_runtimesByTapId.Count);
 
             List<TapRuntime>? faultedRuntimes = null;
             foreach (TapRuntime runtime in _runtimesByTapId.Values)
@@ -197,13 +198,14 @@ public sealed class SessionTapHub
     public void PublishTransmit(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        List<TapPublication> publications = [];
+        List<TapPublication> publications;
         lock (_gate)
         {
             if (_runtimesByTapId.Count == 0)
             {
                 return;
             }
+            publications = new List<TapPublication>(_runtimesByTapId.Count);
 
             string payload = text + "\r\n";
             foreach (TapRuntime runtime in _runtimesByTapId.Values)

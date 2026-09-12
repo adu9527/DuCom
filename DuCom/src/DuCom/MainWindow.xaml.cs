@@ -57,7 +57,8 @@ public partial class MainWindow : FluentWindow
         };
         PluginMenuContextMenu.Items.Add(manage);
         PluginMenuContextMenu.Items.Add(new Separator());
-        foreach (Services.Plugins.PluginMenuEntry entry in viewModel.BuildPluginMenuEntries())
+        IReadOnlyList<Services.Plugins.PluginMenuEntry> entries = viewModel.BuildPluginMenuEntries();
+        foreach (Services.Plugins.PluginMenuEntry entry in entries)
         {
             System.Windows.Controls.MenuItem item = new() { Header = entry.Header };
             Services.Plugins.PluginMenuEntry captured = entry;
@@ -65,7 +66,7 @@ public partial class MainWindow : FluentWindow
             PluginMenuContextMenu.Items.Add(item);
         }
 
-        if (!viewModel.BuildPluginMenuEntries().Any())
+        if (entries.Count == 0)
         {
             System.Windows.Controls.MenuItem placeholder = new()
             {

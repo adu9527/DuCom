@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using DuCom.Controls;
 using DuCom.Plugin;
 using DuCom.PluginHost;
 using Wpf.Ui.Controls;
@@ -34,7 +35,8 @@ public partial class PluginToolWindow : FluentWindow
         shell.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         shell.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         shell.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        TitleBar titleBar = new() { Title = title, ShowMaximize = true, ShowMinimize = true };
+        TitleBar titleBar = new() { Title = title, ShowClose = false, ShowMaximize = false, ShowMinimize = false };
+        titleBar.TrailingContent = new WindowCaptionButtons { ShowMaximize = true, ShowMinimize = true };
         shell.Children.Add(titleBar);
         ScrollViewer viewer = new()
         {
@@ -118,9 +120,22 @@ public partial class PluginToolWindow : FluentWindow
             : string.Equals(PluginId, "com.ducom.background-image", StringComparison.Ordinal)
                 ? nodes
                 : PreserveFormValues(nodes, pendingValues);
-        viewer.Content = nodes is null || nodes.Count == 0
-            ? new System.Windows.Controls.TextBlock { Text = TryFindResource("Plugins.ToolPage.Empty") as string ?? "No content", Margin = new Thickness(12) }
-            : PluginUiRenderer.Render(displayNodes!, _router, PluginId);
+        try
+        {
+            viewer.Content = nodes is null || nodes.Count == 0
+                ? new System.Windows.Controls.TextBlock { Text = TryFindResource("Plugins.ToolPage.Empty") as string ?? "No content", Margin = new Thickness(12) }
+                : PluginUiRenderer.Render(displayNodes!, _router, PluginId);
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Error($"Plugin page rendering failed. Plugin={PluginId}; Page={ContributionId}.", exception);
+            viewer.Content = new System.Windows.Controls.TextBlock
+            {
+                Margin = new Thickness(12),
+                TextWrapping = TextWrapping.Wrap,
+                Text = TryFindResource("Plugins.ToolPage.RenderFailed") as string ?? "Plugin page rendering failed. Close the page and check the diagnostic log.",
+            };
+        }
         if (viewer.Content is FrameworkElement content)
         {
             PluginUiRenderer.ApplyTheme(content);

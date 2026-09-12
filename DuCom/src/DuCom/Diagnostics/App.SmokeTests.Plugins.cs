@@ -72,7 +72,7 @@ public partial class App
                 await Task.Delay(200);
                 Services.Plugins.PluginToolWindow window = Current.Windows.OfType<Services.Plugins.PluginToolWindow>().Single(item => item.PluginId == row.Id);
                 if (window.Content is not Grid shell || shell.Children.OfType<Wpf.Ui.Controls.TitleBar>().Count() != 1
-                    || !shell.Children.OfType<Border>().Any(footer => footer.Child is System.Windows.Controls.Button button && Equals(button.Content, FindResource("LogPackage.Cancel"))))
+                    || !Descendants<System.Windows.Controls.Button>(window).Any(button => Equals(button.Content, FindResource("LogPackage.Cancel"))))
                 {
                     throw new InvalidOperationException($"Plugin page shell is incomplete for {row.Id}.");
                 }

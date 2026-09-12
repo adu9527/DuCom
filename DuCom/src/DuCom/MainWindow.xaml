@@ -5,8 +5,9 @@
                   xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
                   xmlns:local="clr-namespace:DuCom"
                   xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-                 xmlns:behaviors="clr-namespace:DuCom.Behaviors"
-                 xmlns:converters="clr-namespace:DuCom.Converters"
+                  xmlns:behaviors="clr-namespace:DuCom.Behaviors"
+                  xmlns:converters="clr-namespace:DuCom.Converters"
+                  xmlns:controls="clr-namespace:DuCom.Controls"
                   xmlns:sending="clr-namespace:DuCom.Core.Sending;assembly=DuCom.Core"
                   xmlns:viewModels="clr-namespace:DuCom.ViewModels"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -53,8 +54,9 @@
 
         <ui:TitleBar Grid.Row="0"
                      Panel.ZIndex="101"
-                     ShowMaximize="True"
-                     ShowMinimize="True">
+                     ShowClose="False"
+                     ShowMaximize="False"
+                     ShowMinimize="False">
             <ui:TitleBar.Header>
             <StackPanel Margin="8,0,0,0"
                         VerticalAlignment="Center"
@@ -179,10 +181,10 @@
              </StackPanel>
             </ui:TitleBar.Header>
             <ui:TitleBar.TrailingContent>
+                <StackPanel Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <StackPanel Margin="0,0,12,0"
-                            VerticalAlignment="Center"
-                            shell:WindowChrome.IsHitTestVisibleInChrome="True"
-                            Orientation="Horizontal"
+                             VerticalAlignment="Center"
+                             Orientation="Horizontal"
                             Visibility="{Binding ShowMemoryMonitor, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Border Padding="8,4"
                             Background="{DynamicResource Brush.PanelRaised}"
@@ -223,6 +225,8 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
+                </StackPanel>
+                <controls:WindowCaptionButtons ShowMaximize="True" ShowMinimize="True" />
                 </StackPanel>
             </ui:TitleBar.TrailingContent>
         </ui:TitleBar>

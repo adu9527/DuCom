@@ -66,6 +66,30 @@ public partial class PluginManagerViewModel
             result.Manifest.Name,
             permissions);
         bool existingPlugin = system.Service.Registry.Current.Plugins.ContainsKey(result.Manifest.Id);
+        DuCom.PluginHost.Registry.PluginRegistryEntry? existingEntry = existingPlugin
+            ? system.Service.Registry.Current.Plugins[result.Manifest.Id]
+            : null;
+        bool sameSelectedVersion = string.Equals(existingEntry?.SelectedVersion, result.Manifest.Version, StringComparison.Ordinal);
+        IReadOnlyList<string> newPermissions = existingEntry is null
+            ? []
+            : [.. result.Manifest.Permissions.Where(permission =>
+                !existingEntry.ApprovedPermissions.Contains(permission, StringComparer.Ordinal))];
+        if (sameSelectedVersion && existingEntry!.InstalledVersions.Any(version =>
+                string.Equals(version.Version, result.Manifest.Version, StringComparison.Ordinal) &&
+                string.Equals(version.Digest, result.Digest, StringComparison.OrdinalIgnoreCase)))
+        {
+            OperationMessage = Resource("Plugins.Install.AlreadyInstalled");
+            return;
+        }
+        if (sameSelectedVersion && newPermissions.Count > 0)
+        {
+            ThemedMessageDialog.Show(
+                Application.Current?.MainWindow,
+                string.Format(Resource("Plugins.Install.SameVersionNewPermissions"), string.Join(", ", newPermissions)),
+                Resource("Plugins.Install.RejectedTitle"),
+                ThemedMessageDialogKind.Warning);
+            return;
+        }
         if (!ThemedMessageDialog.Confirm(
                 Application.Current?.MainWindow,
                 message,
@@ -80,7 +104,14 @@ public partial class PluginManagerViewModel
         {
             if (existingPlugin)
             {
-                if (!system.Service.StageUpdate(dialog.FileName, approveNewPermissions: true))
+                if (sameSelectedVersion)
+                {
+                    result = await system.Service.ReplaceSameVersionAsync(dialog.FileName, result.Digest);
+                    OperationMessage = Resource("Plugins.Install.Replaced");
+                    RefreshPlugins();
+                    return;
+                }
+                if (!system.Service.StageUpdate(dialog.FileName, result.Digest, approveNewPermissions: true))
                 {
                     throw new InvalidOperationException(Resource("Plugins.Install.RejectedTitle"));
                 }

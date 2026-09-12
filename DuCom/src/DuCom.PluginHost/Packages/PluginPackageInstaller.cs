@@ -204,7 +204,11 @@ public sealed class PluginPackageInstaller
         }
     }
 
-    public PackageValidationResult InstallDcPack(string dcpackPath, Func<string, bool> isOfficialNamespace, string? expectedDigest)
+    public PackageValidationResult InstallDcPack(
+        string dcpackPath,
+        Func<string, bool> isOfficialNamespace,
+        string? expectedDigest,
+        bool replaceExisting = false)
     {
         ArgumentException.ThrowIfNullOrEmpty(dcpackPath);
         if (!File.Exists(dcpackPath))
@@ -244,7 +248,30 @@ public sealed class PluginPackageInstaller
 
                 if (!identical)
                 {
-                    throw new PluginInstallException($"Version {result.Manifest.Version} of '{result.Manifest.Id}' is already installed with different content.");
+                    if (!replaceExisting)
+                    {
+                        throw new PluginInstallException($"Version {result.Manifest.Version} of '{result.Manifest.Id}' is already installed with different content.");
+                    }
+
+                    string backupDir = targetDir + $".backup-{Guid.NewGuid():N}";
+                    Directory.Move(targetDir, backupDir);
+                    try
+                    {
+                        Directory.Move(stagingRoot, targetDir);
+                        Directory.Delete(backupDir, recursive: true);
+                    }
+                    catch
+                    {
+                        if (Directory.Exists(targetDir))
+                        {
+                            Directory.Delete(targetDir, recursive: true);
+                        }
+                        if (Directory.Exists(backupDir))
+                        {
+                            Directory.Move(backupDir, targetDir);
+                        }
+                        throw;
+                    }
                 }
 
                 return result;

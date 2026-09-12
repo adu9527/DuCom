@@ -769,6 +769,7 @@
     <system:String x:Key="Plugins.State.Disabled">已停用</system:String>
     <system:String x:Key="Plugins.State.FaultDisabled">故障禁用</system:String>
     <system:String x:Key="Plugins.State.Rejected">校验拒绝</system:String>
+    <system:String x:Key="Plugins.State.StoppedByBudget">因内存保护停止</system:String>
     <system:String x:Key="Plugins.Uninstall">卸载</system:String>
     <system:String x:Key="Plugins.PackageActions">插件包管理</system:String>
     <system:String x:Key="Plugins.PackageActions.Hint">安装新的 .dcpack，或卸载当前选中的外部插件。三个内置插件只能停用，不能卸载。</system:String>
@@ -779,6 +780,9 @@
     <system:String x:Key="Plugins.Install.ConfirmAction">安装</system:String>
     <system:String x:Key="Plugins.Install.Confirm">即将安装插件：{0} {1}（{2}）。&#10;申请权限：{3}&#10;来源未经审核，请确认信任该来源后继续。是否安装？</system:String>
     <system:String x:Key="Plugins.Install.NoPermissions">（无）</system:String>
+    <system:String x:Key="Plugins.Install.AlreadyInstalled">此插件包已安装，无需重复安装。</system:String>
+    <system:String x:Key="Plugins.Install.Replaced">同版本插件已安全替换，已批准权限和私有数据均已保留。</system:String>
+    <system:String x:Key="Plugins.Install.SameVersionNewPermissions">同版本替换申请了新增权限：{0}。为避免静默扩大权限，请提升插件版本后再安装。</system:String>
     <system:String x:Key="Plugins.Retry.Title">重新启用插件</system:String>
     <system:String x:Key="Plugins.Retry.Warn">插件 {0} 上次因故障被禁用：&#10;{1}&#10;将清除禁用记录并重新尝试启动。</system:String>
     <system:String x:Key="Plugins.Uninstall.Title">卸载插件</system:String>
@@ -791,4 +795,5 @@
     <system:String x:Key="Plugins.Budget.Summary">工具总占用 {0:F0} / {1:F0} MB（宿主 {2:F0} MB）</system:String>
     <system:String x:Key="Plugins.FaultNotice.Title">插件故障提醒</system:String>
     <system:String x:Key="Plugins.ToolPage.Empty">暂无内容</system:String>
+    <system:String x:Key="Plugins.ToolPage.RenderFailed">插件页面渲染失败。请关闭页面并查看诊断日志，主程序将继续运行。</system:String>
 </ResourceDictionary>

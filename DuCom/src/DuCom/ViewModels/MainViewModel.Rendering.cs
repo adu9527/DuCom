@@ -8,12 +8,17 @@ public partial class MainViewModel
     private void OnCompositionRendering(object? sender, EventArgs e)
     {
         if (e is not RenderingEventArgs { RenderingTime: TimeSpan renderingTime } ||
-            renderingTime - _lastRenderTime < MinimumRenderInterval)
+            renderingTime < _nextRenderTime)
         {
             return;
         }
 
         _lastRenderTime = renderingTime;
+        _nextRenderTime += MinimumRenderInterval;
+        if (_nextRenderTime <= renderingTime)
+        {
+            _nextRenderTime = renderingTime + MinimumRenderInterval;
+        }
         OnRenderTick(renderingTime);
     }
 
@@ -57,9 +62,13 @@ public partial class MainViewModel
         }
 
         _lastStatusRefreshTime = renderingTime;
+        Dictionary<string, SessionViewModel> sessionsByPort = Sessions
+            .GroupBy(session => session.PortName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         foreach (PortItemViewModel port in AvailablePorts)
         {
-            port.Update(Sessions.FirstOrDefault(session => string.Equals(session.PortName, port.PortName, StringComparison.OrdinalIgnoreCase)));
+            sessionsByPort.TryGetValue(port.PortName, out SessionViewModel? session);
+            port.Update(session);
         }
         _serialParametersWindow?.RefreshTransportState();
 

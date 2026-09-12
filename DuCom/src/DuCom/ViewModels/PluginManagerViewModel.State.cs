@@ -18,6 +18,14 @@ public partial class PluginManagerViewModel
     [NotifyPropertyChangedFor(nameof(CanUninstall))]
     public partial PluginManagerRow? SelectedPlugin { get; set; }
 
+    partial void OnSelectedPluginChanged(PluginManagerRow? oldValue, PluginManagerRow? newValue)
+    {
+        if (!string.Equals(oldValue?.Id, newValue?.Id, StringComparison.Ordinal))
+        {
+            OperationMessage = string.Empty;
+        }
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ToggleLabel))]
     [NotifyPropertyChangedFor(nameof(CanToggle))]

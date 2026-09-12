@@ -21,7 +21,10 @@ public sealed partial class BoundedLogEditor : TextEditor
 {
     private INotifyCollectionChanged? _observedCollection;
     private DispatcherOperation? _pendingSync;
+    private DispatcherOperation? _pendingFollowRender;
     private bool _followSuppressed;
+    private bool _documentFrozen;
+    private bool _forcePendingSync;
     private bool _memoryWarningDismissed;
     private long _nextMemoryCheckTimestamp;
     private long _nextSlowSyncLogTimestamp;
@@ -92,16 +95,25 @@ public sealed partial class BoundedLogEditor : TextEditor
         set => SetValue(FollowEndProperty, value);
     }
 
-    /// <summary>Raised when the user scrolls a paused log back to the document end, so the host can restore <see cref="FollowEnd"/> and resume stacking.</summary>
-    public event EventHandler? FollowEndResumedFromBottom;
-
     /// <summary>Stops queued and future end-follow work before a binding update can arrive.</summary>
-    public void PauseFollow() => _followSuppressed = true;
+    public void PauseFollow()
+    {
+        _followSuppressed = true;
+        _documentFrozen = true;
+        _pendingSync?.Abort();
+        _pendingSync = null;
+        _forcePendingSync = false;
+        _pendingFollowRender?.Abort();
+        _pendingFollowRender = null;
+        CancelViewportRestore();
+    }
 
     public void ResumeFollow()
     {
         _followSuppressed = false;
-        ScheduleSync();
+        _documentFrozen = false;
+        CancelViewportRestore();
+        ScheduleSync(force: true);
     }
 
     public SearchMatch? CurrentMatch
@@ -133,7 +145,7 @@ public sealed partial class BoundedLogEditor : TextEditor
         BoundedLogEditor editor = (BoundedLogEditor)d;
         editor.Unsubscribe();
         editor.Subscribe();
-        editor.ScheduleSync();
+        editor.ScheduleSync(force: true);
     }
 
     private static void OnFollowEndChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -142,8 +154,20 @@ public sealed partial class BoundedLogEditor : TextEditor
         editor._followSuppressed = !(bool)e.NewValue;
         if ((bool)e.NewValue)
         {
+            editor._documentFrozen = false;
+            editor.CancelViewportRestore();
             // Apply everything accumulated while the user was inspecting a frozen view.
-            editor.ScheduleSync();
+            editor.ScheduleSync(force: true);
+        }
+        else
+        {
+            editor._documentFrozen = true;
+            editor._pendingSync?.Abort();
+            editor._pendingSync = null;
+            editor._forcePendingSync = false;
+            editor._pendingFollowRender?.Abort();
+            editor._pendingFollowRender = null;
+            editor.CancelViewportRestore();
         }
     }
 
@@ -161,20 +185,17 @@ public sealed partial class BoundedLogEditor : TextEditor
         Document.UndoStack.SizeLimit = 0;
         Document.UndoStack.ClearAll();
         _ = Dispatcher.BeginInvoke(SetVerticalScrollThumbMinimum, DispatcherPriority.Loaded);
-        ScheduleSync();
+        ScheduleSync(force: true);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         Unsubscribe();
-        if (_observedScrollViewer is not null)
-        {
-            _observedScrollViewer.ScrollChanged -= OnScrollViewerScrollChanged;
-            _observedScrollViewer = null;
-        }
-
         _pendingSync?.Abort();
         _pendingSync = null;
+        _forcePendingSync = false;
+        _pendingFollowRender?.Abort();
+        _pendingFollowRender = null;
         _pendingViewportRestore?.Abort();
         _pendingViewportRestore = null;
     }
@@ -201,25 +222,44 @@ public sealed partial class BoundedLogEditor : TextEditor
         _observedCollection = null;
     }
 
-    private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => ScheduleSync();
-
-    private void ScheduleSync()
+    private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (!IsLoaded || _pendingSync is { Status: DispatcherOperationStatus.Pending })
+        if (_documentFrozen)
+        {
+            if (Lines is ICollection<LogLineViewModel> { Count: 0 })
+            {
+                ResetDocument();
+            }
+            return;
+        }
+
+        ScheduleSync();
+    }
+
+    private void ScheduleSync(bool force = false)
+    {
+        _forcePendingSync |= force;
+        if (!IsLoaded || _documentFrozen && !_forcePendingSync ||
+            _pendingSync is { Status: DispatcherOperationStatus.Pending })
         {
             return;
         }
 
-        // Run the coalesced document update with the render cadence. Background priority can
-        // be starved by sustained CompositionTarget.Rendering callbacks and then jump in a
-        // large burst, which is visible as a paused log followed by a batch refresh.
-        _pendingSync = Dispatcher.BeginInvoke(SynchronizeDocumentSafe, DispatcherPriority.Render);
+        // Project before rendering. Running both the producer and AvalonEdit mutation at
+        // Render priority can consume consecutive paint opportunities during receive bursts.
+        _pendingSync = Dispatcher.BeginInvoke(SynchronizeDocumentSafe, DispatcherPriority.DataBind);
     }
 
     private void SynchronizeDocumentSafe()
     {
+        bool force = _forcePendingSync;
+        _forcePendingSync = false;
         long startedAt = Stopwatch.GetTimestamp();
         _pendingSync = null;
+        if (_documentFrozen && !force)
+        {
+            return;
+        }
         ViewportAnchor? viewportAnchor = CaptureViewportAnchor();
         List<LogLineViewModel> target = BuildBoundedTarget();
         try
@@ -238,10 +278,6 @@ public sealed partial class BoundedLogEditor : TextEditor
                 Program.DiagnosticLog?.Error("AvalonEdit bounded document rebuild failed.", rebuildException);
             }
         }
-        WarnForPausedMemoryGrowth();
-        HookScrollViewer();
-        SetVerticalScrollThumbMinimum();
-
         TimeSpan elapsed = Stopwatch.GetElapsedTime(startedAt);
         long now = Stopwatch.GetTimestamp();
         if (elapsed >= TimeSpan.FromMilliseconds(50) && now >= _nextSlowSyncLogTimestamp)
