@@ -393,7 +393,7 @@
                                MinWidth="44"
                                HorizontalAlignment="Stretch"
                                Appearance="Primary"
-                               Command="{Binding DataContext.SendSessionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                               Command="{Binding DataContext.Workspace.SendSessionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                CommandParameter="{Binding}"
                                ToolTip="{DynamicResource Send.Action}">
                         <ui:Button.Icon>

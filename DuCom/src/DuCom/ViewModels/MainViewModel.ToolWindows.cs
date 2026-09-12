@@ -28,7 +28,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void ToggleFloatSend()
     {
-        SessionViewModel? session = SelectedSession ?? SelectedRightSession;
+        SessionViewModel? session = Workspace.SelectedSession ?? Workspace.SelectedRightSession;
         if (session is null)
         {
             StatusMessage = GetResourceString("Status.NoSessionSelected");
@@ -47,7 +47,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void ShowLogFilter(SessionViewModel? session)
     {
-        session ??= SelectedSession ?? SelectedRightSession;
+        session ??= Workspace.SelectedSession ?? Workspace.SelectedRightSession;
         if (session is null)
         {
             StatusMessage = GetResourceString("Status.NoSessionSelected");

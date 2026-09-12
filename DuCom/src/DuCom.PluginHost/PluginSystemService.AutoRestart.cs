@@ -67,7 +67,9 @@ public sealed partial class PluginSystemService
     private readonly Dictionary<string, int> _autoRestartCrashes = new(StringComparer.Ordinal);
     private readonly Dictionary<string, DateTimeOffset> _lastHealthyStartUtc = new(StringComparer.Ordinal);
     private readonly HashSet<string> _userStopRequested = new(StringComparer.Ordinal);
+    private readonly HashSet<Task> _autoRestartTasks = [];
     private readonly CancellationTokenSource _autoRestartCancellation = new();
+    private int _autoRestartShutdown;
 
     /// <summary>
     /// Wired in <see cref="GetOrCreateController"/>: reacts to a controller entering
@@ -81,10 +83,10 @@ public sealed partial class PluginSystemService
             return;
         }
 
-        ScheduleAutoRestart(change.PluginId, change.Reason);
+        ScheduleAutoRestart(change.PluginId, change.ActivationId, change.Reason);
     }
 
-    private void ScheduleAutoRestart(string pluginId, string? reason)
+    private void ScheduleAutoRestart(string pluginId, string activationId, string? reason)
     {
         lock (_autoRestartGate)
         {
@@ -96,7 +98,7 @@ public sealed partial class PluginSystemService
                 return;
             }
 
-            if (_autoRestartCancellation.IsCancellationRequested)
+            if (Volatile.Read(ref _autoRestartShutdown) != 0)
             {
                 return;
             }
@@ -113,42 +115,81 @@ public sealed partial class PluginSystemService
             }
 
             ProgramLog?.Invoke($"Auto-restart of '{pluginId}' scheduled in {decision.Delay.TotalSeconds:0.#}s (attempt {decision.Attempt}/{AutoRestartPolicy.MaxConsecutiveRestarts}) after fault: {reason}");
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(decision.Delay, _autoRestartCancellation.Token).ConfigureAwait(false);
-                    await RestartAfterFaultAsync(pluginId).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                }
-                catch (Exception exception)
-                {
-                    ProgramLog?.Invoke($"Auto-restart of '{pluginId}' failed: {exception.Message}");
-                }
-            }, CancellationToken.None);
+            Task task = RunAutoRestartAsync(pluginId, activationId, decision.Delay);
+            _autoRestartTasks.Add(task);
+            _ = task.ContinueWith(
+                completed => RemoveAutoRestartTask(completed),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
         }
     }
 
-    private async Task RestartAfterFaultAsync(string pluginId)
+    private async Task RunAutoRestartAsync(string pluginId, string activationId, TimeSpan delay)
     {
-        PluginRegistryEntry? entry = _registry.Current.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? found) ? found : null;
-        if (entry is null || !entry.Enabled || entry.FaultDisabled is null)
+        try
         {
-            // The plugin was uninstalled, disabled, or already cleared by the user
-            // while the restart was pending; either way the fault state is no longer ours.
-            return;
+            await Task.Delay(delay, _autoRestartCancellation.Token).ConfigureAwait(false);
+            await RestartAfterFaultAsync(pluginId, activationId).ConfigureAwait(false);
         }
+        catch (OperationCanceledException) when (_autoRestartCancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            ProgramLog?.Invoke($"Auto-restart of '{pluginId}' failed: {exception.Message}");
+        }
+    }
 
-        ClearFaultDisable(pluginId);
-        if (await StartRegisteredAsync(pluginId).ConfigureAwait(false))
+    private async Task RestartAfterFaultAsync(string pluginId, string activationId)
+    {
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
         {
-            ProgramLog?.Invoke($"Auto-restart of '{pluginId}' succeeded.");
-        }
-        else
-        {
+            if (Volatile.Read(ref _autoRestartShutdown) != 0)
+            {
+                return;
+            }
+
+            FaultDisableRecord? clearedFault = _registry.Mutate(data =>
+            {
+                if (!data.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? entry)
+                    || !entry.Enabled
+                    || !string.Equals(entry.FaultDisabled?.ActivationId, activationId, StringComparison.Ordinal))
+                {
+                    return (data, (FaultDisableRecord?)null);
+                }
+
+                FaultDisableRecord fault = entry.FaultDisabled!;
+                data.Plugins[pluginId] = entry with { FaultDisabled = null };
+                return (data, (FaultDisableRecord?)fault);
+            });
+            if (clearedFault is null)
+            {
+                return;
+            }
+
+            if (await StartRegisteredLockedAsync(pluginId).ConfigureAwait(false))
+            {
+                ProgramLog?.Invoke($"Auto-restart of '{pluginId}' succeeded.");
+                return;
+            }
+
+            _registry.Mutate(data =>
+            {
+                if (data.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? entry)
+                    && entry.Enabled
+                    && entry.FaultDisabled is null)
+                {
+                    data.Plugins[pluginId] = entry with { FaultDisabled = clearedFault };
+                }
+            });
+            Changed?.Invoke();
             ProgramLog?.Invoke($"Auto-restart of '{pluginId}' did not start the plugin; it stays fault-disabled for manual retry.");
+        }
+        finally
+        {
+            _lifecycleGate.Release();
         }
     }
 
@@ -175,14 +216,27 @@ public sealed partial class PluginSystemService
         }
     }
 
-    private void CancelAutoRestarts()
+    private void RemoveAutoRestartTask(Task task)
     {
         lock (_autoRestartGate)
         {
+            _autoRestartTasks.Remove(task);
+        }
+    }
+
+    private async Task CancelAutoRestartsAsync()
+    {
+        Task[] tasks;
+        lock (_autoRestartGate)
+        {
+            Volatile.Write(ref _autoRestartShutdown, 1);
             _autoRestartCancellation.Cancel();
+            tasks = [.. _autoRestartTasks];
             _autoRestartCrashes.Clear();
             _lastHealthyStartUtc.Clear();
             _userStopRequested.Clear();
         }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
     }
 }

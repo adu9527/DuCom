@@ -196,7 +196,7 @@ public partial class App
                 throw new InvalidOperationException("Split smoke requires MainViewModel.");
             }
 
-            SessionViewModel[] openSessions = [.. viewModel.Sessions.Where(session => session.IsOpen).Take(3)];
+            SessionViewModel[] openSessions = [.. viewModel.Workspace.Sessions.Where(session => session.IsOpen).Take(3)];
             if (openSessions.Length < 2)
             {
                 DiagnosticLog?.Information("Split smoke skipped because two open sessions are not available; no hardware port is opened by smoke tests.");
@@ -204,50 +204,50 @@ public partial class App
                 return;
             }
 
-            viewModel.SelectedSession = openSessions[0];
+            viewModel.Workspace.SelectedSession = openSessions[0];
             string portName = openSessions[1].PortName;
-            await viewModel.AssignRightPaneAsync(portName);
-            if (!viewModel.IsSplitView || viewModel.SelectedRightSession?.PortName != portName)
+            await viewModel.Workspace.AssignRightPaneAsync(portName);
+            if (!viewModel.Workspace.IsSplitView || viewModel.Workspace.SelectedRightSession?.PortName != portName)
             {
                 throw new InvalidOperationException("Right split pane did not bind the dropped port session.");
             }
 
-            SessionViewModel splitSession = viewModel.SelectedRightSession;
+            SessionViewModel splitSession = viewModel.Workspace.SelectedRightSession;
             if (!splitSession.IsInRightPane || !splitSession.IsOpen)
             {
                 throw new InvalidOperationException("Right split pane did not preserve the open session state.");
             }
 
-            viewModel.MoveRightSessionToMainCommand.Execute(splitSession);
-            if (splitSession.IsInRightPane || !splitSession.IsOpen || !viewModel.Sessions.Contains(splitSession))
+            viewModel.Workspace.MoveRightSessionToMainCommand.Execute(splitSession);
+            if (splitSession.IsInRightPane || !splitSession.IsOpen || !viewModel.Workspace.Sessions.Contains(splitSession))
             {
                 throw new InvalidOperationException("Move-to-main did not preserve the right session.");
             }
-            await viewModel.AssignRightPaneAsync(portName);
-            splitSession = viewModel.SelectedRightSession!;
+            await viewModel.Workspace.AssignRightPaneAsync(portName);
+            splitSession = viewModel.Workspace.SelectedRightSession!;
 
             if (openSessions.Length >= 3)
             {
-                await viewModel.AssignRightPaneAsync(openSessions[2].PortName);
-                if (viewModel.RightSessions.Count != 2 || !viewModel.RightSessions.Contains(splitSession))
+                await viewModel.Workspace.AssignRightPaneAsync(openSessions[2].PortName);
+                if (viewModel.Workspace.RightSessions.Count != 2 || !viewModel.Workspace.RightSessions.Contains(splitSession))
                 {
                     throw new InvalidOperationException("Right split pane did not retain multiple session tabs.");
                 }
 
-                await viewModel.CloseRightPaneCommand.ExecuteAsync(null);
-                if (!viewModel.IsSplitView || viewModel.RightSessions.Count != 1 || viewModel.SelectedRightSession != splitSession || viewModel.Sessions.Contains(openSessions[2]))
+                await viewModel.Workspace.CloseRightPaneCommand.ExecuteAsync(null);
+                if (!viewModel.Workspace.IsSplitView || viewModel.Workspace.RightSessions.Count != 1 || viewModel.Workspace.SelectedRightSession != splitSession || viewModel.Workspace.Sessions.Contains(openSessions[2]))
                 {
                     throw new InvalidOperationException("Closing one right tab did not fully remove only the selected right session.");
                 }
             }
 
-            await viewModel.CloseRightPaneCommand.ExecuteAsync(null);
-            if (viewModel.IsSplitView)
+            await viewModel.Workspace.CloseRightPaneCommand.ExecuteAsync(null);
+            if (viewModel.Workspace.IsSplitView)
             {
                 throw new InvalidOperationException("Right split pane did not close.");
             }
 
-            if (splitSession.IsInRightPane || splitSession.IsOpen || viewModel.Sessions.Contains(splitSession))
+            if (splitSession.IsInRightPane || splitSession.IsOpen || viewModel.Workspace.Sessions.Contains(splitSession))
             {
                 throw new InvalidOperationException("Closing the right pane did not close, dispose, and remove its serial session.");
             }

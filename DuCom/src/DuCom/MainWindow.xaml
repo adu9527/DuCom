@@ -94,7 +94,7 @@
                             <MenuItem Command="{Binding ToggleFollowEndCommand}"
                                       Header="{DynamicResource Log.Follow}"
                                       IsCheckable="True"
-                                      IsChecked="{Binding SelectedSession.FollowEnd, Mode=OneWay}" />
+                                       IsChecked="{Binding Workspace.SelectedSession.FollowEnd, Mode=OneWay}" />
                              <MenuItem Command="{Binding ToggleFloatSendCommand}" Header="{DynamicResource Menu.View.FloatSend}" />
                              <MenuItem Command="{Binding ToggleBottomSendCommand}"
                                        Header="{DynamicResource Menu.View.BottomSend}"
@@ -126,13 +126,13 @@
                                     <Style TargetType="MenuItem">
                                         <Setter Property="IsCheckable" Value="True" />
                                         <Setter Property="StaysOpenOnClick" Value="True" />
-                                        <Setter Property="Command" Value="{Binding DataContext.SelectEncodingCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                        <Setter Property="Command" Value="{Binding DataContext.SerialParameters.SelectEncodingCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         <Setter Property="CommandParameter" Value="{Binding}" />
                                         <Setter Property="IsChecked">
                                             <Setter.Value>
                                                 <MultiBinding Converter="{StaticResource EqualityMultiConverter}" Mode="OneWay">
                                                     <Binding Path="." />
-                                                    <Binding Path="DataContext.SerialParameterEncodingName" RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
+                                                    <Binding Path="DataContext.SerialParameters.ActiveEncodingName" RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
                                                 </MultiBinding>
                                             </Setter.Value>
                                         </Setter>
@@ -691,7 +691,7 @@
                             <Style TargetType="Grid">
                                 <Setter Property="Visibility" Value="Visible" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasSessions}" Value="False">
+                                    <DataTrigger Binding="{Binding Workspace.HasSessions}" Value="False">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -710,7 +710,7 @@
                                     <Style TargetType="ColumnDefinition">
                                         <Setter Property="Width" Value="0" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsSplitView}" Value="True">
+                                            <DataTrigger Binding="{Binding Workspace.IsSplitView}" Value="True">
                                                 <Setter Property="Width" Value="6" />
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -722,7 +722,7 @@
                                     <Style TargetType="ColumnDefinition">
                                         <Setter Property="Width" Value="0" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsSplitView}" Value="True">
+                                            <DataTrigger Binding="{Binding Workspace.IsSplitView}" Value="True">
                                                 <Setter Property="Width" Value="*" />
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -735,8 +735,8 @@
                                   Drop="SessionTabs_Drop"
                                   PreviewMouseLeftButtonDown="DragSource_PreviewMouseLeftButtonDown"
                                  PreviewMouseMove="SessionTabs_PreviewMouseMove"
-                                 ItemsSource="{Binding Sessions}"
-                                 SelectedItem="{Binding SelectedSession}"
+                                 ItemsSource="{Binding Workspace.Sessions}"
+                                 SelectedItem="{Binding Workspace.SelectedSession}"
                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                  ScrollViewer.VerticalScrollBarVisibility="Disabled">
                              <ListBox.ItemContainerStyle>
@@ -787,7 +787,7 @@
                                                     Text="{Binding PortName}"
                                                     TextTrimming="CharacterEllipsis" />
                                           <Button Grid.Column="2"
-                                                  Command="{Binding DataContext.CloseSessionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                  Command="{Binding DataContext.Workspace.CloseSessionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                   CommandParameter="{Binding}"
                                                    Style="{StaticResource Style.SessionCloseButton}"
                                                   ToolTip="{DynamicResource Shortcut.CloseSelectedSession}"
@@ -804,11 +804,11 @@
                                   Drop="SessionTabs_Drop"
                                  PreviewMouseLeftButtonDown="DragSource_PreviewMouseLeftButtonDown"
                                  PreviewMouseMove="SessionTabs_PreviewMouseMove"
-                                 ItemsSource="{Binding RightSessions}"
-                                 SelectedItem="{Binding SelectedRightSession}"
+                                 ItemsSource="{Binding Workspace.RightSessions}"
+                                 SelectedItem="{Binding Workspace.SelectedRightSession}"
                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                                 Visibility="{Binding IsSplitView, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                 Visibility="{Binding Workspace.IsSplitView, Converter={StaticResource BooleanToVisibilityConverter}}">
                              <ListBox.ItemContainerStyle>
                                  <Style TargetType="ListBoxItem" BasedOn="{StaticResource Style.SessionTabListItem}" />
                              </ListBox.ItemContainerStyle>
@@ -822,10 +822,10 @@
                                      <Grid>
                                         <Grid.ContextMenu>
                                              <ContextMenu>
-                                                 <MenuItem Command="{Binding DataContext.MoveRightSessionToMainCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                 <MenuItem Command="{Binding DataContext.Workspace.MoveRightSessionToMainCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                            CommandParameter="{Binding}"
                                                            Header="{DynamicResource Layout.MoveToMain}" />
-                                                 <MenuItem Command="{Binding DataContext.CloseRightPaneCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                 <MenuItem Command="{Binding DataContext.Workspace.CloseRightPaneCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                            CommandParameter="{Binding}"
                                                            Header="{DynamicResource Layout.CloseRightSession}" />
                                              </ContextMenu>
@@ -860,7 +860,7 @@
                                                     Text="{Binding PortName}"
                                                     TextTrimming="CharacterEllipsis" />
                                           <Button Grid.Column="2"
-                                                  Command="{Binding DataContext.CloseRightPaneCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                  Command="{Binding DataContext.Workspace.CloseRightPaneCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                   CommandParameter="{Binding}"
                                                    Style="{StaticResource Style.SessionCloseButton}"
                                                    ToolTip="{DynamicResource Layout.CloseRightSession}"
@@ -885,14 +885,14 @@
                             <RowDefinition x:Name="SecondarySplitRow" Height="0" />
                         </Grid.RowDefinitions>
 
-                        <local:SessionWorkspace x:Name="LeftWorkspace" DataContext="{Binding SelectedSession}" />
+                        <local:SessionWorkspace x:Name="LeftWorkspace" DataContext="{Binding Workspace.SelectedSession}" />
                         <GridSplitter x:Name="SessionGridSplitter"
                                       Width="4"
                                       Height="4"
                                       HorizontalAlignment="Stretch"
                                       VerticalAlignment="Stretch"
                                       DragCompleted="SessionGridSplitter_DragCompleted"
-                                      Visibility="{Binding IsSplitView, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                      Visibility="{Binding Workspace.IsSplitView, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <GridSplitter.Style>
                                 <Style BasedOn="{StaticResource Style.Splitter}" TargetType="GridSplitter">
                                     <Setter Property="Grid.Column" Value="1" />
@@ -906,8 +906,8 @@
                             </GridSplitter.Style>
                         </GridSplitter>
                         <local:SessionWorkspace x:Name="RightWorkspace"
-                                                 DataContext="{Binding SelectedRightSession}"
-                                                 Visibility="{Binding IsSplitView, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                 DataContext="{Binding Workspace.SelectedRightSession}"
+                                                 Visibility="{Binding Workspace.IsSplitView, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <local:SessionWorkspace.Style>
                                 <Style TargetType="local:SessionWorkspace">
                                     <Setter Property="Grid.Column" Value="2" />
@@ -935,7 +935,7 @@
                                 <Style.Triggers>
                                     <MultiDataTrigger>
                                         <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding HasSessions}" Value="False" />
+                                            <Condition Binding="{Binding Workspace.HasSessions}" Value="False" />
                                             <Condition Binding="{Binding ShowCoverPage}" Value="True" />
                                         </MultiDataTrigger.Conditions>
                                         <Setter Property="Visibility" Value="Visible" />

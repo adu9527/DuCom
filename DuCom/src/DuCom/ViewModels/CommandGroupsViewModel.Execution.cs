@@ -41,7 +41,7 @@ public partial class CommandGroupsViewModel
 
         Dictionary<string, CommandTargetPortRow> existing = CommandTargetPorts.ToDictionary(row => row.PortName, StringComparer.OrdinalIgnoreCase);
         string[] names = [.. _mainViewModel.AvailablePorts.Select(port => port.PortName)
-            .Concat(_mainViewModel.Sessions.Select(session => session.PortName))
+            .Concat(_mainViewModel.Workspace.Sessions.Select(session => session.PortName))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ThenBy(name => name, StringComparer.Ordinal)];
@@ -49,7 +49,7 @@ public partial class CommandGroupsViewModel
         CommandTargetPorts.Clear();
         foreach (string name in names)
         {
-            bool isOpen = _mainViewModel.Sessions.Any(session =>
+            bool isOpen = _mainViewModel.Workspace.Sessions.Any(session =>
                 session.IsOpen && string.Equals(session.PortName, name, StringComparison.OrdinalIgnoreCase));
             CommandTargetPortRow row = existing.TryGetValue(name, out CommandTargetPortRow? current)
                 ? current

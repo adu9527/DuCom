@@ -57,9 +57,9 @@ public partial class MainViewModel
     [RelayCommand]
     private void CopyVisibleLog()
     {
-        if (SelectedSession is not null)
+        if (Workspace.SelectedSession is not null)
         {
-            Clipboard.SetText(string.Join(Environment.NewLine, SelectedSession.VisibleLines.Select(line => line.Text)));
+            Clipboard.SetText(string.Join(Environment.NewLine, Workspace.SelectedSession.VisibleLines.Select(line => line.Text)));
         }
     }
 }

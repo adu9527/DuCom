@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection;
 using DuCom.PluginHost;
 using DuCom.PluginHost.Core;
 using DuCom.PluginHost.Packages;
@@ -110,6 +111,33 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         PluginSystemService restarted = Create();
         await restarted.InitializeAsync([factory]);
         Assert.False(restarted.Registry.Current.Plugins[Id].Enabled);
+    }
+
+    [Fact]
+    public async Task SetEnabledWaitsForLifecycleGateBeforeChangingRegistry()
+    {
+        PluginSystemService service = Create();
+        await service.InitializeAsync([]);
+        Assert.True(service.InstallPack(Pack("1.0.0")).Accepted);
+        service.SetEnabled(Id, true, stopImmediately: false);
+        SemaphoreSlim gate = Assert.IsType<SemaphoreSlim>(typeof(PluginSystemService)
+            .GetField("_lifecycleGate", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(service));
+        await gate.WaitAsync();
+        Task disable;
+        try
+        {
+            disable = Task.Run(() => service.SetEnabled(Id, false, stopImmediately: false));
+            await Task.Delay(50);
+
+            Assert.False(disable.IsCompleted);
+            Assert.True(service.Registry.Current.Plugins[Id].Enabled);
+        }
+        finally
+        {
+            gate.Release();
+        }
+        await disable;
+        Assert.False(service.Registry.Current.Plugins[Id].Enabled);
     }
 
     [Fact]

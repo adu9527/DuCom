@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -18,43 +17,27 @@ using DuCom.Services.Shortcuts;
 
 namespace DuCom.ViewModels;
 
-public partial class MainViewModel : ObservableObject, IAsyncDisposable
+public partial class MainViewModel : ApplicationSettingsViewModel, IAsyncDisposable
 {
     private const string GitHubRepositoryUrl = "https://github.com/adu9527/DuCom";
     private const string ChineseUserManualUrl = "https://github.com/adu9527/DuCom/blob/main/Doc/UserManual.zh-CN.md";
     private const string EnglishUserManualUrl = "https://github.com/adu9527/DuCom/blob/main/Doc/UserManual.en-US.md";
-    private static readonly JsonSerializerOptions ConfigurationJsonOptions = new() { WriteIndented = true };
-    private readonly Func<WorkspaceSessionOptions, IWorkspaceSession> _sessionFactory;
     private readonly IPortDiscovery _portDiscovery;
-    private static readonly TimeSpan MinimumRenderInterval = TimeSpan.FromSeconds(1d / 85d);
-    private static readonly TimeSpan StatusRefreshInterval = TimeSpan.FromMilliseconds(100);
+    private readonly PortRefreshCoordinator _portRefreshCoordinator;
     private static readonly TimeSpan SlowOperationThreshold = TimeSpan.FromMilliseconds(50);
     private readonly HashSet<string> _hiddenPorts = new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _settingsSaveTimer;
-    private readonly DispatcherTimer _portSettingsApplyTimer;
     private string[] _discoveredPortNames = [];
     private IReadOnlyDictionary<string, DiscoveredPort> _discoveredPortDetails =
         new Dictionary<string, DiscoveredPort>(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
     private bool _isLoadingSettings;
-    private bool _settingsDirty;
-    private bool _portSettingsApplyPending;
+    private readonly SettingsSaveGate _settingsSaveGate = new();
     private bool _allowSerialParametersWindowClose;
-    private Dictionary<string, PortSettingSnapshot> _portOverrides = new(StringComparer.OrdinalIgnoreCase);
+    private SettingsWindow? _settingsWindow;
+    private SettingsWindow? _serialParametersWindow;
     private string[] _commandTargetPortNames = [];
-    private List<string> _persistedRightPanePorts = [];
-    private List<string> _persistedSessionOrder = [];
-    private List<string> _persistedOpenSessionPorts = [];
-    private string? _persistedSelectedSessionPort;
-    private string? _persistedSelectedRightSessionPort;
-    private bool _sessionsRestored;
-    private SessionViewModel? _activeLogSession;
-    private TimeSpan _lastRenderTime;
-    private TimeSpan _nextRenderTime;
-    private TimeSpan _lastStatusRefreshTime;
-    private readonly object _portRefreshSync = new();
-    private bool _portRefreshRequested;
-    private Task? _portRefreshTask;
+    private FramePacerState _framePacerState;
     private long _nextSlowProjectionLogTimestamp;
 
     internal MainViewModel(
@@ -62,18 +45,71 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         Func<WorkspaceSessionOptions, IWorkspaceSession> sessionFactory)
     {
         _portDiscovery = portDiscovery ?? throw new ArgumentNullException(nameof(portDiscovery));
-        _sessionFactory = sessionFactory ?? throw new ArgumentNullException(nameof(sessionFactory));
+        ArgumentNullException.ThrowIfNull(sessionFactory);
+        SettingChanged += OnApplicationSettingChanged;
+        _portRefreshCoordinator = new PortRefreshCoordinator(
+            DiscoverPortsAsync,
+            ApplyDiscoveredPorts,
+            () => _disposed,
+            (elapsed, portCount) => Program.DiagnosticLog?.Warning(
+                $"Slow serial-port discovery. ElapsedMs={elapsed.TotalMilliseconds:0.0}; Ports={portCount}"),
+            exception => Program.DiagnosticLog?.Warning("Serial-port discovery failed.", exception),
+            SlowOperationThreshold);
         CompositionTarget.Rendering += OnCompositionRendering;
         _settingsSaveTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromMilliseconds(500),
         };
         _settingsSaveTimer.Tick += OnSettingsSaveTick;
-        _portSettingsApplyTimer = new DispatcherTimer(DispatcherPriority.Background)
-        {
-            Interval = TimeSpan.FromMilliseconds(250),
-        };
-        _portSettingsApplyTimer.Tick += OnPortSettingsApplyTick;
+        Workspace = new SessionWorkspaceViewModel(new SessionWorkspaceCallbacks(
+            CaptureApplicationSessionDefaults,
+            sessionFactory,
+            () => HighlightRuleProjects,
+            portName => AvailablePorts.Any(item => string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase)),
+            SelectPort,
+            () => _portRefreshCoordinator.WaitForCurrentRefreshAsync(),
+            () => CommandRunner?.StopAsync() ?? Task.CompletedTask,
+            MarkSettingsDirty,
+            () => SerialParameters?.NotifyActiveSessionChanged(),
+            () => _sendHistoryNavigator?.Reset(),
+            text => _sendHistory.Record(text),
+            PersistSendHistory,
+            portName => { CloseFloatSendFor(portName); CloseLogFilterFor(portName); },
+            message => StatusMessage = message,
+            GetResourceString,
+            () => ReceiveMode = ReceiveMode == ReceiveDisplayMode.Str ? ReceiveDisplayMode.Hex : ReceiveDisplayMode.Str,
+            () => TimestampEnabled = !TimestampEnabled,
+            PrepareSessionCloseAsync,
+            NotifyOpenCommandState));
+        SerialParameters = new SerialParametersEditorViewModel(new SerialParametersEditorCallbacks(
+            GetDefaultSerialSettings,
+            ApplyDefaultSerialSettings,
+            value => DefaultSendMode = value,
+            value => DefaultNewline = value,
+            () => Workspace.ActiveSession,
+            (session, settings) =>
+            {
+                if (settings is null)
+                {
+                    Workspace.RememberPortOverride(session.PortName);
+                }
+                else
+                {
+                    Workspace.RememberPortOverride(session.PortName, settings);
+                }
+            },
+            key => StatusMessage = string.IsNullOrEmpty(key) ? string.Empty : GetResourceString(key),
+            (message, exception) =>
+            {
+                if (exception is null)
+                {
+                    Program.DiagnosticLog?.Information(message);
+                }
+                else
+                {
+                    Program.DiagnosticLog?.Error(message, exception);
+                }
+            }));
         ShortcutManager = new ShortcutManager();
         ShortcutManager.RegisterDefaultActions();
         ShortcutsSettings = new ShortcutsSettingsViewModel(ShortcutManager);
@@ -83,9 +119,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         HighlightFilterSettings.Applied += OnHighlightRulesApplied;
         HighlightFilterSettings.ProjectsChanged += OnHighlightRuleProjectsChanged;
         _sendHistoryNavigator = new SendHistoryNavigator(_sendHistory);
-        Sessions.CollectionChanged += OnSessionsChanged;
-        RightSessions.CollectionChanged += OnRightSessionsChanged;
-        SessionProbes = new Services.SessionProbeProvider(Sessions);
+        SessionProbes = new Services.SessionProbeProvider(Workspace.Sessions);
         CommandRunner = new CommandGroupRunnerHost(
             () => Volatile.Read(ref _commandTargetPortNames),
             () => SessionProbes.CommandSnapshot,
@@ -114,12 +148,7 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     internal void SetCommandTargetPortNames(IEnumerable<string> portNames)
     {
-        string[] normalized = [.. portNames
-            .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Select(name => name.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(name => name, StringComparer.Ordinal)];
+        string[] normalized = ConfigurationSnapshotNormalizer.NormalizePortNames(portNames);
         Volatile.Write(ref _commandTargetPortNames, normalized);
         MarkSettingsDirty();
     }
@@ -141,6 +170,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     public HighlightFilterRulesViewModel HighlightFilterSettings { get; }
 
+    public SerialParametersEditorViewModel SerialParameters { get; }
+
+    public SessionWorkspaceViewModel Workspace { get; }
+
     public ObservableCollection<HighlightFilterRule> HighlightFilterRules { get; } = [];
 
     public ObservableCollection<HighlightFilterRuleProject> HighlightRuleProjects { get; } = [];
@@ -152,18 +185,10 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     public ObservableCollection<PortItemViewModel> AvailablePorts { get; } = [];
 
-    internal IReadOnlyList<string> DiscoveredPortNames => _discoveredPortNames;
-
-    public ObservableCollection<SessionViewModel> Sessions { get; } = [];
-
-    public bool HasSessions => Sessions.Count > 0;
-
-    public ObservableCollection<SessionViewModel> RightSessions { get; } = [];
-
     [ObservableProperty]
-    public partial SessionViewModel? SelectedRightSession { get; set; }
+    public partial string StatusMessage { get; set; } = string.Empty;
 
-    public bool IsSplitView => RightSessions.Count > 0;
+    internal IReadOnlyList<string> DiscoveredPortNames => _discoveredPortNames;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(OpenCommand))]
@@ -171,10 +196,11 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     public string? SelectedPort => SelectedPortItem?.PortName;
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CloseCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SendCommand))]
-    public partial SessionViewModel? SelectedSession { get; set; }
+    partial void OnSelectedPortItemChanged(PortItemViewModel? value)
+    {
+        OnPropertyChanged(nameof(LogFileNamePreview));
+        Workspace.SelectPort(value?.PortName);
+    }
 
     public async ValueTask DisposeAsync()
     {
@@ -184,11 +210,15 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
 
         _disposed = true;
+        SettingChanged -= OnApplicationSettingChanged;
         CompositionTarget.Rendering -= OnCompositionRendering;
         _settingsSaveTimer.Stop();
         _settingsSaveTimer.Tick -= OnSettingsSaveTick;
-        _portSettingsApplyTimer.Stop();
-        _portSettingsApplyTimer.Tick -= OnPortSettingsApplyTick;
+        if (!await SerialParameters.FlushAsync())
+        {
+            Program.DiagnosticLog?.Warning("Pending serial settings could not be flushed during shutdown.");
+        }
+        SerialParameters.Dispose();
         SaveSettings();
         await CommandRunner.DisposeAsync();
         await Telnet.DisposeAsync();
@@ -204,18 +234,30 @@ public partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
         _floatSendWindows.CloseAll();
         _logFilterWindows.CloseAll();
-        Sessions.CollectionChanged -= OnSessionsChanged;
-        RightSessions.CollectionChanged -= OnRightSessionsChanged;
-        foreach (SessionViewModel session in Sessions)
-        {
-            await session.DisposeAsync();
-        }
+        await Workspace.DisposeAsync();
 
         GC.SuppressFinalize(this);
     }
 
     private static string GetResourceString(string key) =>
         Application.Current.TryFindResource(key) as string ?? key;
+
+    private ApplicationSessionDefaults CaptureApplicationSessionDefaults() => new(
+        BaudRate, DataBits, StopBits, Parity, Handshake, EncodingName, ReceiveMode,
+        TimestampEnabled, LoggingEnabled, LogDirectory, LogRotationMegabytes,
+        LogRotationEnabled, DisplayBudgetMegabytes, LogFileNameFormat, SendPrefixEnabled,
+        SendPrefix, TimestampFormat, DefaultSendMode, DefaultNewline, FreezeAfterSend);
+
+    private void SelectPort(string? portName)
+    {
+        if (string.IsNullOrWhiteSpace(portName))
+        {
+            return;
+        }
+
+        SelectedPortItem = AvailablePorts.FirstOrDefault(item =>
+            string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase));
+    }
 }
 
 public enum PortSortMode

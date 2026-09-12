@@ -154,7 +154,7 @@ public partial class SessionWorkspace : UserControl
     {
         if (Window.GetWindow(this)?.DataContext is MainViewModel viewModel)
         {
-            viewModel.ActivateLogSession(session);
+            viewModel.Workspace.Activate(session);
         }
     }
 
@@ -199,7 +199,7 @@ public partial class SessionWorkspace : UserControl
             return;
         }
 
-        viewModel.RememberSessionHighlightProject(session);
+        viewModel.Workspace.RememberSessionHighlightProject(session);
     }
 
     private void CommandMenuButton_Click(object sender, RoutedEventArgs e)
@@ -235,8 +235,8 @@ public partial class SessionWorkspace : UserControl
         };
         noHighlightRulesItem.Click += (_, _) =>
         {
-            viewModel.ActivateLogSession(session);
-            viewModel.ApplySessionHighlightProject(session, null);
+            viewModel.Workspace.Activate(session);
+            viewModel.Workspace.ApplySessionHighlightProject(session, null);
         };
         highlightRulesItem.Items.Add(noHighlightRulesItem);
         highlightRulesItem.Items.Add(new Separator());
@@ -250,8 +250,8 @@ public partial class SessionWorkspace : UserControl
             };
             projectItem.Click += (_, _) =>
             {
-                viewModel.ActivateLogSession(session);
-                viewModel.ApplySessionHighlightProject(session, project.Id);
+                viewModel.Workspace.Activate(session);
+                viewModel.Workspace.ApplySessionHighlightProject(session, project.Id);
             };
             highlightRulesItem.Items.Add(projectItem);
         }

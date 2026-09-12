@@ -14,32 +14,7 @@ public sealed partial class PluginSystemService
         await _lifecycleGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (!_registry.Current.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? entry)
-                || !entry.Enabled || entry.FaultDisabled is not null || _registry.Current.SafeStartAllPlugins)
-            {
-                return false;
-            }
-
-            if (!_budget.CanActivatePlugins())
-            {
-                ProgramLog?.Invoke($"Budget warning active; '{pluginId}' activation deferred.");
-                return false;
-            }
-
-            PluginRuntimeController? controller = GetOrCreateController(pluginId);
-            if (controller is null)
-            {
-                return false;
-            }
-
-            bool started = await controller.StartAsync().ConfigureAwait(false);
-            if (started)
-            {
-                NotifyPluginStarted(pluginId);
-            }
-
-            Changed?.Invoke();
-            return started;
+            return await StartRegisteredLockedAsync(pluginId).ConfigureAwait(false);
         }
         finally
         {
@@ -47,9 +22,53 @@ public sealed partial class PluginSystemService
         }
     }
 
+    private async Task<bool> StartRegisteredLockedAsync(string pluginId)
+    {
+        if (Volatile.Read(ref _autoRestartShutdown) != 0
+            || !_registry.Current.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? entry)
+            || !entry.Enabled || entry.FaultDisabled is not null || _registry.Current.SafeStartAllPlugins)
+        {
+            return false;
+        }
+
+        if (!_budget.CanActivatePlugins())
+        {
+            ProgramLog?.Invoke($"Budget warning active; '{pluginId}' activation deferred.");
+            return false;
+        }
+
+        PluginRuntimeController? controller = GetOrCreateController(pluginId);
+        if (controller is null)
+        {
+            return false;
+        }
+
+        bool started = await controller.StartAsync().ConfigureAwait(false);
+        if (started)
+        {
+            NotifyPluginStarted(pluginId);
+        }
+
+        Changed?.Invoke();
+        return started;
+    }
+
     public async Task StopAsync(string pluginId)
     {
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await StopLockedAsync(pluginId).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    private async Task StopLockedAsync(string pluginId)
+    {
         PluginRuntimeController? controller;
         lock (_controllers)
         {
@@ -80,6 +99,19 @@ public sealed partial class PluginSystemService
 
     public async Task StopAllAsync()
     {
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await StopAllLockedAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    private async Task StopAllLockedAsync()
+    {
         List<PluginRuntimeController> controllers;
         lock (_controllers)
         {
@@ -93,6 +125,19 @@ public sealed partial class PluginSystemService
     }
 
     private async Task HandleBudgetStopAsync(BudgetStopRequest request)
+    {
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await HandleBudgetStopLockedAsync(request).ConfigureAwait(false);
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
+    }
+
+    private async Task HandleBudgetStopLockedAsync(BudgetStopRequest request)
     {
         PluginRuntimeController? controller;
         lock (_controllers)

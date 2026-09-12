@@ -24,7 +24,7 @@ public sealed partial class PluginRuntimeController
             _state = next;
         }
 
-        StateChanged?.Invoke(this, new PluginStateChange(_manifest.Id, previous, next, reason));
+        StateChanged?.Invoke(this, new PluginStateChange(_manifest.Id, previous, next, reason, _activationId));
     }
 
     public async Task<bool> StartAsync()

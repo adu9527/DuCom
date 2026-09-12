@@ -54,26 +54,26 @@ public sealed class ShortcutEngine
     {
         "OpenCloseSelectedPort" => ResolveTogglePortCommand(),
         "RefreshPorts" => _viewModel.RefreshPortsCommand,
-        "ClearDisplay" => new RelayCommand(_viewModel.ClearActiveDisplay),
+        "ClearDisplay" => new RelayCommand(_viewModel.Workspace.ClearActiveDisplay),
         "SaveVisibleLog" => _viewModel.SaveVisibleLogCommand,
-        "ToggleFollowEnd" => new RelayCommand(_viewModel.ToggleActiveFollowEnd),
+        "ToggleFollowEnd" => new RelayCommand(_viewModel.Workspace.ToggleActiveFollowEnd),
         "ToggleSidebar" => _viewModel.ToggleSidebarCommand,
         "OpenSearch" => new RelayCommand(OpenSearch),
         "OpenTools" => new RelayCommand(() => _viewModel.OpenSettingsCategory(7)),
         "MaximizeRestore" => new RelayCommand(ToggleWindowState),
         "FocusSendEditor" => new RelayCommand(FocusSendEditor),
-        "CloseRightPane" => new RelayCommand(() => _viewModel.CloseRightPaneCommand.Execute(null)),
-        "CloseSelectedSession" => new RelayCommand(() => _viewModel.CloseSessionCommand.Execute(_viewModel.ActiveSession)),
-        "ToggleHexDisplay" => new RelayCommand(_viewModel.ToggleActiveReceiveMode),
-        "ToggleTimestamp" => new RelayCommand(_viewModel.ToggleActiveTimestamp),
+        "CloseRightPane" => new RelayCommand(() => _viewModel.Workspace.CloseRightPaneCommand.Execute(null)),
+        "CloseSelectedSession" => new RelayCommand(() => _viewModel.Workspace.CloseSessionCommand.Execute(_viewModel.Workspace.ActiveSession)),
+        "ToggleHexDisplay" => new RelayCommand(_viewModel.Workspace.ToggleActiveReceiveMode),
+        "ToggleTimestamp" => new RelayCommand(_viewModel.Workspace.ToggleActiveTimestamp),
         _ => null,
     };
 
     private ICommand ResolveTogglePortCommand()
     {
-        if (_viewModel.SelectedSession is { IsOpen: true })
+        if (_viewModel.Workspace.SelectedSession is { IsOpen: true })
         {
-            return _viewModel.CloseCommand;
+            return _viewModel.Workspace.CloseCommand;
         }
 
         return _viewModel.OpenCommand;
@@ -96,10 +96,10 @@ public sealed class ShortcutEngine
 
     private void OpenSearch()
     {
-        SessionViewModel? session = _viewModel.SelectedSession ?? _viewModel.SelectedRightSession;
+        SessionViewModel? session = _viewModel.Workspace.SelectedSession ?? _viewModel.Workspace.SelectedRightSession;
         if (session is not null)
         {
-            _viewModel.OpenSearchFor(session);
+            _viewModel.Workspace.OpenSearchFor(session);
         }
     }
 

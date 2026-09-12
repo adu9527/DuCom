@@ -71,4 +71,13 @@ public sealed class BaudRateListPolicyTests
         Assert.NotEmpty(result);
         Assert.Equal(BaudRateListPolicy.DefaultBaudRates, result);
     }
+
+    [Fact]
+    public void PruneToDefaultsDropsInvalidInUseRates()
+    {
+        IReadOnlyList<int> result = BaudRateListPolicy.PruneToDefaults([0, -1, 9_600]);
+        Assert.DoesNotContain(0, result);
+        Assert.DoesNotContain(-1, result);
+        Assert.Equal(result.Distinct(), result);
+    }
 }

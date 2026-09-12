@@ -15,9 +15,9 @@ public partial class MainViewModel
     public string? NavigateSendHistory(bool previous, string currentText)
     {
         string? applied = previous ? _sendHistoryNavigator.MovePrevious(currentText) : _sendHistoryNavigator.MoveNext();
-        if (applied is not null && SelectedSession is not null)
+        if (applied is not null && Workspace.SelectedSession is not null)
         {
-            SelectedSession.SendText = applied;
+            Workspace.SelectedSession.SendText = applied;
         }
 
         return applied;
@@ -29,9 +29,9 @@ public partial class MainViewModel
 
     internal void UseSendHistoryEntry(string entry)
     {
-        if (SelectedSession is not null)
+        if (Workspace.SelectedSession is not null)
         {
-            SelectedSession.SendText = entry;
+            Workspace.SelectedSession.SendText = entry;
         }
     }
 

@@ -23,7 +23,12 @@ public enum PluginRuntimeState
     StoppedByBudget,
 }
 
-public sealed record PluginStateChange(string PluginId, PluginRuntimeState Previous, PluginRuntimeState Next, string? Reason);
+public sealed record PluginStateChange(
+    string PluginId,
+    PluginRuntimeState Previous,
+    PluginRuntimeState Next,
+    string? Reason,
+    string ActivationId);
 
 public sealed class SerialSubscriptionState
 {

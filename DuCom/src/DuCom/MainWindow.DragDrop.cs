@@ -34,12 +34,12 @@ public partial class MainWindow
         // Dragging a tab onto the right tab strip but the session is not yet in the
         // right pane means the user wants to move it across panes — add it to the split
         // instead of trying (and failing) to reorder it within the right collection.
-        if (rightPane && viewModel.RightSessions.All(item =>
+        if (rightPane && viewModel.Workspace.RightSessions.All(item =>
                 !string.Equals(item.PortName, portName, StringComparison.OrdinalIgnoreCase)))
         {
             try
             {
-                await viewModel.AssignRightPaneAsync(portName);
+                await viewModel.Workspace.AssignRightPaneAsync(portName);
             }
             catch (Exception exception)
             {
@@ -56,7 +56,7 @@ public partial class MainWindow
             targetIndex = tabs.Items.IndexOf(target);
         }
 
-        viewModel.MoveSessionTab(portName, Math.Max(0, targetIndex), rightPane);
+        viewModel.Workspace.MoveSessionTab(portName, Math.Max(0, targetIndex), rightPane);
         e.Handled = true;
     }
 
@@ -100,7 +100,7 @@ public partial class MainWindow
 
         try
         {
-            await viewModel.AssignRightPaneAsync(portName);
+            await viewModel.Workspace.AssignRightPaneAsync(portName);
         }
         catch (Exception exception)
         {

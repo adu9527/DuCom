@@ -133,7 +133,7 @@ public partial class MainWindow : FluentWindow
 
         try
         {
-            await viewModel.RestorePersistedSessionsAsync();
+            await viewModel.Workspace.RestorePersistedSessionsAsync();
             ApplySidebarVisibility(viewModel.IsSidebarVisible);
             ConfigureMemoryMonitor(viewModel);
         }
@@ -221,7 +221,7 @@ public partial class MainWindow : FluentWindow
 
     internal void FocusSendEditor()
     {
-        SessionWorkspace workspace = DataContext is MainViewModel { SelectedRightSession: not null, SelectedSession: null }
+        SessionWorkspace workspace = DataContext is MainViewModel { Workspace.SelectedRightSession: not null, Workspace.SelectedSession: null }
             ? RightWorkspace
             : LeftWorkspace;
         workspace.FocusSendEditor();

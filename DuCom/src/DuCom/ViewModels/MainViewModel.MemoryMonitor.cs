@@ -25,40 +25,10 @@ public partial class MainViewModel
     }
 
     [ObservableProperty]
-    public partial bool PrivateMemoryMonitorEnabled { get; set; }
-
-    [ObservableProperty]
-    public partial int PrivateMemoryThresholdMiB { get; set; } = 1024;
-
-    [ObservableProperty]
-    public partial bool ShowMemoryMonitor { get; set; } = true;
-
-    [ObservableProperty]
-    public partial int MemoryRefreshInterval { get; set; } = 2;
-
-    [ObservableProperty]
-    public partial int SystemMemoryRefreshInterval { get; set; } = 5;
-
-    [ObservableProperty]
     public partial long PrivateMemoryBytes { get; private set; }
 
     [ObservableProperty]
     public partial bool IsPrivateMemoryThresholdReached { get; private set; }
-
-    partial void OnPrivateMemoryMonitorEnabledChanged(bool value)
-    {
-        if (!value)
-        {
-            _privateMemoryThresholdWasReached = false;
-            IsPrivateMemoryThresholdReached = false;
-        }
-
-        MarkSettingsDirty();
-    }
-    partial void OnPrivateMemoryThresholdMiBChanged(int value) => MarkSettingsDirty();
-    partial void OnShowMemoryMonitorChanged(bool value) => MarkSettingsDirty();
-    partial void OnMemoryRefreshIntervalChanged(int value) => MarkSettingsDirty();
-    partial void OnSystemMemoryRefreshIntervalChanged(int value) => MarkSettingsDirty();
 
     private void OnPrivateMemorySampled(object? sender, PrivateMemoryThresholdSnapshot snapshot) =>
         Application.Current.Dispatcher.BeginInvoke(() =>

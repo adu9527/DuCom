@@ -45,6 +45,6 @@ public static class BaudRateListPolicy
     public static IReadOnlyList<int> PruneToDefaults(IEnumerable<int> inUseRates)
     {
         ArgumentNullException.ThrowIfNull(inUseRates);
-        return [.. DefaultBaudRates.Concat(inUseRates).Distinct().Order()];
+        return [.. DefaultBaudRates.Concat(inUseRates).Where(rate => rate > 0).Distinct().Order()];
     }
 }

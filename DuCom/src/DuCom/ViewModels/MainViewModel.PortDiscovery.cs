@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
 using DuCom.Core.Ports;
 using DuCom.Services;
@@ -8,145 +7,29 @@ namespace DuCom.ViewModels;
 public partial class MainViewModel
 {
     [RelayCommand(AllowConcurrentExecutions = true)]
-    private Task RefreshPortsAsync()
+    private Task RefreshPortsAsync() => _portRefreshCoordinator.RequestRefreshAsync();
+
+    private Task<PortDiscoverySnapshot> DiscoverPortsAsync()
     {
-        lock (_portRefreshSync)
+        return Task.Run(() =>
         {
-            _portRefreshRequested = true;
-            return _portRefreshTask ??= RunPortRefreshLoopAsync();
-        }
+            IReadOnlyDictionary<string, DiscoveredPort> details =
+                (_portDiscovery as IPortDetailsProvider)?.GetPortDetails()
+                ?? new Dictionary<string, DiscoveredPort>(StringComparer.OrdinalIgnoreCase);
+            string[] names = details.Count > 0
+                ? [.. details.Keys]
+                : [.. _portDiscovery.GetPortNames()];
+            return new PortDiscoverySnapshot(names, details);
+        });
     }
 
-    private async Task RunPortRefreshLoopAsync()
+    private void ApplyDiscoveredPorts(PortDiscoverySnapshot discovered)
     {
-        while (!_disposed)
-        {
-            lock (_portRefreshSync)
-            {
-                _portRefreshRequested = false;
-            }
-
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            PortDiscoverySnapshot discovered;
-            try
-            {
-                discovered = await Task.Run(() =>
-                {
-                    IReadOnlyDictionary<string, DiscoveredPort> details =
-                        (_portDiscovery as IPortDetailsProvider)?.GetPortDetails()
-                        ?? new Dictionary<string, DiscoveredPort>(StringComparer.OrdinalIgnoreCase);
-                    string[] names = details.Count > 0
-                        ? [.. details.Keys]
-                        : [.. _portDiscovery.GetPortNames()];
-                    return new PortDiscoverySnapshot(names, details);
-                });
-            }
-            catch (Exception exception)
-            {
-                Program.DiagnosticLog?.Warning("Serial-port discovery failed.", exception);
-                lock (_portRefreshSync)
-                {
-                    _portRefreshTask = null;
-                }
-                return;
-            }
-
-            stopwatch.Stop();
-            if (stopwatch.Elapsed >= SlowOperationThreshold)
-            {
-                Program.DiagnosticLog?.Warning(
-                    $"Slow serial-port discovery. ElapsedMs={stopwatch.Elapsed.TotalMilliseconds:0.0}; Ports={discovered.Names.Length}");
-            }
-
-            lock (_portRefreshSync)
-            {
-                if (_portRefreshRequested)
-                {
-                    continue;
-                }
-            }
-
-            if (_disposed)
-            {
-                return;
-            }
-
-            string? previous = SelectedPort;
-            _discoveredPortDetails = discovered.Details;
-            _discoveredPortNames = discovered.Names;
-            RebuildPortItems(previous);
-            CloseSessionsForRemovedPorts();
-            ReconnectReturnedPorts();
-
-            lock (_portRefreshSync)
-            {
-                if (_portRefreshRequested)
-                {
-                    continue;
-                }
-
-                _portRefreshTask = null;
-                return;
-            }
-        }
-
-        lock (_portRefreshSync)
-        {
-            _portRefreshTask = null;
-        }
-    }
-
-    private void CloseSessionsForRemovedPorts()
-    {
-        HashSet<string> discovered = new(_discoveredPortNames, StringComparer.OrdinalIgnoreCase);
-        foreach (SessionViewModel session in Sessions.Where(session => session.IsOpen && !discovered.Contains(session.PortName)).ToArray())
-        {
-            session.MarkDeviceRemoved();
-            _ = CloseRemovedPortSessionAsync(session);
-        }
-    }
-
-    private void ReconnectReturnedPorts()
-    {
-        HashSet<string> discovered = new(_discoveredPortNames, StringComparer.OrdinalIgnoreCase);
-        foreach (SessionViewModel session in Sessions.Where(session => session.IsWaitingForReconnect && discovered.Contains(session.PortName)).ToArray())
-        {
-            _ = ReconnectReturnedPortAsync(session);
-        }
-    }
-
-    private async Task ReconnectReturnedPortAsync(SessionViewModel session)
-    {
-        if (!session.IsWaitingForReconnect || session.IsBusy || session.IsOpen)
-        {
-            return;
-        }
-
-        session.ClearReconnectWait();
-        try
-        {
-            SessionViewModel replacement = await RebuildClosedSessionAsync(session);
-            replacement.AutoReconnect = true;
-            PortCommandResult result = await replacement.OpenAsync();
-            Program.DiagnosticLog?.Information($"Automatic reconnect completed. Port={replacement.PortName}; Result={result}");
-        }
-        catch (Exception exception)
-        {
-            Program.DiagnosticLog?.Warning($"Automatic reconnect failed. Port={session.PortName}.", exception);
-        }
-    }
-
-    private static async Task CloseRemovedPortSessionAsync(SessionViewModel session)
-    {
-        try
-        {
-            Program.DiagnosticLog?.Warning($"Connected serial port disappeared from discovery; closing its session. Port={session.PortName}");
-            await session.CloseAsync();
-        }
-        catch (Exception exception)
-        {
-            Program.DiagnosticLog?.Error($"Failed to close removed serial-port session. Port={session.PortName}", exception);
-        }
+        string? previous = SelectedPort;
+        _discoveredPortDetails = discovered.Details;
+        _discoveredPortNames = discovered.Names;
+        RebuildPortItems(previous);
+        Workspace.HandleDiscoveredPorts(_discoveredPortNames);
     }
 
     private void RebuildPortItems(string? selectedPort = null)
@@ -159,14 +42,14 @@ public partial class MainViewModel
             ShowSerialPorts,
             ShowVirtualPorts,
             ShowHiddenPorts,
-            isPortOpen: name => Sessions.Any(session =>
+            isPortOpen: name => Workspace.Sessions.Any(session =>
                 session.IsOpen && string.Equals(session.PortName, name, StringComparison.OrdinalIgnoreCase)));
         AvailablePorts.Clear();
         foreach (ComposedPort port in composed)
         {
             AvailablePorts.Add(new PortItemViewModel(
                 port.PortName,
-                TogglePortAsync,
+                port => Workspace.TogglePortAsync(port.PortName),
                 TogglePortHidden,
                 port.TypeLabel,
                 port.Detail?.Description ?? string.Empty,
@@ -235,7 +118,4 @@ public partial class MainViewModel
         RebuildPortItems(SelectedPort);
     }
 
-    private sealed record PortDiscoverySnapshot(
-        string[] Names,
-        IReadOnlyDictionary<string, DiscoveredPort> Details);
 }

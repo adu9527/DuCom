@@ -21,7 +21,7 @@ public partial class MainViewModel
         }
 
         SerialPortSettings updated = session.WorkspaceSession.Settings with { BaudRate = baudRate };
-        await ApplyPortSettingsAsync(session, updated);
+        await SerialParameters.ApplyStandaloneSettingsAsync(session, updated);
     }
 
     [RelayCommand]
@@ -41,8 +41,8 @@ public partial class MainViewModel
     [RelayCommand]
     private void RemoveBaudRate(int value)
     {
-        bool isUsed = value == BaudRate || value == SerialParameterBaudRate ||
-            Sessions.Any(session => session.BaudRate == value);
+        bool isUsed = value == BaudRate || value == SerialParameters.SerialParameterBaudRate ||
+            Workspace.Sessions.Any(session => session.BaudRate == value);
         if (BaudRates.Count > 1 && !isUsed)
         {
             BaudRates.Remove(value);
@@ -53,8 +53,8 @@ public partial class MainViewModel
     private void EnsureActiveBaudRatesPresent()
     {
         EnsureBaudRatePresent(BaudRate);
-        EnsureBaudRatePresent(SerialParameterBaudRate);
-        foreach (SessionViewModel session in Sessions)
+        EnsureBaudRatePresent(SerialParameters.SerialParameterBaudRate);
+        foreach (SessionViewModel session in Workspace.Sessions)
         {
             EnsureBaudRatePresent(session.BaudRate);
         }
@@ -62,7 +62,7 @@ public partial class MainViewModel
 
     private void RestoreDefaultBaudRates()
     {
-        ApplyOrderedBaudRates(BaudRateListPolicy.PruneToDefaults(Sessions.Select(session => session.BaudRate)));
+        ApplyOrderedBaudRates(BaudRateListPolicy.PruneToDefaults(Workspace.Sessions.Select(session => session.BaudRate)));
     }
 
     private void EnsureBaudRatePresent(int baudRate)
@@ -102,9 +102,4 @@ public partial class MainViewModel
         }
     }
 
-    partial void OnBaudRateChanged(int value)
-    {
-        MarkSettingsDirty();
-        SchedulePortSettingsApply();
-    }
 }

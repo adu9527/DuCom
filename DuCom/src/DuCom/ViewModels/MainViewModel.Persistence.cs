@@ -42,14 +42,15 @@ public partial class MainViewModel
         }
     }
 
+    internal void SaveSettingsNow() => SaveSettings();
+
     /// <summary>Settings schema version this build writes and understands; bump when persisted fields change shape.</summary>
     internal const int CurrentSettingsSchemaVersion = 1;
 
     private void OnSettingsSaveTick(object? sender, EventArgs e)
     {
-        if (_settingsDirty)
+        if (_settingsSaveGate.TryConsumeDirty())
         {
-            _settingsDirty = false;
             SaveSettings();
         }
     }
@@ -61,8 +62,42 @@ public partial class MainViewModel
             return;
         }
 
-        _settingsDirty = true;
+        _settingsSaveGate.MarkDirty();
         _settingsSaveTimer.Stop();
         _settingsSaveTimer.Start();
+    }
+
+    private void OnApplicationSettingChanged(object? sender, ApplicationSettingChangedEventArgs e)
+    {
+        if (e.Category.HasFlag(ApplicationSettingChangeCategory.LogFileNamePreview))
+        {
+            OnPropertyChanged(nameof(LogFileNamePreview));
+        }
+
+        if (e.Category.HasFlag(ApplicationSettingChangeCategory.PrivateMemoryMonitor) && e.Value is false)
+        {
+            _privateMemoryThresholdWasReached = false;
+            IsPrivateMemoryThresholdReached = false;
+        }
+
+        if (e.Category.HasFlag(ApplicationSettingChangeCategory.Persist))
+        {
+            MarkSettingsDirty();
+        }
+
+        if (e.Category.HasFlag(ApplicationSettingChangeCategory.Transport))
+        {
+            SerialParameters.SignalTransportChange();
+        }
+
+        if (e.Category.HasFlag(ApplicationSettingChangeCategory.PortVisibility))
+        {
+            RebuildPortItems(SelectedPort);
+        }
+
+        if (e.Category.HasFlag(ApplicationSettingChangeCategory.PreventSleep) && e.Value is bool preventSleep)
+        {
+            SystemPowerService.SetPreventSleep(preventSleep);
+        }
     }
 }

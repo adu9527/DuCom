@@ -44,7 +44,7 @@ internal static class PortListComposer
         List<ComposedPort> result = [];
         foreach (string name in ordered)
         {
-            bool hidden = hiddenPorts.Contains(name);
+            bool hidden = hiddenPorts.Contains(name, StringComparer.OrdinalIgnoreCase);
             details.TryGetValue(name, out DiscoveredPort? detail);
             bool isVirtual = detail?.Type == DiscoveredPortType.Virtual;
             bool typeVisible = isVirtual ? showVirtualPorts : showSerialPorts;

@@ -89,6 +89,13 @@ public sealed class PortListComposerTests
     }
 
     [Fact]
+    public void HiddenPortMatchingIsCaseInsensitive()
+    {
+        IReadOnlyList<ComposedPort> ports = Compose([Serial("com2"), Serial("COM3")], hidden: ["COM2"]);
+        Assert.Equal(["COM3"], ports.Select(port => port.PortName).ToList());
+    }
+
+    [Fact]
     public void VirtualPortsAreDroppedWhenVirtualIsHidden()
     {
         IReadOnlyList<ComposedPort> ports = Compose(

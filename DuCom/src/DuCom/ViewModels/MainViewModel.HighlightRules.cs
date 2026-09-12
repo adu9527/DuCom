@@ -9,7 +9,7 @@ public partial class MainViewModel
 {
     private void OnHighlightRulesApplied(object? sender, HighlightRulesAppliedEventArgs e)
     {
-        SessionViewModel? session = _activeLogSession ?? SelectedSession ?? SelectedRightSession;
+        SessionViewModel? session = Workspace.ActiveSession;
         if (session is null)
         {
             StatusMessage = GetResourceString("Status.NoSessionSelected");
@@ -18,7 +18,7 @@ public partial class MainViewModel
 
         session.ReplaceHighlightRuleProjects(e.Projects);
         session.ApplyHighlightRuleProject(e.SelectedProjectId);
-        RememberSessionHighlightProject(session);
+        Workspace.RememberSessionHighlightProject(session);
         StatusMessage = GetResourceString("HighlightFilter.ApplySuccess");
     }
 
@@ -36,13 +36,13 @@ public partial class MainViewModel
             HighlightFilterRules.Add(rule);
         }
 
-        foreach (SessionViewModel session in Sessions)
+        foreach (SessionViewModel session in Workspace.Sessions)
         {
             Guid? previousProjectId = session.HighlightRuleProjectId;
             session.ReplaceHighlightRuleProjects(e.Projects);
             if (previousProjectId != session.HighlightRuleProjectId)
             {
-                RememberSessionHighlightProject(session);
+                Workspace.RememberSessionHighlightProject(session);
             }
         }
     }
@@ -112,7 +112,7 @@ public partial class MainViewModel
                 HighlightFilterRules.Add(rule);
             }
 
-            foreach (SessionViewModel session in Sessions)
+            foreach (SessionViewModel session in Workspace.Sessions)
             {
                 session.ReplaceHighlightRuleProjects(HighlightRuleProjects);
             }

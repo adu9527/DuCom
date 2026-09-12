@@ -1,5 +1,5 @@
-using System.Text;
 using System.IO.Ports;
+using System.Text;
 using System.Windows;
 using CommunityToolkit.Mvvm.Input;
 using DuCom.Core.Ports;
@@ -27,64 +27,9 @@ public partial class MainViewModel
         _isLoadingSettings = true;
         try
         {
-            BaudRate = 1_152_000;
-            SerialParameterBaudRate = 1_152_000;
+            RestoreApplicationSettingDefaults();
             RestoreDefaultBaudRates();
             OnPropertyChanged(nameof(BaudRate));
-            OnPropertyChanged(nameof(SerialParameterBaudRate));
-            DataBits = 8;
-            StopBits = StopBits.One;
-            Parity = Parity.None;
-            Handshake = Handshake.None;
-            EncodingName = Encoding.UTF8.WebName;
-            ReceiveMode = ReceiveDisplayMode.Str;
-            TimestampEnabled = true;
-            TimestampFormat = "HH:mm:ss.fff";
-            LoggingEnabled = true;
-            LogDirectory = GetDefaultLogDirectory();
-            DefaultSendMode = SendMode.Str;
-            LogRotationMegabytes = 40;
-            LogRotationEnabled = true;
-            DisplayBudgetMegabytes = 64;
-            PrivateMemoryMonitorEnabled = false;
-            PrivateMemoryThresholdMiB = 1024;
-            ShowMemoryMonitor = true;
-            MemoryRefreshInterval = 2;
-            SystemMemoryRefreshInterval = 5;
-            LogFileNameFormat = "{Port}-{yyyy}-{MM}-{dd} {HH}-{mm}-{ss}.{fff}";
-            FreezeAfterSend = false;
-            SendPrefixEnabled = true;
-            SendPrefix = "TX > ";
-            ShowPortType = false;
-            PauseFollowOnMouseWheel = true;
-            PauseFollowOnFocus = false;
-            ShowPauseHint = true;
-            AutoBackupEnabled = true;
-            AutoBackupPeriodDays = 7;
-            PreventSleep = false;
-            CloseToTaskbar = false;
-            AutoCheckUpdates = true;
-            SkippedUpdateVersion = null;
-            SearchOpacity = 1d;
-            DefaultNewline = NewlinePolicy.None;
-            IsSidebarVisible = true;
-            IsBottomSendVisible = true;
-            ShowHiddenPorts = false;
-            ShowSerialPorts = true;
-            ShowVirtualPorts = true;
-            ShowCoverPage = true;
-            CoverPageAnimationEnabled = true;
-            PortSortMode = PortSortMode.NameAscending;
-            WordWrap = false;
-            ShowLineNumbers = true;
-            HighlightCurrentLine = true;
-            ShowControlCharacters = false;
-            ShowSpaces = false;
-            ShowTabs = false;
-            LogFontSize = 14;
-            LogFontFamily = "Cascadia Mono";
-            TelnetPort = 23;
-            TelnetAllowRemote = false;
         }
         finally
         {
@@ -92,14 +37,12 @@ public partial class MainViewModel
         }
 
         SystemPowerService.SetPreventSleep(false);
-        ApplyDefaultSettingsToEditor();
-        SerialParameterSendMode = DefaultSendMode;
-        SerialParameterNewline = DefaultNewline;
+        SerialParameters.BeginDefault(GetDefaultSerialSettings(), DefaultSendMode, DefaultNewline);
         _ = Application.Current.Dispatcher.BeginInvoke(
             () =>
             {
-                OnPropertyChanged(nameof(SerialParameterBaudRate));
-                foreach (SessionViewModel session in Sessions)
+                SerialParameters.RefreshBaudRateBinding();
+                foreach (SessionViewModel session in Workspace.Sessions)
                 {
                     session.RefreshBaudRateDisplay();
                 }
@@ -111,44 +54,16 @@ public partial class MainViewModel
     [RelayCommand]
     private async Task RestoreTransportDefaultsAsync()
     {
-        SessionViewModel? session = _portSettingsTargetSession;
-        if (session is null)
-        {
-            RestoreDefaultBaudRates();
-            _isLoadingSettings = true;
-            try
-            {
-                BaudRate = 1_152_000;
-                DataBits = 8;
-                StopBits = StopBits.One;
-                Parity = Parity.None;
-                Handshake = Handshake.None;
-                EncodingName = Encoding.UTF8.WebName;
-            }
-            finally
-            {
-                _isLoadingSettings = false;
-            }
-
-            ApplyDefaultSettingsToEditor();
-            OnPropertyChanged(nameof(SerialParameterBaudRate));
-            MarkSettingsDirty();
-            return;
-        }
-
-        if (session.IsBusy)
+        if (!SerialParameters.CanRestoreTransportDefaults)
         {
             return;
         }
 
-        _portSettingsApplyTimer.Stop();
-        _portSettingsApplyPending = false;
         RestoreDefaultBaudRates();
-        SerialPortSettings current = session.WorkspaceSession.Settings;
-        SerialPortSettings defaults = current with
+        SerialPortSettings defaults = GetDefaultSerialSettings() with
         {
-            BaudRate = 1_152_000,
-            DataBits = 8,
+            BaudRate = SettingsCatalog.DefaultBaudRate,
+            DataBits = SettingsCatalog.DefaultDataBits,
             StopBits = StopBits.One,
             Parity = Parity.None,
             Handshake = Handshake.None,
@@ -157,15 +72,12 @@ public partial class MainViewModel
             RtsEnable = false,
             DiscardNull = false,
         };
-        await ApplyPortSettingsAsync(session, defaults);
-        if (session.WorkspaceSession.Settings != defaults)
+        if (!await SerialParameters.RestoreTransportDefaultsAsync(defaults))
         {
             return;
         }
 
-        ApplySessionSettingsToEditor(defaults);
-        OnPropertyChanged(nameof(SerialParameterBaudRate));
-        RememberPortOverride(session.PortName);
+        MarkSettingsDirty();
     }
 
     [RelayCommand]
@@ -173,12 +85,12 @@ public partial class MainViewModel
     {
         ReceiveMode = ReceiveDisplayMode.Str;
         TimestampEnabled = true;
-        TimestampFormat = "HH:mm:ss.fff";
+        TimestampFormat = SettingsCatalog.DefaultTimestampFormat;
         LoggingEnabled = true;
-        LogRotationMegabytes = 40;
+        LogRotationMegabytes = SettingsCatalog.DefaultLogRotationMegabytes;
         LogRotationEnabled = true;
-        DisplayBudgetMegabytes = 64;
-        LogFileNameFormat = "{Port}-{yyyy}-{MM}-{dd} {HH}-{mm}-{ss}.{fff}";
+        DisplayBudgetMegabytes = SettingsCatalog.DefaultDisplayBudgetMegabytes;
+        LogFileNameFormat = SettingsCatalog.DefaultLogFileNameFormat;
         SendPrefixEnabled = true;
         SendPrefix = "TX > ";
     }
@@ -189,27 +101,15 @@ public partial class MainViewModel
         DefaultSendMode = SendMode.Str;
         DefaultNewline = NewlinePolicy.None;
 
-        _isLoadingSettings = true;
-        try
-        {
-            SerialParameterSendMode = SendMode.Str;
-            SerialParameterNewline = NewlinePolicy.None;
-            SerialParameterInterpretSendEscapes = false;
-            SerialParameterTimedSendEnabled = false;
-            SerialParameterTimedSendIntervalMilliseconds = 1000;
-        }
-        finally
-        {
-            _isLoadingSettings = false;
-        }
+        SerialParameters.LoadSendDefaults(SendMode.Str, NewlinePolicy.None);
     }
 
     [RelayCommand]
     private void RestoreAppearanceDefaults()
     {
         SearchOpacity = 1d;
-        LogFontSize = 14;
-        LogFontFamily = "Cascadia Mono";
+        LogFontSize = SettingsCatalog.DefaultLogFontSize;
+        LogFontFamily = SettingsCatalog.DefaultLogFontFamily;
         ShowCoverPage = true;
         CoverPageAnimationEnabled = true;
     }

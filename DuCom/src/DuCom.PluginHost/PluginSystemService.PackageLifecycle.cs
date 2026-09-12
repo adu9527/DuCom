@@ -108,7 +108,7 @@ public sealed partial class PluginSystemService
                 throw new InvalidOperationException("Same-version replacement requires the package's version to be selected.");
             }
             ThrowIfBuiltIn(inspected.Manifest.Id);
-            await StopAsync(inspected.Manifest.Id).ConfigureAwait(false);
+            await StopLockedAsync(inspected.Manifest.Id).ConfigureAwait(false);
             EnsurePluginExitConfirmed(inspected.Manifest.Id);
 
             installed = InstallPack(dcpackPath, expectedDigest, replaceExisting: true);
@@ -146,13 +146,21 @@ public sealed partial class PluginSystemService
     public void SetEnabled(string pluginId, bool enabled, bool stopImmediately = true)
     {
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
-        _registry.Mutate(data =>
+        _lifecycleGate.Wait();
+        try
         {
-            if (data.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? entry))
+            _registry.Mutate(data =>
             {
-                data.Plugins[pluginId] = entry with { Enabled = enabled };
-            }
-        });
+                if (data.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? entry))
+                {
+                    data.Plugins[pluginId] = entry with { Enabled = enabled };
+                }
+            });
+        }
+        finally
+        {
+            _lifecycleGate.Release();
+        }
 
         if (!enabled && stopImmediately)
         {
@@ -223,7 +231,7 @@ public sealed partial class PluginSystemService
             {
                 _ = process.Handle;
             }
-            await StopAsync(pluginId).ConfigureAwait(false);
+            await StopLockedAsync(pluginId).ConfigureAwait(false);
             if (process is not null)
             {
                 await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);

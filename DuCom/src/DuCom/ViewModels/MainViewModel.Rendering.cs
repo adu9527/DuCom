@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows.Media;
+using DuCom.Services;
 
 namespace DuCom.ViewModels;
 
@@ -7,32 +8,32 @@ public partial class MainViewModel
 {
     private void OnCompositionRendering(object? sender, EventArgs e)
     {
-        if (e is not RenderingEventArgs { RenderingTime: TimeSpan renderingTime } ||
-            renderingTime < _nextRenderTime)
+        if (e is not RenderingEventArgs { RenderingTime: TimeSpan renderingTime })
         {
             return;
         }
 
-        _lastRenderTime = renderingTime;
-        _nextRenderTime += MinimumRenderInterval;
-        if (_nextRenderTime <= renderingTime)
+        FramePacerDecision decision = FramePacer.Advance(renderingTime, _framePacerState);
+        _framePacerState = decision.State;
+        if (!decision.ShouldRender)
         {
-            _nextRenderTime = renderingTime + MinimumRenderInterval;
+            return;
         }
-        OnRenderTick(renderingTime);
+
+        OnRenderTick(decision.ShouldRefreshStatus);
     }
 
-    private void OnRenderTick(TimeSpan renderingTime)
+    private void OnRenderTick(bool shouldRefreshStatus)
     {
         HashSet<SessionViewModel> sessionsToProject = [];
-        if (SelectedSession is not null)
+        if (Workspace.SelectedSession is not null)
         {
-            sessionsToProject.Add(SelectedSession);
+            sessionsToProject.Add(Workspace.SelectedSession);
         }
 
-        if (SelectedRightSession is not null)
+        if (Workspace.SelectedRightSession is not null)
         {
-            sessionsToProject.Add(SelectedRightSession);
+            sessionsToProject.Add(Workspace.SelectedRightSession);
         }
 
         bool commandStateChanged = false;
@@ -52,7 +53,7 @@ public partial class MainViewModel
                 }
             }
         }
-        if (renderingTime - _lastStatusRefreshTime < StatusRefreshInterval)
+        if (!shouldRefreshStatus)
         {
             if (commandStateChanged)
             {
@@ -61,8 +62,7 @@ public partial class MainViewModel
             return;
         }
 
-        _lastStatusRefreshTime = renderingTime;
-        Dictionary<string, SessionViewModel> sessionsByPort = Sessions
+        Dictionary<string, SessionViewModel> sessionsByPort = Workspace.Sessions
             .GroupBy(session => session.PortName, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         foreach (PortItemViewModel port in AvailablePorts)

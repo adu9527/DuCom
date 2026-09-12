@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using DuCom.Core.Parsing;
+using DuCom.Core.Ports;
 using DuCom.Core.Sending;
 using DuCom.Core.Sessions;
 using DuCom.Core.Storage;
@@ -7,7 +8,7 @@ using DuCom.Services;
 
 namespace DuCom.ViewModels;
 
-public partial class SessionViewModel : ObservableObject, IAsyncDisposable
+public partial class SessionViewModel : ObservableObject, IAsyncDisposable, ISerialParametersSession
 {
     private readonly IWorkspaceSession _session;
     private readonly ScriptGroupHost _commandGroupHost;
@@ -74,6 +75,8 @@ public partial class SessionViewModel : ObservableObject, IAsyncDisposable
     internal bool AppliedLoggingEnabled { get; }
 
     internal IWorkspaceSession WorkspaceSession => _session;
+
+    SerialPortSettings ISerialParametersSession.Settings => _session.Settings;
 
     /// <summary>Display tap fan-out for auxiliary surfaces (float send window, log filter).</summary>
     public SessionTapHub DisplayTaps => _session.DisplayTaps;

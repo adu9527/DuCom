@@ -116,8 +116,7 @@ public partial class PluginManagerViewModel
     {
         try
         {
-            await _mainViewModel.CloseAllSessionsForRestartAsync();
-            return true;
+            return await _mainViewModel.Workspace.CloseAllSessionsForRestartAsync();
         }
         catch (Exception exception)
         {

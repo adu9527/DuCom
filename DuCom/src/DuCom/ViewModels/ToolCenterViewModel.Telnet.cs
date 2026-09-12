@@ -117,7 +117,7 @@ public partial class ToolCenterViewModel
             return;
         }
 
-        foreach (SessionViewModel session in _mainViewModel.Sessions.Where(session => session.IsOpen))
+        foreach (SessionViewModel session in _mainViewModel.Workspace.Sessions.Where(session => session.IsOpen))
         {
             BridgePortOptions.Add(session.PortName);
         }

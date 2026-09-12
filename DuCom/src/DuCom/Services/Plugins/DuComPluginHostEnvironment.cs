@@ -250,7 +250,7 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
     {
         long now = Stopwatch.GetTimestamp();
         long previous = Volatile.Read(ref _rawHandlerFaultLogTimestamp);
-        if (now - previous < RawHandlerFaultLogInterval.Ticks
+        if (previous != 0 && Stopwatch.GetElapsedTime(previous, now) < RawHandlerFaultLogInterval
             || Interlocked.CompareExchange(ref _rawHandlerFaultLogTimestamp, now, previous) != previous)
         {
             return;

@@ -20,7 +20,7 @@ public partial class MainViewModel
 
         if (_serialParametersWindow is { IsLoaded: true })
         {
-            if (!await FlushPortSettingsAsync())
+            if (!await SerialParameters.FlushAsync())
             {
                 _serialParametersWindow.Activate();
                 return;
@@ -30,9 +30,7 @@ public partial class MainViewModel
             _serialParametersWindow.Close();
         }
 
-        ApplyDefaultSettingsToEditor();
-        SerialParameterSendMode = DefaultSendMode;
-        SerialParameterNewline = DefaultNewline;
+        SerialParameters.BeginDefault(GetDefaultSerialSettings(), DefaultSendMode, DefaultNewline);
         _settingsWindow = new SettingsWindow()
         {
             Owner = Application.Current.MainWindow,
@@ -49,7 +47,7 @@ public partial class MainViewModel
     [RelayCommand]
     private void OpenSerialParameters(SessionViewModel? session)
     {
-        session ??= SelectedSession;
+        session ??= Workspace.SelectedSession;
         if (session is null)
         {
             return;
@@ -63,20 +61,7 @@ public partial class MainViewModel
             return;
         }
 
-        _portSettingsTargetSession = session;
-        OnPropertyChanged(nameof(IsEditingPortSettings));
-        ApplySessionSettingsToEditor(session.WorkspaceSession.Settings);
-        SerialParameterReceiveMode = session.ReceiveMode;
-        SerialParameterTimestampEnabled = session.TimestampEnabled;
-        SerialParameterLoggingEnabled = session.LoggingEnabled;
-        SerialParameterFollowEnd = session.FollowEnd;
-        SerialParameterFilterEnabled = session.FilterEnabled;
-        SerialParameterSendMode = session.SendMode;
-        SerialParameterNewline = session.Newline;
-        SerialParameterInterpretSendEscapes = session.InterpretSendEscapes;
-        SerialParameterTimedSendEnabled = session.TimedSendEnabled;
-        SerialParameterTimedSendIntervalMilliseconds = session.TimedSendIntervalMilliseconds;
-        SerialParameterAutoReconnect = session.AutoReconnect;
+        SerialParameters.BeginSession(session);
         if (_settingsWindow is { IsLoaded: true })
         {
             _settingsWindow.Close();
@@ -98,10 +83,7 @@ public partial class MainViewModel
             }
 
             _serialParametersWindow = null;
-            _portSettingsTargetSession = null;
-            OnPropertyChanged(nameof(IsEditingPortSettings));
-            _portSettingsApplyTimer.Stop();
-            _portSettingsApplyPending = false;
+            SerialParameters.End();
             _allowSerialParametersWindowClose = false;
         };
         _serialParametersWindow.Show();
@@ -115,7 +97,7 @@ public partial class MainViewModel
         }
 
         e.Cancel = true;
-        if (!await FlushPortSettingsAsync())
+        if (!await SerialParameters.FlushAsync())
         {
             return;
         }
@@ -129,6 +111,20 @@ public partial class MainViewModel
                 window.Close,
                 System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
+    }
+
+    private async Task<bool> PrepareSessionCloseAsync(SessionViewModel session)
+    {
+        if (!ReferenceEquals(SerialParameters.TargetSession, session)) return true;
+        if (!await SerialParameters.FlushAsync()) return false;
+
+        SerialParameters.End();
+        if (_serialParametersWindow is { IsLoaded: true } window)
+        {
+            _allowSerialParametersWindowClose = true;
+            window.Close();
+        }
+        return true;
     }
 
     [RelayCommand]

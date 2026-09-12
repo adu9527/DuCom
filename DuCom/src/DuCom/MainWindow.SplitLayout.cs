@@ -31,10 +31,14 @@ public partial class MainWindow
             ApplySplitLayout(viewModel);
             viewModel.PropertyChanged += (_, args) =>
             {
-                if (args.PropertyName is nameof(MainViewModel.SplitOrientation) or nameof(MainViewModel.IsSplitView))
+                if (args.PropertyName == nameof(MainViewModel.SplitOrientation))
                 {
                     ApplySplitLayout(viewModel);
                 }
+            };
+            viewModel.Workspace.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(SessionWorkspaceViewModel.IsSplitView)) ApplySplitLayout(viewModel);
             };
         }
     }
@@ -42,7 +46,7 @@ public partial class MainWindow
     private void ApplySplitLayout(MainViewModel viewModel)
     {
         double ratio = Math.Clamp(viewModel.SplitterRatio, 0.2d, 0.8d);
-        bool split = viewModel.IsSplitView;
+        bool split = viewModel.Workspace.IsSplitView;
         if (viewModel.SplitOrientation == SplitLayoutOrientation.Horizontal)
         {
             Grid.SetRow(SessionGridSplitter, 1);

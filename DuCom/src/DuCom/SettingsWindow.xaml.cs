@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows.Input;
 using Wpf.Ui.Controls;
 
@@ -5,6 +6,8 @@ namespace DuCom;
 
 public partial class SettingsWindow : FluentWindow
 {
+    private ViewModels.SerialParametersEditorViewModel? _serialParameters;
+
     public bool IsTransportOnly { get; }
 
     public SettingsWindow(int selectedCategory = 0, bool transportOnly = false)
@@ -20,8 +23,9 @@ public partial class SettingsWindow : FluentWindow
             string title = System.Windows.Application.Current.TryFindResource("Settings.SerialParameters") as string ?? "Serial parameters";
             Title = title;
             SettingsTitleBar.Title = title;
-            Loaded += (_, _) => RefreshTransportState();
-            DataContextChanged += (_, _) => RefreshTransportState();
+            Loaded += (_, _) => AttachSerialParameters();
+            DataContextChanged += (_, _) => AttachSerialParameters();
+            Unloaded += (_, _) => DetachSerialParameters();
         }
     }
 
@@ -29,7 +33,36 @@ public partial class SettingsWindow : FluentWindow
     {
         if (DataContext is ViewModels.MainViewModel viewModel)
         {
-            SerialParameterInputs.IsEnabled = !IsTransportOnly || viewModel.IsSerialParametersEditable;
+            SerialParameterInputs.IsEnabled = !IsTransportOnly || viewModel.SerialParameters.IsSerialParametersEditable;
+        }
+    }
+
+    private void AttachSerialParameters()
+    {
+        DetachSerialParameters();
+        if (DataContext is ViewModels.MainViewModel viewModel)
+        {
+            _serialParameters = viewModel.SerialParameters;
+            _serialParameters.PropertyChanged += SerialParameters_PropertyChanged;
+        }
+
+        RefreshTransportState();
+    }
+
+    private void DetachSerialParameters()
+    {
+        if (_serialParameters is not null)
+        {
+            _serialParameters.PropertyChanged -= SerialParameters_PropertyChanged;
+            _serialParameters = null;
+        }
+    }
+
+    private void SerialParameters_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ViewModels.SerialParametersEditorViewModel.IsSerialParametersEditable))
+        {
+            RefreshTransportState();
         }
     }
 

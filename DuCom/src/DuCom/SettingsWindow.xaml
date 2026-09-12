@@ -163,25 +163,25 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
                                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.BaudRate}" />
-                                            <ComboBox ItemsSource="{Binding BaudRates}" SelectedItem="{Binding SerialParameterBaudRate}" Style="{StaticResource Style.SettingsComboBox}" />
+                                             <ComboBox ItemsSource="{Binding BaudRates}" SelectedItem="{Binding SerialParameters.SerialParameterBaudRate}" Style="{StaticResource Style.SettingsComboBox}" />
                                             <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.DataBits}" />
-                                            <ComboBox ItemsSource="{Binding DataBitsOptions}" SelectedItem="{Binding SerialParameterDataBits}" Style="{StaticResource Style.SettingsComboBox}" />
+                                             <ComboBox ItemsSource="{Binding DataBitsOptions}" SelectedItem="{Binding SerialParameters.SerialParameterDataBits}" Style="{StaticResource Style.SettingsComboBox}" />
                                             <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.StopBits}" />
-                                            <ComboBox ItemsSource="{Binding StopBitsOptions}" SelectedItem="{Binding SerialParameterStopBits}" Style="{StaticResource Style.SettingsComboBox}" />
+                                             <ComboBox ItemsSource="{Binding StopBitsOptions}" SelectedItem="{Binding SerialParameters.SerialParameterStopBits}" Style="{StaticResource Style.SettingsComboBox}" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
                                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.Parity}" />
-                                            <ComboBox ItemsSource="{Binding ParityOptions}" SelectedItem="{Binding SerialParameterParity}" Style="{StaticResource Style.SettingsComboBox}" />
+                                             <ComboBox ItemsSource="{Binding ParityOptions}" SelectedItem="{Binding SerialParameters.SerialParameterParity}" Style="{StaticResource Style.SettingsComboBox}" />
                                             <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.Handshake}" />
-                                            <ComboBox ItemsSource="{Binding HandshakeOptions}" SelectedItem="{Binding SerialParameterHandshake}" Style="{StaticResource Style.SettingsComboBox}" />
+                                             <ComboBox ItemsSource="{Binding HandshakeOptions}" SelectedItem="{Binding SerialParameters.SerialParameterHandshake}" Style="{StaticResource Style.SettingsComboBox}" />
                                             <TextBlock Margin="0,12,0,0" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.Encoding}" />
-                                            <ComboBox ItemsSource="{Binding EncodingOptions}" SelectedItem="{Binding SerialParameterEncodingName}" Style="{StaticResource Style.SettingsComboBox}" />
-                                            <CheckBox x:Name="DtrEnableCheckBox" Margin="0,12,0,0" Content="{DynamicResource Settings.DtrEnable}" IsChecked="{Binding SerialParameterDtrEnable}" Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                            <CheckBox x:Name="RtsEnableCheckBox" Margin="0,10,0,0" Content="{DynamicResource Settings.RtsEnable}" IsChecked="{Binding SerialParameterRtsEnable}" Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                             <CheckBox x:Name="DiscardNullCheckBox" Margin="0,10,0,0" Content="{DynamicResource Settings.DiscardNull}" IsChecked="{Binding SerialParameterDiscardNull}" Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                             <ComboBox ItemsSource="{Binding EncodingOptions}" SelectedItem="{Binding SerialParameters.SerialParameterEncodingName}" Style="{StaticResource Style.SettingsComboBox}" />
+                                             <CheckBox x:Name="DtrEnableCheckBox" Margin="0,12,0,0" Content="{DynamicResource Settings.DtrEnable}" IsChecked="{Binding SerialParameters.SerialParameterDtrEnable}" Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                             <CheckBox x:Name="RtsEnableCheckBox" Margin="0,10,0,0" Content="{DynamicResource Settings.RtsEnable}" IsChecked="{Binding SerialParameters.SerialParameterRtsEnable}" Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                              <CheckBox x:Name="DiscardNullCheckBox" Margin="0,10,0,0" Content="{DynamicResource Settings.DiscardNull}" IsChecked="{Binding SerialParameters.SerialParameterDiscardNull}" Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                              <CheckBox Margin="0,10,0,0"
                                                        Content="{DynamicResource Connection.AutoReconnect}"
-                                                       IsChecked="{Binding SerialParameterAutoReconnect}"
+                                                        IsChecked="{Binding SerialParameters.SerialParameterAutoReconnect}"
                                                        ToolTip="{DynamicResource Connection.AutoReconnect.Tooltip}"
                                                        Visibility="{Binding IsTransportOnly, ElementName=SettingsRoot, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         </StackPanel>
@@ -199,7 +199,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
                                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.ModeLabel}" />
-                                            <ComboBox SelectedValue="{Binding SerialParameterSendMode}" SelectedValuePath="Tag">
+                                             <ComboBox SelectedValue="{Binding SerialParameters.SerialParameterSendMode}" SelectedValuePath="Tag">
                                                 <ComboBoxItem Content="{DynamicResource Send.ModeString}" Tag="{x:Static sending:SendMode.Str}" />
                                                 <ComboBoxItem Content="{DynamicResource Send.ModeHex}" Tag="{x:Static sending:SendMode.Hex}" />
                                             </ComboBox>
@@ -208,10 +208,10 @@
                                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.NewlineLabel}" />
                                             <TextBlock Margin="0,0,0,8" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Send.NewlineHint}" TextWrapping="Wrap" />
                                             <StackPanel>
-                                                <RadioButton Content="{DynamicResource Send.NewlineNone.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.None}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
-                                                <RadioButton Content="{DynamicResource Send.NewlineCr.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Cr}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
-                                                <RadioButton Content="{DynamicResource Send.NewlineLf.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Lf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
-                                                <RadioButton Content="{DynamicResource Send.NewlineCrLf.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.CrLf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                 <RadioButton Content="{DynamicResource Send.NewlineNone.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.None}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                 <RadioButton Content="{DynamicResource Send.NewlineCr.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Cr}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                 <RadioButton Content="{DynamicResource Send.NewlineLf.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Lf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                 <RadioButton Content="{DynamicResource Send.NewlineCrLf.Description}" GroupName="TransportNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.CrLf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
                                             </StackPanel>
                                         </StackPanel>
                                     </Grid>
@@ -228,13 +228,13 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
                                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.ReceiveMode}" />
-                                            <ComboBox ItemsSource="{Binding ReceiveModeOptions}" SelectedItem="{Binding SerialParameterReceiveMode}" />
-                                            <CheckBox Margin="0,12,0,0" Content="{DynamicResource Settings.Timestamp}" IsChecked="{Binding SerialParameterTimestampEnabled}" />
-                                            <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.AutoLog}" IsChecked="{Binding SerialParameterLoggingEnabled}" />
+                                             <ComboBox ItemsSource="{Binding ReceiveModeOptions}" SelectedItem="{Binding SerialParameters.SerialParameterReceiveMode}" />
+                                             <CheckBox Margin="0,12,0,0" Content="{DynamicResource Settings.Timestamp}" IsChecked="{Binding SerialParameters.SerialParameterTimestampEnabled}" />
+                                             <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.AutoLog}" IsChecked="{Binding SerialParameters.SerialParameterLoggingEnabled}" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
-                                            <CheckBox Content="{DynamicResource Log.Follow}" IsChecked="{Binding SerialParameterFollowEnd}" />
-                                            <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.FilterEnabled}" IsChecked="{Binding SerialParameterFilterEnabled}" />
+                                             <CheckBox Content="{DynamicResource Log.Follow}" IsChecked="{Binding SerialParameters.SerialParameterFollowEnd}" />
+                                             <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.FilterEnabled}" IsChecked="{Binding SerialParameters.SerialParameterFilterEnabled}" />
                                             <TextBlock Margin="0,12,0,0" Foreground="{DynamicResource Brush.Caution}" Text="{DynamicResource Settings.SessionRestartNotice}" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Grid>
@@ -403,7 +403,7 @@
                                         </Grid.ColumnDefinitions>
                                         <StackPanel>
                                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.ModeLabel}" />
-                                            <ComboBox SelectedValue="{Binding SerialParameterSendMode}" SelectedValuePath="Tag">
+                                             <ComboBox SelectedValue="{Binding SerialParameters.SerialParameterSendMode}" SelectedValuePath="Tag">
                                                 <ComboBoxItem Content="{DynamicResource Send.ModeString}" Tag="{x:Static sending:SendMode.Str}" />
                                                 <ComboBoxItem Content="{DynamicResource Send.ModeHex}" Tag="{x:Static sending:SendMode.Hex}" />
                                             </ComboBox>
@@ -412,10 +412,10 @@
                                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.NewlineLabel}" />
                                             <TextBlock Margin="0,0,0,8" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Send.NewlineHint}" TextWrapping="Wrap" />
                                             <StackPanel>
-                                                <RadioButton Content="{DynamicResource Send.NewlineNone.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.None}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
-                                                <RadioButton Content="{DynamicResource Send.NewlineCr.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Cr}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
-                                                <RadioButton Content="{DynamicResource Send.NewlineLf.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Lf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
-                                                <RadioButton Content="{DynamicResource Send.NewlineCrLf.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.CrLf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                 <RadioButton Content="{DynamicResource Send.NewlineNone.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.None}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                 <RadioButton Content="{DynamicResource Send.NewlineCr.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Cr}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                 <RadioButton Content="{DynamicResource Send.NewlineLf.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Lf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
+                                                 <RadioButton Content="{DynamicResource Send.NewlineCrLf.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.CrLf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
                                             </StackPanel>
                                         </StackPanel>
                                     </Grid>
@@ -425,11 +425,11 @@
                                     <StackPanel>
                                         <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.SendAdvanced}" />
                                         <Button HorizontalAlignment="Left" Command="{Binding LoadSendFileCommand}" Content="{DynamicResource Send.LoadFile}" />
-                                        <CheckBox Margin="0,12,0,0" Content="{DynamicResource Send.InterpretEscapes}" IsChecked="{Binding SerialParameterInterpretSendEscapes}" />
+                                         <CheckBox Margin="0,12,0,0" Content="{DynamicResource Send.InterpretEscapes}" IsChecked="{Binding SerialParameters.SerialParameterInterpretSendEscapes}" />
                                         <TextBlock Margin="0,5,0,0" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Send.InterpretEscapes.Hint}" TextWrapping="Wrap" />
-                                        <CheckBox Margin="0,14,0,0" Content="{DynamicResource Send.Timed}" IsChecked="{Binding SerialParameterTimedSendEnabled}" />
+                                         <CheckBox Margin="0,14,0,0" Content="{DynamicResource Send.Timed}" IsChecked="{Binding SerialParameters.SerialParameterTimedSendEnabled}" />
                                         <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.TimedInterval}" />
-                                        <TextBox IsEnabled="{Binding SerialParameterTimedSendEnabled}" Text="{Binding SerialParameterTimedSendIntervalMilliseconds, UpdateSourceTrigger=PropertyChanged}" />
+                                         <TextBox IsEnabled="{Binding SerialParameters.SerialParameterTimedSendEnabled}" Text="{Binding SerialParameters.SerialParameterTimedSendIntervalMilliseconds, UpdateSourceTrigger=PropertyChanged}" />
                                     </StackPanel>
                                  </Border>
                                 <Button Margin="0,0,0,12"
