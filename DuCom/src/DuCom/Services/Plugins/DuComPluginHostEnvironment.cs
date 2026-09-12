@@ -27,6 +27,9 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
     private readonly HashSet<string> _knownSessions = new(StringComparer.Ordinal);
     private readonly List<Action<string, ReadOnlyMemory<byte>, DateTimeOffset>> _rawHandlers = [];
 
+    private static readonly TimeSpan RawHandlerFaultLogInterval = TimeSpan.FromSeconds(10);
+    private long _rawHandlerFaultLogTimestamp;
+
     public DuComPluginHostEnvironment(
         Func<IEnumerable<SessionViewModel>> sessionsProvider,
         Func<IEnumerable<PortItemViewModel>> portsProvider,
@@ -149,8 +152,11 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
                 IReadOnlyList<Core.Logging.SessionLogFileSnapshot> result = await viewModel.WorkspaceSession.CreateLogSnapshotAsync(cancellationToken);
                 files = [.. result];
             }
-            catch (Exception)
+            catch (Exception exception)
             {
+                Program.DiagnosticLog?.Warning(
+                    $"Log snapshot failed for port '{viewModel.PortName}'; the session is skipped in this snapshot.",
+                    exception);
                 continue;
             }
 
@@ -230,10 +236,29 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
                 byte[] copy = bytes.ToArray();
                 handler(runtimeId, copy, receivedAtUtc);
             }
-            catch (Exception)
+            catch (Exception exception)
             {
+                // A misbehaving handler must not break fan-out to the others. At high baud
+                // rates a failing handler could produce thousands of faults per second, so
+                // repeats are throttled to one logged line per interval.
+                LogRawHandlerFaultThrottled(exception);
             }
         }
+    }
+
+    private void LogRawHandlerFaultThrottled(Exception exception)
+    {
+        long now = Stopwatch.GetTimestamp();
+        long previous = Volatile.Read(ref _rawHandlerFaultLogTimestamp);
+        if (now - previous < RawHandlerFaultLogInterval.Ticks
+            || Interlocked.CompareExchange(ref _rawHandlerFaultLogTimestamp, now, previous) != previous)
+        {
+            return;
+        }
+
+        Program.DiagnosticLog?.Warning(
+            "A plugin raw-data handler faulted; further faults are logged at most once per 10s.",
+            exception);
     }
 
     private void DetectClosedSessions(HashSet<string> live)
@@ -426,8 +451,11 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
                 return directory;
             }
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            Program.DiagnosticLog?.Warning(
+                "The log directory provider failed; falling back to the base-directory Logs folder.",
+                exception);
         }
 
         return Path.Combine(AppContext.BaseDirectory, "Logs");

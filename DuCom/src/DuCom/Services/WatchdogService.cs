@@ -139,8 +139,11 @@ public sealed class WatchdogService : IDisposable
         {
             disposeTask.Wait(TimeSpan.FromSeconds(5));
         }
-        catch (AggregateException)
+        catch (AggregateException exception)
         {
+            // A faulted dispose must not escape the caller, but it is recorded so the
+            // underlying failure is diagnosable instead of silently lost.
+            Program.DiagnosticLog?.Error("Watchdog disposal faulted.", exception);
         }
     }
 
@@ -151,8 +154,9 @@ public sealed class WatchdogService : IDisposable
         {
             await _worker.DisposeAsync().ConfigureAwait(false);
         }
-        catch
+        catch (Exception exception)
         {
+            Program.DiagnosticLog?.Warning("Watchdog worker disposal failed.", exception);
         }
 
         _cancellation.Dispose();

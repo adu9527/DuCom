@@ -43,8 +43,11 @@ public partial class App
             string path = Services.AppSettingsService.SettingsFilePath;
             return File.Exists(path) ? File.ReadAllText(path) : string.Empty;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            Program.DiagnosticLog?.Warning(
+                "Application settings could not be read; legacy plugin preference migration is skipped for this launch.",
+                exception);
             return string.Empty;
         }
     }
@@ -55,8 +58,10 @@ public partial class App
         {
             return File.Exists(path) ? File.ReadAllText(path) : null;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            Program.DiagnosticLog?.Warning(
+                "Legacy log-package preferences file could not be read.", exception);
             return null;
         }
     }

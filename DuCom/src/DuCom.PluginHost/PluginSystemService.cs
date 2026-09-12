@@ -136,6 +136,7 @@ public sealed partial class PluginSystemService : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        CancelAutoRestarts();
         await StopAllAsync().ConfigureAwait(false);
         _budget.Dispose();
         _launcher.Dispose();

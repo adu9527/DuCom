@@ -1,6 +1,7 @@
 using System.IO.Ports;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using DuCom.Core.Parsing;
 using DuCom.Core.Ports;
 using DuCom.Core.Sending;
@@ -306,5 +307,64 @@ public partial class MainViewModel
         }
 
         SchedulePortSettingsApply();
+    }
+
+    /// <summary>
+    /// Encoding picked from the sidebar "display" menu. Applies to the live target
+    /// (serial-parameters window target, else the selected session) without reopening
+    /// the port; with no session at all it becomes the default for future sessions.
+    /// </summary>
+    [RelayCommand]
+    private async Task SelectEncodingAsync(string? encodingName)
+    {
+        if (_isLoadingSettings || string.IsNullOrWhiteSpace(encodingName))
+        {
+            return;
+        }
+
+        SessionViewModel? session = _portSettingsTargetSession ?? SelectedSession ?? SelectedRightSession;
+        if (session is null)
+        {
+            SerialParameterEncodingName = encodingName;
+            return;
+        }
+
+        if (_portSettingsTargetSession is not null)
+        {
+            // The serial-parameters window owns the editor state; its debounced apply
+            // stays the single writer for the edited session.
+            SerialParameterEncodingName = encodingName;
+            return;
+        }
+
+        if (string.Equals(session.WorkspaceSession.Settings.EncodingName, encodingName, StringComparison.OrdinalIgnoreCase))
+        {
+            // Already active: re-assert so the menu checkmark snaps back into place.
+            OnPropertyChanged(nameof(SerialParameterEncodingName));
+            return;
+        }
+
+        if (session.IsBusy)
+        {
+            StatusMessage = GetResourceString("Status.PortSettingsBusy");
+            OnPropertyChanged(nameof(SerialParameterEncodingName));
+            return;
+        }
+
+        await ApplyPortSettingsAsync(session, session.WorkspaceSession.Settings with { EncodingName = encodingName });
+        SetSerialParameterEditorEncoding(encodingName);
+    }
+
+    private void SetSerialParameterEditorEncoding(string encodingName)
+    {
+        _isLoadingSettings = true;
+        try
+        {
+            SerialParameterEncodingName = encodingName;
+        }
+        finally
+        {
+            _isLoadingSettings = false;
+        }
     }
 }

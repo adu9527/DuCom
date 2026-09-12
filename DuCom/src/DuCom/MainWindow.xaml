@@ -26,6 +26,7 @@
     <ui:FluentWindow.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:EqualityConverter x:Key="EqualityConverter" />
+        <converters:EqualityMultiConverter x:Key="EqualityMultiConverter" />
     </ui:FluentWindow.Resources>
 
     <Grid Background="{DynamicResource Brush.ShellSurface}">
@@ -120,6 +121,24 @@
                                 <MenuItem Header="18" IsCheckable="True" IsChecked="{Binding LogFontSize, Converter={StaticResource EqualityConverter}, ConverterParameter=18}" Click="FontSizeMenu_Click" Tag="18" />
                                  <MenuItem Header="20" IsCheckable="True" IsChecked="{Binding LogFontSize, Converter={StaticResource EqualityConverter}, ConverterParameter=20}" Click="FontSizeMenu_Click" Tag="20" />
                              </MenuItem>
+                            <MenuItem Header="{DynamicResource Settings.Encoding}" ItemsSource="{Binding EncodingOptions}">
+                                <MenuItem.ItemContainerStyle>
+                                    <Style TargetType="MenuItem">
+                                        <Setter Property="IsCheckable" Value="True" />
+                                        <Setter Property="StaysOpenOnClick" Value="True" />
+                                        <Setter Property="Command" Value="{Binding DataContext.SelectEncodingCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                        <Setter Property="CommandParameter" Value="{Binding}" />
+                                        <Setter Property="IsChecked">
+                                            <Setter.Value>
+                                                <MultiBinding Converter="{StaticResource EqualityMultiConverter}" Mode="OneWay">
+                                                    <Binding Path="." />
+                                                    <Binding Path="DataContext.SerialParameterEncodingName" RelativeSource="{RelativeSource AncestorType=ContextMenu}" />
+                                                </MultiBinding>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </MenuItem.ItemContainerStyle>
+                            </MenuItem>
                             <Separator />
                                 <MenuItem Header="{DynamicResource Menu.Tools.Theme}">
                                     <MenuItem Command="{Binding ApplyLightThemeCommand}" Header="{DynamicResource Menu.Tools.Theme.Light}" IsCheckable="True" IsChecked="{Binding IsLightTheme, Mode=OneWay}" />

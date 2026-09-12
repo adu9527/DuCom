@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DuCom.Core.Persistence;
+using DuCom.PluginHost.Diagnostics;
 
 namespace DuCom.PluginHost.Core;
 
@@ -260,7 +261,11 @@ public sealed class HostTempResourceLedger : IDisposable
             if (File.Exists(record.Path)) File.Delete(record.Path);
             return !File.Exists(record.Path);
         }
-        catch { return false; }
+        catch (Exception exception)
+        {
+            PluginHostTrace.Warning($"Host temp resource could not be deleted: {record.ResourceId} at '{record.Path}'.", exception);
+            return false;
+        }
     }
 
     private static bool ResourceExists(HostTempResourceRecord record) =>
@@ -273,7 +278,11 @@ public sealed class HostTempResourceLedger : IDisposable
             if (File.Exists(path)) return new FileInfo(path).Length;
             if (Directory.Exists(path)) return Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories).Sum(file => new FileInfo(file).Length);
         }
-        catch { }
+        catch (Exception exception)
+        {
+            // Reporting 0 under-counts the disk budget; keep the caller working but record why.
+            PluginHostTrace.Warning($"Host temp usage measurement failed for '{path}'; reporting 0 bytes.", exception);
+        }
         return 0;
     }
 

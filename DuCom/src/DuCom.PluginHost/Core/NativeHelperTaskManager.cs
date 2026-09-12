@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using DuCom.Plugin;
 using DuCom.Plugin.Dto;
+using DuCom.PluginHost.Diagnostics;
 using DuCom.PluginHost.Security;
 
 namespace DuCom.PluginHost.Core;
@@ -76,7 +77,12 @@ internal sealed class NativeHelperTaskManager : IDisposable
         catch
         {
             lock (_gate) _tasks.Remove(request.TaskId);
-            try { Directory.Delete(taskDirectory, true); } catch { }
+            try { Directory.Delete(taskDirectory, true); }
+            catch (Exception cleanupException)
+            {
+                PluginHostTrace.Warning($"Helper task directory cleanup failed for '{request.TaskId}'.", cleanupException);
+            }
+
             throw;
         }
         lock (_gate)
@@ -106,7 +112,13 @@ internal sealed class NativeHelperTaskManager : IDisposable
         RunningHelperTask task;
         lock (_gate) task = Find(taskId);
         if (task.IsTerminal) return task.Snapshot();
-        try { File.WriteAllText(task.CancelPath, DateTimeOffset.UtcNow.ToString("O")); } catch { }
+        try { File.WriteAllText(task.CancelPath, DateTimeOffset.UtcNow.ToString("O")); }
+        catch (Exception exception)
+        {
+            // The helper will not observe the cooperative cancel marker; the forced
+            // termination path below remains the backstop, so record and continue.
+            PluginHostTrace.Warning($"Cancel marker could not be written for helper task '{taskId}'.", exception);
+        }
         task.MarkCancelling();
         if (!await task.WaitForExitAsync(CancelGraceMs).ConfigureAwait(false))
         {
@@ -314,7 +326,18 @@ internal sealed class NativeHelperTaskManager : IDisposable
                 lock (_gate) _progressError ??= $"Helper progress is invalid: {exception.Message}";
             }
         }
-        public void CleanupFiles() { try { string? directory = Path.GetDirectoryName(ResultPath); if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory)) Directory.Delete(directory, true); } catch { } }
+        public void CleanupFiles()
+        {
+            try
+            {
+                string? directory = Path.GetDirectoryName(ResultPath);
+                if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory)) Directory.Delete(directory, true);
+            }
+            catch (Exception exception)
+            {
+                PluginHostTrace.Warning($"Helper task result cleanup failed for '{Id}' at '{ResultPath}'.", exception);
+            }
+        }
         public void DisposeHandles() { if (Interlocked.Exchange(ref _handlesDisposed, 1) != 0) return; if (Process != IntPtr.Zero) WindowsInterop.CloseHandle(Process); if (Job != IntPtr.Zero) WindowsInterop.CloseHandle(Job); }
     }
     private sealed record ProgressDocument(int Percent, string? Message);

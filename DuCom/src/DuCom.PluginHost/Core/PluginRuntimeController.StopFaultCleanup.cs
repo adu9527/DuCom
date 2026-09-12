@@ -22,8 +22,10 @@ public sealed partial class PluginRuntimeController
         {
             await SendRequestAsync(PluginOps.PluginDeactivate, null, TimeSpan.FromMilliseconds(_limits.StopGraceMs)).ConfigureAwait(false);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            // Deactivation is best effort on stop; the worker is terminated regardless.
+            PluginHostTrace.Info($"Deactivate request to '{_manifest.Id}' failed during stop: {exception.Message}");
         }
 
         bool exited = await TerminateWorkerAsync().ConfigureAwait(false);
@@ -183,8 +185,9 @@ public sealed partial class PluginRuntimeController
             {
                 WindowsInterop.TerminateJobObject(worker.JobHandle, 1);
             }
-            catch (Exception)
+            catch (Exception exception)
             {
+                PluginHostTrace.Warning($"Job termination failed for '{_manifest.Id}' (pid {worker.ProcessId}); falling back to the 5s wait.", exception);
             }
 
             int waitResult = WindowsInterop.WaitForSingleObject(worker.ProcessHandle, 5000);
@@ -222,8 +225,9 @@ public sealed partial class PluginRuntimeController
             })
                 if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            PluginHostTrace.Warning($"Activation temp cleanup failed for '{_manifest.Id}' (activation {_activationId}).", exception);
         }
     }
 
@@ -304,8 +308,12 @@ public sealed partial class PluginRuntimeController
                 _ = FaultAsync($"持续落后（{detail} 超过丢弃阈值）/ sustained receive backlog", exitConfirmed: false);
             }
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            // The watchdog must never die, but a silently failing tick would hide why
+            // heartbeats or drop detection stopped working.
+            _diagnostics.Write(PluginLogLevel.Error, $"Watchdog tick failed: {exception.Message}");
+            PluginHostTrace.Error($"Plugin watchdog tick failed for '{_manifest.Id}'.", exception);
         }
     }
 }

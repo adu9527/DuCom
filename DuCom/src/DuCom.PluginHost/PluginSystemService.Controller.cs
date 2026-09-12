@@ -33,6 +33,11 @@ public sealed partial class PluginSystemService
             }
 
             bool started = await controller.StartAsync().ConfigureAwait(false);
+            if (started)
+            {
+                NotifyPluginStarted(pluginId);
+            }
+
             Changed?.Invoke();
             return started;
         }
@@ -61,6 +66,7 @@ public sealed partial class PluginSystemService
 
     private async Task StopControllerAsync(PluginRuntimeController controller)
     {
+        MarkUserStopRequested(controller.Manifest.Id);
         try
         {
             await controller.StopAsync().ConfigureAwait(false);
@@ -209,6 +215,7 @@ public sealed partial class PluginSystemService
             _hostTempDiskBudget,
             _hostTempLedger);
         controller.StateChanged += (_, _) => Changed?.Invoke();
+        controller.StateChanged += (_, change) => OnControllerFaultDisabled(change);
         controller.FaultNotice += async notice =>
         {
             try

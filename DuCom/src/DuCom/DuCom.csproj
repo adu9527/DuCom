@@ -30,6 +30,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="DuCom.App.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <AssemblyMetadata Include="BuildDate" Value="$(DuComBuildDate)" />
   </ItemGroup>
 

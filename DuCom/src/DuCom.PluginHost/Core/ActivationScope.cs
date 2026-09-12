@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using DuCom.Plugin;
+using DuCom.PluginHost.Diagnostics;
 
 namespace DuCom.PluginHost.Core;
 
@@ -113,7 +114,12 @@ public sealed class ActivationScope : IDisposable
         foreach (SnapshotGrant snapshot in snapshots) TryReleaseSnapshotFiles(snapshot);
         foreach (OutputGrant output in outputs)
         {
-            try { output.Stream.Dispose(); } catch { }
+            try { output.Stream.Dispose(); }
+            catch (Exception exception)
+            {
+                PluginHostTrace.Warning($"Output stream disposal failed during revocation of '{output.ResourceId}' (activation {ActivationId}).", exception);
+            }
+
             CleanupOutput(output);
         }
     }

@@ -33,8 +33,11 @@ public sealed record StopwatchShortcuts
                 return _cached = loaded;
             }
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            Program.DiagnosticLog?.Warning(
+                "Stopwatch shortcut file could not be loaded; default shortcuts apply for this launch.",
+                exception);
         }
 
         return _cached = new StopwatchShortcuts();
@@ -48,9 +51,10 @@ public sealed record StopwatchShortcuts
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
             File.WriteAllText(FilePath, JsonSerializer.Serialize(shortcuts, JsonOptions));
         }
-        catch (Exception)
+        catch (Exception exception)
         {
             // Shortcut persistence is best-effort; the in-memory mapping still applies.
+            Program.DiagnosticLog?.Warning("Stopwatch shortcut file could not be saved.", exception);
         }
     }
 

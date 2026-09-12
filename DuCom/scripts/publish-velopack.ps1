@@ -56,12 +56,22 @@ if (-not (Get-Command vpk -ErrorAction SilentlyContinue)) {
     }
 }
 
+# A tool installed during this same session is not on the session PATH; fall back to
+# the well-known dotnet global tools location so a first run works without a restart.
+$vpkTool = (Get-Command vpk -ErrorAction SilentlyContinue).Source
+if (-not $vpkTool) {
+    $vpkTool = Join-Path $env:USERPROFILE ".dotnet\tools\vpk.exe"
+}
+if (-not (Test-Path -LiteralPath $vpkTool)) {
+    throw "vpk tool was not found on PATH or in $env:USERPROFILE\.dotnet\tools"
+}
+
 if (Test-Path -LiteralPath $outputDirectory) {
     Remove-Item -LiteralPath $outputDirectory -Recurse -Force
 }
 
 Write-Host "Packing with Velopack..."
-vpk pack `
+& $vpkTool pack `
     --packId DuCom `
     --packVersion $packVersion `
     --packTitle DuCom `

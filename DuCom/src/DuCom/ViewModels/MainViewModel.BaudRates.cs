@@ -2,14 +2,13 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DuCom.Core.Ports;
+using DuCom.Services;
 
 namespace DuCom.ViewModels;
 
 public partial class MainViewModel
 {
-    private static readonly int[] DefaultBaudRates = [9_600, 19_200, 115_200, 921_600, 1_152_000, 1_500_000, 2_000_000, 3_000_000];
-
-    public ObservableCollection<int> BaudRates { get; } = [.. DefaultBaudRates];
+    public ObservableCollection<int> BaudRates { get; } = [.. BaudRateListPolicy.DefaultBaudRates];
 
     [ObservableProperty]
     public partial int NewBaudRate { get; set; }
@@ -28,19 +27,13 @@ public partial class MainViewModel
     [RelayCommand]
     private void AddBaudRate()
     {
-        if (NewBaudRate <= 0 || BaudRates.Contains(NewBaudRate))
+        IReadOnlyList<int>? updated = BaudRateListPolicy.Add(BaudRates, NewBaudRate);
+        if (updated is null)
         {
             return;
         }
 
-        BaudRates.Add(NewBaudRate);
-        List<int> ordered = [.. BaudRates.Order()];
-        BaudRates.Clear();
-        foreach (int value in ordered)
-        {
-            BaudRates.Add(value);
-        }
-
+        ApplyOrderedBaudRates(updated);
         NewBaudRate = 0;
         MarkSettingsDirty();
     }
@@ -69,13 +62,29 @@ public partial class MainViewModel
 
     private void RestoreDefaultBaudRates()
     {
-        HashSet<int> desired = [.. DefaultBaudRates, .. Sessions.Select(session => session.BaudRate)];
-        foreach (int value in BaudRates.Where(value => !desired.Contains(value)).ToArray())
+        ApplyOrderedBaudRates(BaudRateListPolicy.PruneToDefaults(Sessions.Select(session => session.BaudRate)));
+    }
+
+    private void EnsureBaudRatePresent(int baudRate)
+    {
+        if (baudRate > 0 && !BaudRates.Contains(baudRate))
+        {
+            ApplyOrderedBaudRates(BaudRateListPolicy.EnsurePresent(BaudRates, baudRate));
+        }
+    }
+
+    /// <summary>
+    /// Diffs the list into the target sequence with minimal churn, preserving item
+    /// identity where possible so open ComboBox selections survive the refresh.
+    /// </summary>
+    private void ApplyOrderedBaudRates(IReadOnlyList<int> target)
+    {
+        foreach (int value in BaudRates.Where(value => !target.Contains(value)).ToArray())
         {
             BaudRates.Remove(value);
         }
 
-        foreach (int value in desired.Order())
+        foreach (int value in target)
         {
             if (!BaudRates.Contains(value))
             {
@@ -83,30 +92,13 @@ public partial class MainViewModel
             }
         }
 
-        int[] ordered = [.. BaudRates.Order()];
-        for (int targetIndex = 0; targetIndex < ordered.Length; targetIndex++)
+        for (int targetIndex = 0; targetIndex < target.Count; targetIndex++)
         {
-            int currentIndex = BaudRates.IndexOf(ordered[targetIndex]);
+            int currentIndex = BaudRates.IndexOf(target[targetIndex]);
             if (currentIndex != targetIndex)
             {
                 BaudRates.Move(currentIndex, targetIndex);
             }
-        }
-    }
-
-    private void EnsureBaudRatePresent(int baudRate)
-    {
-        if (baudRate <= 0 || BaudRates.Contains(baudRate))
-        {
-            return;
-        }
-
-        BaudRates.Add(baudRate);
-        List<int> ordered = [.. BaudRates.Order()];
-        BaudRates.Clear();
-        foreach (int value in ordered)
-        {
-            BaudRates.Add(value);
         }
     }
 

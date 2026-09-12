@@ -32,6 +32,21 @@ public sealed class PluginSystemHost : IAsyncDisposable
             executable,
             budgetConfig);
         _service.ProgramLog += message => Program.DiagnosticLog?.Information(message);
+        PluginHost.Diagnostics.PluginHostTrace.Sink = (level, message, exception) =>
+        {
+            switch (level)
+            {
+                case PluginHost.Diagnostics.PluginLogLevel.Warning:
+                    Program.DiagnosticLog?.Warning(message, exception);
+                    break;
+                case PluginHost.Diagnostics.PluginLogLevel.Error:
+                    Program.DiagnosticLog?.Error(message, exception);
+                    break;
+                default:
+                    Program.DiagnosticLog?.Information(message);
+                    break;
+            }
+        };
         Program.DiagnosticLog?.Information($"Plugin host version source. ApplicationVersion={PluginHostVersion.ApplicationVersion}; CompatibilityVersion={PluginHostVersion.CompatibilityVersion}; Comparison=DPP SemVer major.minor.patch only.");
     }
 

@@ -151,45 +151,34 @@ public partial class MainViewModel
 
     private void RebuildPortItems(string? selectedPort = null)
     {
-        IEnumerable<string> names = PortSortMode switch
-        {
-            PortSortMode.NameDescending => _discoveredPortNames.OrderByDescending(name => name, StringComparer.OrdinalIgnoreCase),
-            PortSortMode.ConnectedFirst => _discoveredPortNames
-                .OrderByDescending(name => Sessions.Any(session => session.IsOpen && string.Equals(session.PortName, name, StringComparison.OrdinalIgnoreCase)))
-                .ThenBy(name => name, StringComparer.OrdinalIgnoreCase),
-            _ => _discoveredPortNames.Order(StringComparer.OrdinalIgnoreCase),
-        };
+        IReadOnlyList<ComposedPort> composed = PortListComposer.Compose(
+            _discoveredPortNames,
+            _discoveredPortDetails,
+            _hiddenPorts,
+            PortSortMode,
+            ShowSerialPorts,
+            ShowVirtualPorts,
+            ShowHiddenPorts,
+            isPortOpen: name => Sessions.Any(session =>
+                session.IsOpen && string.Equals(session.PortName, name, StringComparison.OrdinalIgnoreCase)));
         AvailablePorts.Clear();
-        foreach (string name in names)
+        foreach (ComposedPort port in composed)
         {
-            bool hidden = _hiddenPorts.Contains(name);
-            _discoveredPortDetails.TryGetValue(name, out DiscoveredPort? detail);
-            bool isVirtual = detail?.Type == DiscoveredPortType.Virtual;
-            bool typeVisible = isVirtual ? ShowVirtualPorts : ShowSerialPorts;
-            if (typeVisible && (!hidden || ShowHiddenPorts))
+            AvailablePorts.Add(new PortItemViewModel(
+                port.PortName,
+                TogglePortAsync,
+                TogglePortHidden,
+                port.TypeLabel,
+                port.Detail?.Description ?? string.Empty,
+                port.Detail?.DeviceName ?? port.PortName,
+                port.Detail?.Manufacturer ?? string.Empty,
+                port.Detail?.VidPid ?? string.Empty,
+                port.Detail?.SerialNumber ?? string.Empty,
+                port.Detail?.DeviceInstanceId ?? string.Empty,
+                port.Detail?.LocationInfo ?? string.Empty)
             {
-                string type = detail?.Type switch
-                {
-                    DiscoveredPortType.Virtual => "VAR",
-                    DiscoveredPortType.UsbSerial => "USB",
-                    _ => "COM",
-                };
-                AvailablePorts.Add(new PortItemViewModel(
-                    name,
-                    TogglePortAsync,
-                    TogglePortHidden,
-                    type,
-                    detail?.Description ?? string.Empty,
-                    detail?.DeviceName ?? name,
-                    detail?.Manufacturer ?? string.Empty,
-                    detail?.VidPid ?? string.Empty,
-                    detail?.SerialNumber ?? string.Empty,
-                    detail?.DeviceInstanceId ?? string.Empty,
-                    detail?.LocationInfo ?? string.Empty)
-                {
-                    IsHidden = hidden,
-                });
-            }
+                IsHidden = port.IsHidden,
+            });
         }
 
         SelectedPortItem = selectedPort is not null
