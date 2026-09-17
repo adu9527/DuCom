@@ -22,6 +22,9 @@ public sealed class SessionDisplayTap
     public required Func<SessionTapDisplayFormat> FormatSelector { get; init; }
 
     public required Action<string> Publish { get; init; }
+
+    /// <summary>Optional timestamp-aware callback for analysis surfaces.</summary>
+    public Action<string, DateTimeOffset>? PublishTimestamped { get; init; }
 }
 
 /// <summary>
@@ -159,7 +162,7 @@ public sealed class SessionTapHub
                         runtime.AwaitsSeparator = !line.IsSoftWrapped;
                     }
 
-                    publications.Add(new TapPublication(runtime, builder.ToString()));
+                    publications.Add(new TapPublication(runtime, builder.ToString(), lines[0].ReceivedAtUtc));
                 }
                 catch (Exception)
                 {
@@ -182,7 +185,10 @@ public sealed class SessionTapHub
         {
             try
             {
-                publication.Runtime.Tap.Publish(publication.Payload);
+                if (publication.Runtime.Tap.PublishTimestamped is { } publishTimestamped)
+                    publishTimestamped(publication.Payload, publication.ReceivedAtUtc);
+                else
+                    publication.Runtime.Tap.Publish(publication.Payload);
             }
             catch (Exception)
             {
@@ -210,7 +216,7 @@ public sealed class SessionTapHub
             string payload = text + "\r\n";
             foreach (TapRuntime runtime in _runtimesByTapId.Values)
             {
-                publications.Add(new TapPublication(runtime, payload));
+                publications.Add(new TapPublication(runtime, payload, DateTimeOffset.UtcNow));
             }
         }
 
@@ -218,7 +224,10 @@ public sealed class SessionTapHub
         {
             try
             {
-                publication.Runtime.Tap.Publish(publication.Payload);
+                if (publication.Runtime.Tap.PublishTimestamped is { } publishTimestamped)
+                    publishTimestamped(publication.Payload, publication.ReceivedAtUtc);
+                else
+                    publication.Runtime.Tap.Publish(publication.Payload);
             }
             catch (Exception)
             {
@@ -238,7 +247,7 @@ public sealed class SessionTapHub
         }
     }
 
-    private readonly record struct TapPublication(TapRuntime Runtime, string Payload);
+    private readonly record struct TapPublication(TapRuntime Runtime, string Payload, DateTimeOffset ReceivedAtUtc);
 
     private sealed class TapRuntime
     {

@@ -231,7 +231,7 @@ public class FakeEnvironment : IPluginHostEnvironment
         }
     }
 
-    public Task<HostPickResult?> PickReadAsync(string pluginId, HostPickRequest request, CancellationToken cancellationToken) =>
+    public virtual Task<HostPickResult?> PickReadAsync(string pluginId, HostPickRequest request, CancellationToken cancellationToken) =>
         Task.FromResult<HostPickResult?>(null);
 
     public virtual Task<HostPickResult?> PickWriteAsync(string pluginId, HostPickRequest request, CancellationToken cancellationToken) =>
@@ -265,7 +265,7 @@ public class FakeEnvironment : IPluginHostEnvironment
     {
     }
 
-    public void ApplyBackground(BackgroundApply apply) => BackgroundApplies.Add(apply);
+    public virtual void ApplyBackground(BackgroundApply apply) => BackgroundApplies.Add(apply);
 
     private sealed class Subscription(Action dispose) : IDisposable
     {

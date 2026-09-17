@@ -162,13 +162,16 @@ internal sealed class WindowsPortDiscovery : IPortDiscovery, IPortDetailsProvide
         return Regex.Replace(text, @"\s*\(COM\d+\)\s*$", string.Empty, RegexOptions.IgnoreCase).Trim();
     }
 
-    private static DiscoveredPortType GetPortType(string? pnpDeviceId, string? caption)
+    internal static DiscoveredPortType GetPortType(string? pnpDeviceId, string? caption)
     {
         string id = pnpDeviceId ?? string.Empty;
         string name = caption ?? string.Empty;
 
-        // Software-emulated virtual ports (com0com, Eltima, J-Link JTAG serial, …) hang off ROOT.
+        // Bluetooth SPP and software-emulated ports have no directly attached serial hardware.
         if (id.StartsWith("ROOT\\", StringComparison.OrdinalIgnoreCase)
+            || id.StartsWith("BTHENUM\\", StringComparison.OrdinalIgnoreCase)
+            || id.StartsWith("BTHMODEM\\", StringComparison.OrdinalIgnoreCase)
+            || id.StartsWith("BTHPORT\\", StringComparison.OrdinalIgnoreCase)
             || name.Contains("com0com", StringComparison.OrdinalIgnoreCase)
             || name.Contains("Virtual", StringComparison.OrdinalIgnoreCase)
             || name.Contains("vsp", StringComparison.OrdinalIgnoreCase))

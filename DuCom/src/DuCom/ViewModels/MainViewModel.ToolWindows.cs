@@ -1,10 +1,21 @@
 using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace DuCom.ViewModels;
 
 public partial class MainViewModel
 {
+    private LogAnalyzerWindow? _logAnalyzerWindow;
+    private ProtocolDecoderWindow? _protocolDecoderWindow;
+    private VariablePlotWindow? _variablePlotWindow;
+
+    [ObservableProperty]
+    public partial bool IsProtocolDecoderOpen { get; private set; }
+
+    [ObservableProperty]
+    public partial bool IsVariablePlotOpen { get; private set; }
+
     private readonly DuCom.Core.Presenting.PortWindowRegistry<FloatSendWindow> _floatSendWindows = new(
         window =>
         {
@@ -95,4 +106,94 @@ public partial class MainViewModel
     [RelayCommand]
     private void ShowCommandGroups() =>
         new CommandGroupsWindow(CommandRunner, this) { Owner = Application.Current.MainWindow }.Show();
+
+    [RelayCommand]
+    private void ShowLogAnalyzer()
+    {
+        if (_logAnalyzerWindow is { IsLoaded: true })
+        {
+            _logAnalyzerWindow.Activate();
+            return;
+        }
+
+        _logAnalyzerWindow = new LogAnalyzerWindow(Workspace, LogAnalyzerRulesFilePath)
+        {
+            Owner = Application.Current.MainWindow,
+        };
+        _logAnalyzerWindow.Closed += (_, _) => _logAnalyzerWindow = null;
+        _logAnalyzerWindow.Show();
+        Program.DiagnosticLog?.Information("Log analyzer window opened.");
+    }
+
+    [RelayCommand]
+    private void ToggleProtocolDecoder()
+    {
+        if (_protocolDecoderWindow is { } open)
+        {
+            open.Close();
+            return;
+        }
+
+        ProtocolDecoderWindow? window = null;
+        try
+        {
+            window = new ProtocolDecoderWindow(Workspace, _analysisWindowPreferences) { Owner = Application.Current.MainWindow };
+            ProtocolDecoderWindow captured = window;
+            window.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_protocolDecoderWindow, captured))
+                {
+                    _protocolDecoderWindow = null;
+                    IsProtocolDecoderOpen = false;
+                }
+            };
+            window.Show();
+            _protocolDecoderWindow = window;
+            IsProtocolDecoderOpen = true;
+            Program.DiagnosticLog?.Information("Protocol decoder window opened.");
+        }
+        catch (Exception exception)
+        {
+            window?.Close();
+            IsProtocolDecoderOpen = false;
+            Program.DiagnosticLog?.Error("Protocol decoder window failed to open.", exception);
+            StatusMessage = GetResourceString("Analysis.OpenFailed");
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleVariablePlot()
+    {
+        if (_variablePlotWindow is { } open)
+        {
+            open.Close();
+            return;
+        }
+
+        VariablePlotWindow? window = null;
+        try
+        {
+            window = new VariablePlotWindow(VariableMonitor, ApplyMonitorConfiguration, _analysisWindowPreferences) { Owner = Application.Current.MainWindow };
+            VariablePlotWindow captured = window;
+            window.Closed += (_, _) =>
+            {
+                if (ReferenceEquals(_variablePlotWindow, captured))
+                {
+                    _variablePlotWindow = null;
+                    IsVariablePlotOpen = false;
+                }
+            };
+            window.Show();
+            _variablePlotWindow = window;
+            IsVariablePlotOpen = true;
+            Program.DiagnosticLog?.Information("Variable plot window opened.");
+        }
+        catch (Exception exception)
+        {
+            window?.Close();
+            IsVariablePlotOpen = false;
+            Program.DiagnosticLog?.Error("Variable plot window failed to open.", exception);
+            StatusMessage = GetResourceString("Analysis.OpenFailed");
+        }
+    }
 }

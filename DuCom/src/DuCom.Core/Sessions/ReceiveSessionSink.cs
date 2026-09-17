@@ -33,14 +33,15 @@ public sealed class ReceiveSessionSink(
 
     public async ValueTask ProcessAsync(ReceiveBlock block, CancellationToken cancellationToken)
     {
+        rawTaps?.PublishReceive(block.Memory, block.ReceivedAtUtc);
         await _formatterLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await SwitchProfileAsync(block.FormattingProfile, cancellationToken).ConfigureAwait(false);
             IReadOnlyList<FormattedLine> lines = _formatter!.Append(block.Memory.Span, block.ReceivedAtUtc);
+            block.DiagnosticFormattedLines = lines.Count;
             await CommitAsync(lines, commitUnterminated: false, cancellationToken).ConfigureAwait(false);
             displayTaps?.PublishReceive(block.Memory.Span, block.ReceivedAtUtc, block.FormattingProfile);
-            rawTaps?.PublishRaw(block.Memory, block.ReceivedAtUtc);
             metrics.AddFormattedLogBlock();
         }
         finally

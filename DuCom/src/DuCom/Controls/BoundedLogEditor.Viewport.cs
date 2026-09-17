@@ -56,8 +56,9 @@ public sealed partial class BoundedLogEditor
         {
             TextArea.TextView.EnsureVisualLines();
             DocumentLine documentLine = TextArea.TextView.GetDocumentLineByVisualTop(VerticalOffset);
+            long absoluteDocumentOffset = _documentOriginOffset + documentLine.Offset;
             ProjectedLine? projected = _projected.FirstOrDefault(line =>
-                line.StartOffset <= documentLine.Offset && documentLine.Offset < line.EndOffset);
+                line.StartOffset <= absoluteDocumentOffset && absoluteDocumentOffset < line.EndOffset);
             if (projected is null)
             {
                 return null;
@@ -85,7 +86,11 @@ public sealed partial class BoundedLogEditor
         ProjectedLine? projected = _projected.FirstOrDefault(line =>
             line.LogicalId == anchor.LogicalId && line.SegmentIndex == anchor.SegmentIndex)
             ?? _projected[0];
-        DocumentLine documentLine = Document.GetLineByOffset(Math.Min(projected.StartOffset, Document.TextLength));
+        int documentOffset = (int)Math.Clamp(
+            projected.StartOffset - _documentOriginOffset,
+            0L,
+            Document.TextLength);
+        DocumentLine documentLine = Document.GetLineByOffset(documentOffset);
         double lineTop = TextArea.TextView.GetVisualTopByDocumentLine(documentLine.LineNumber);
         ScrollToVerticalOffset(Math.Max(0d, lineTop + anchor.OffsetWithinLine));
     }

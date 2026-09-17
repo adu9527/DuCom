@@ -8,13 +8,9 @@ namespace DuCom.Plugins.Timer;
 public sealed class Plugin : DuComPlugin
 {
     private const string PageId = "stopwatch";
-    private static readonly TimeSpan ResetArmWindow = TimeSpan.FromSeconds(3);
-
     private readonly Lock _gate = new();
     private TimerSession _session = new();
     private TimerSession? _previous;
-    private bool _resetArmed;
-    private long _resetArmedAtUnixMs;
     private string _status = string.Empty;
     private volatile string? _activeTaskId;
 
@@ -127,7 +123,6 @@ public sealed class Plugin : DuComPlugin
                 StopwatchMode.Paused => TimerEngine.Resume(_session, now),
                 _ => _session,
             };
-            _resetArmed = false;
         }
 
         await PersistAndPushAsync();
@@ -154,7 +149,6 @@ public sealed class Plugin : DuComPlugin
     private async Task<CommandInvokeOutcome> ResetAsync()
     {
         long now = NowUnixMs();
-        bool armedNow;
         lock (_gate)
         {
             if (_session.Mode == StopwatchMode.Idle && _session.Laps.Count == 0)
@@ -162,59 +156,18 @@ public sealed class Plugin : DuComPlugin
                 return CommandInvokeOutcome.Complete(Zh("没有可重置的内容", "Nothing to reset"));
             }
 
-            if (!_resetArmed)
+            _previous = _session.Mode == StopwatchMode.Running ? TimerEngine.Pause(_session, now) : _session;
+            if (_previous.Laps.Count == 0)
             {
-                _resetArmed = true;
-                _resetArmedAtUnixMs = now;
-                armedNow = true;
+                _previous = null;
             }
-            else
-            {
-                _previous = _session.Mode == StopwatchMode.Running ? TimerEngine.Pause(_session, now) : _session;
-                if (_previous.Laps.Count == 0)
-                {
-                    _previous = null;
-                }
 
-                _session = new TimerSession();
-                _resetArmed = false;
-                _status = Zh("已重置，上次记录已保留", "Reset; the previous session was kept");
-                armedNow = false;
-            }
+            _session = new TimerSession();
+            _status = Zh("已重置，上次记录已保留", "Reset; the previous session was kept");
         }
 
         await PersistAndPushAsync();
-        if (armedNow)
-        {
-            _ = DisarmResetLaterAsync(_resetArmedAtUnixMs);
-        }
-
         return CommandInvokeOutcome.Complete();
-    }
-
-    private async Task DisarmResetLaterAsync(long armedAtUnixMs)
-    {
-        long deadline = armedAtUnixMs + (long)ResetArmWindow.TotalMilliseconds;
-        long remaining = deadline - NowUnixMs();
-        if (remaining > 0)
-        {
-            await Task.Delay(TimeSpan.FromMilliseconds(remaining));
-        }
-
-        bool changed = false;
-        lock (_gate)
-        {
-            if (_resetArmed && _resetArmedAtUnixMs == armedAtUnixMs)
-            {
-                _resetArmed = false;
-                changed = true;
-            }
-        }
-
-        if (changed)
-        {
-            await PushToolPageAsync();
-        }
     }
 
     private async Task RunExportAsync(PluginTaskContext context, bool excel)
@@ -346,13 +299,11 @@ public sealed class Plugin : DuComPlugin
     {
         TimerSession session;
         TimerSession? previous;
-        bool resetArmed;
         string status;
         lock (_gate)
         {
             session = _session;
             previous = _previous;
-            resetArmed = _resetArmed;
             status = _status;
         }
 
@@ -410,7 +361,7 @@ public sealed class Plugin : DuComPlugin
                         [
                             new UiButtonNode { CommandId = "toggle-run", Text = toggleLabel, Accent = true },
                             new UiButtonNode { CommandId = "lap", Text = Zh("计次", "Lap") },
-                            new UiButtonNode { CommandId = "reset", Text = resetArmed ? Zh("确认重置", "Confirm reset") : Zh("重置", "Reset") },
+                            new UiButtonNode { CommandId = "reset", Text = Zh("重置", "Reset") },
                             new UiButtonNode { CommandId = "export-csv", Text = Zh("导出 CSV", "Export CSV") },
                             new UiButtonNode { CommandId = "export-xlsx", Text = Zh("导出 Excel", "Export Excel") },
                         ],

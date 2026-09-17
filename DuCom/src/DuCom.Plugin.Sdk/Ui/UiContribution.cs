@@ -227,6 +227,8 @@ public sealed record ToolPageContribution
     [JsonPropertyName("preferredWidth")] public double? PreferredWidth { get; init; }
     [JsonPropertyName("preferredHeight")] public double? PreferredHeight { get; init; }
     [JsonPropertyName("minWidth")] public double? MinWidth { get; init; }
+    [JsonPropertyName("watermark")] public string? Watermark { get; init; }
+    [JsonPropertyName("watermarkFontSizeDelta")] public double WatermarkFontSizeDelta { get; init; }
     [JsonPropertyName("nodes")] public IReadOnlyList<UiNode> Nodes { get; init; } = [];
 }
 

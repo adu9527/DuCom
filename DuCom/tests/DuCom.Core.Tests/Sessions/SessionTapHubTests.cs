@@ -56,6 +56,24 @@ public sealed class SessionTapHubTests
     }
 
     [Fact]
+    public void TimestampAwareTapReceivesOriginalBlockTimestamp()
+    {
+        SessionTapHub hub = new();
+        List<DateTimeOffset> timestamps = [];
+        hub.Register(new SessionDisplayTap
+        {
+            Id = "analyzer",
+            FormatSelector = () => SessionTapDisplayFormat.Str,
+            Publish = _ => Assert.Fail("timestamp-aware callback should be preferred"),
+            PublishTimestamped = (_, timestamp) => timestamps.Add(timestamp),
+        });
+
+        hub.PublishReceive("line\n"u8, FirstReceivedAt, CreateProfile(ReceiveDisplayMode.Str));
+
+        Assert.Equal([FirstReceivedAt], timestamps);
+    }
+
+    [Fact]
     public void FormatSwitchRestartsFormatterAndSkipsStalePartialLine()
     {
         SessionTapHub hub = new();

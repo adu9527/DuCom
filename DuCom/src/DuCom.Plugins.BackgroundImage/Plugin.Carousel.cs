@@ -117,11 +117,6 @@ public sealed partial class Plugin
                     return;
                 }
 
-                lock (_gate)
-                {
-                    _playlistIndex = -1;
-                }
-
                 AdvanceNow();
             }
         }

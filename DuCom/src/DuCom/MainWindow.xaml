@@ -99,7 +99,17 @@
                              <MenuItem Command="{Binding ToggleBottomSendCommand}"
                                        Header="{DynamicResource Menu.View.BottomSend}"
                                        IsCheckable="True"
-                                       IsChecked="{Binding IsBottomSendVisible, Mode=OneWay}" />
+                                        IsChecked="{Binding IsBottomSendVisible, Mode=OneWay}" />
+                             <MenuItem Header="{DynamicResource Menu.View.AnalysisWindows}">
+                                 <MenuItem Command="{Binding ToggleProtocolDecoderCommand}"
+                                           Header="{DynamicResource Menu.View.ProtocolDecoder}"
+                                           IsCheckable="True"
+                                           IsChecked="{Binding IsProtocolDecoderOpen, Mode=OneWay}" />
+                                 <MenuItem Command="{Binding ToggleVariablePlotCommand}"
+                                           Header="{DynamicResource Menu.View.VariablePlot}"
+                                           IsCheckable="True"
+                                           IsChecked="{Binding IsVariablePlotOpen, Mode=OneWay}" />
+                             </MenuItem>
                              <Separator />
                             <MenuItem Command="{Binding ToggleSidebarCommand}"
                                       Header="{DynamicResource Menu.Tools.Sidebar}"
@@ -160,6 +170,7 @@
                             <MenuItem Command="{Binding ToggleSettingsCommand}" Header="{DynamicResource Settings.Title}" />
                             <MenuItem Command="{Binding ShowHighlightFilterRulesCommand}" Header="{DynamicResource Menu.Tools.HighlightFilter}" />
                             <MenuItem Command="{Binding ShowLogFilterCommand}" Header="{DynamicResource Menu.Tools.LogFilter}" />
+                            <MenuItem Command="{Binding ShowLogAnalyzerCommand}" Header="{DynamicResource Menu.Tools.LogAnalyzer}" />
                             <MenuItem Command="{Binding ShowCommandGroupsCommand}" Header="{DynamicResource Menu.Tools.Commands}" />
                             <MenuItem Command="{Binding ShowToolCenterCommand}" CommandParameter="send-history" Header="{DynamicResource Menu.Tools.SendHistory}" />
                         </ContextMenu>

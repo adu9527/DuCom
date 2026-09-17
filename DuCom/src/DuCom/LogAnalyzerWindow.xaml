@@ -1,0 +1,155 @@
+<ui:FluentWindow x:Class="DuCom.LogAnalyzerWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:controls="clr-namespace:DuCom.Controls"
+                 xmlns:local="clr-namespace:DuCom"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="{DynamicResource LogAnalyzer.Title}"
+                 Width="1360" Height="820" MinWidth="960" MinHeight="600"
+                 Icon="/Assets/DuCom.ico" ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica" WindowStartupLocation="CenterOwner">
+    <Grid Background="{DynamicResource Brush.ShellSurface}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Title="{DynamicResource LogAnalyzer.Title}" ShowClose="False" ShowMaximize="False" ShowMinimize="False">
+            <ui:TitleBar.TrailingContent><controls:WindowCaptionButtons ShowMaximize="True" ShowMinimize="True" /></ui:TitleBar.TrailingContent>
+        </ui:TitleBar>
+
+        <Border Grid.Row="1" Margin="12,8" Padding="10" Background="{DynamicResource Brush.ToolbarSurface}"
+                BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Margin="0,0,10,0" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextSecondary}" Text="{DynamicResource LogAnalyzer.Mode}" />
+                    <ToggleButton x:Name="StaticModeButton" MinWidth="110" IsChecked="True" Click="StaticMode_Click"
+                                  Style="{StaticResource Style.SettingsChoice}" Content="{DynamicResource LogAnalyzer.StaticMode}" />
+                    <ToggleButton x:Name="RealtimeModeButton" MinWidth="110" Click="RealtimeMode_Click"
+                                  Style="{StaticResource Style.SettingsChoice}" Content="{DynamicResource LogAnalyzer.RealtimeMode}" />
+                </StackPanel>
+                <Button Grid.Column="1" MinWidth="96" Margin="12,0,0,0" Click="OpenFiles_Click" Content="{DynamicResource LogAnalyzer.OpenFiles}" />
+                <Button Grid.Column="2" MinWidth="68" Margin="8,0,0,0" Click="Clear_Click" Content="{DynamicResource FloatSend.Clear}" />
+
+                <Grid Grid.Column="3" Margin="18,0">
+                    <TextBox x:Name="SearchBox" MinWidth="260" Padding="30,0,10,0" VerticalContentAlignment="Center"
+                             TextChanged="SearchBox_TextChanged" ToolTip="{DynamicResource LogAnalyzer.Search}" />
+                    <ui:SymbolIcon Margin="9,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource Brush.TextMuted}" IsHitTestVisible="False" Symbol="Search24" />
+                </Grid>
+
+                <Button x:Name="RulesMenuButton" Grid.Column="4" MinWidth="96" Click="RulesMenu_Click" Content="{DynamicResource LogAnalyzer.Rules}">
+                    <Button.ContextMenu>
+                        <ContextMenu x:Name="RulesContextMenu" Placement="Bottom" Background="{DynamicResource Brush.PanelRaised}"
+                                     BorderBrush="{DynamicResource Brush.PanelBorderStrong}" Foreground="{DynamicResource Brush.TextPrimary}">
+                            <MenuItem Foreground="{DynamicResource Brush.TextPrimary}" Click="ImportRules_Click" Header="{DynamicResource LogAnalyzer.ImportRules}" />
+                            <MenuItem Foreground="{DynamicResource Brush.TextPrimary}" Click="EditRules_Click" Header="{DynamicResource LogAnalyzer.EditRules}" />
+                            <Separator />
+                            <MenuItem Foreground="{DynamicResource Brush.TextPrimary}" Click="ResetRules_Click" Header="{DynamicResource LogAnalyzer.ResetRules}" />
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+                <TextBlock Grid.Column="5" Margin="12,0,2,0" VerticalAlignment="Center" Foreground="{DynamicResource Brush.TextMuted}"
+                           Text="{Binding RecordsView.Count, StringFormat={}{0} 条}" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2" Margin="12,0,12,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="280" MinWidth="210" />
+                <ColumnDefinition Width="6" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Padding="10" Background="{DynamicResource Brush.PanelSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="8">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <StackPanel Margin="3,1,3,10">
+                        <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource Brush.TextPrimary}" Text="{DynamicResource LogAnalyzer.AnalysisTree}" />
+                        <TextBlock Margin="0,3,0,0" Foreground="{DynamicResource Brush.TextMuted}" Text="{DynamicResource LogAnalyzer.TreeHint}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <TreeView x:Name="AnalysisTree" Grid.Row="1" ItemsSource="{Binding AnalysisNodes}" SelectedItemChanged="AnalysisTree_SelectedItemChanged"
+                              Background="Transparent" BorderThickness="0" Foreground="{DynamicResource Brush.TextPrimary}">
+                        <TreeView.ItemContainerStyle>
+                            <Style TargetType="TreeViewItem">
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                <Setter Property="Padding" Value="3" />
+                                <Setter Property="Margin" Value="0,1" />
+                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="{DynamicResource Brush.SelectionText}" /></Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TreeView.ItemContainerStyle>
+                        <TreeView.Resources>
+                            <HierarchicalDataTemplate DataType="{x:Type local:AnalyzerTreeNode}" ItemsSource="{Binding Children}">
+                                <Grid MinWidth="160">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    <Border Grid.Column="1" MinWidth="28" Margin="8,0,2,0" Padding="5,1" Background="{DynamicResource Brush.AccentSoft}" CornerRadius="8">
+                                        <TextBlock HorizontalAlignment="Center" FontSize="11" Text="{Binding Count}" />
+                                    </Border>
+                                </Grid>
+                            </HierarchicalDataTemplate>
+                        </TreeView.Resources>
+                    </TreeView>
+                </Grid>
+            </Border>
+
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="Transparent" />
+
+            <Border Grid.Column="2" Background="{DynamicResource Brush.PanelSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="8">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Expander Margin="8,6,8,4" IsExpanded="False" Header="{DynamicResource LogAnalyzer.SourceCalibration}">
+                        <Grid Margin="0,7,0,3">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <DataGrid ItemsSource="{Binding Sources}" AutoGenerateColumns="False" CanUserAddRows="False" MaxHeight="130"
+                                      Style="{StaticResource Style.EditorDataGrid}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Width="*" IsReadOnly="True" Binding="{Binding Name}" Header="{DynamicResource LogAnalyzer.Source}" />
+                                    <DataGridTextColumn Width="70" Binding="{Binding Role, UpdateSourceTrigger=PropertyChanged}" Header="{DynamicResource LogAnalyzer.Role}" />
+                                    <DataGridTextColumn Width="100" Binding="{Binding OffsetMilliseconds, UpdateSourceTrigger=PropertyChanged}" Header="{DynamicResource LogAnalyzer.Offset}" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <Button Grid.Column="1" MinWidth="125" Margin="10,0,0,0" VerticalAlignment="Top" Click="ApplySources_Click"
+                                    Content="{DynamicResource LogAnalyzer.ApplySources}" />
+                        </Grid>
+                    </Expander>
+
+                    <DataGrid x:Name="LogGrid" Grid.Row="1" ItemsSource="{Binding RecordsView}" AutoGenerateColumns="False" IsReadOnly="True"
+                              Style="{StaticResource Style.EditorDataGrid}" LoadingRow="LogGrid_LoadingRow"
+                              EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Width="105" Binding="{Binding DisplayTime, StringFormat=HH:mm:ss.fff}" Header="{DynamicResource LogAnalyzer.Time}" />
+                            <DataGridTextColumn Width="52" Binding="{Binding SourceRole}" Header="{DynamicResource LogAnalyzer.Role}" />
+                            <DataGridTextColumn Width="82" Binding="{Binding SourceName}" Header="{DynamicResource LogAnalyzer.Source}" />
+                            <DataGridTextColumn Width="70" Binding="{Binding Level}" Header="{DynamicResource LogAnalyzer.Level}" />
+                            <DataGridTextColumn Width="105" Binding="{Binding Module}" Header="{DynamicResource LogAnalyzer.Module}" />
+                            <DataGridTextColumn Width="145" Binding="{Binding Keywords}" Header="{DynamicResource LogAnalyzer.Keywords}" />
+                            <DataGridTextColumn Width="*" MinWidth="320" Binding="{Binding Message}" Header="{DynamicResource LogAnalyzer.Message}" />
+                            <DataGridTextColumn Width="210" Binding="{Binding ChineseComment}" Header="{DynamicResource LogAnalyzer.ChineseComment}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <DockPanel Grid.Row="3" Margin="14,0,14,10">
+            <TextBlock x:Name="StatusText" Foreground="{DynamicResource Brush.TextSecondary}" />
+            <TextBlock x:Name="DropText" DockPanel.Dock="Right" HorizontalAlignment="Right" Foreground="{DynamicResource Brush.Warning}" />
+        </DockPanel>
+    </Grid>
+</ui:FluentWindow>

@@ -8,8 +8,11 @@ namespace DuCom.Services;
 
 public interface IWorkspaceSession : IAsyncDisposable
 {
-    /// <summary>Stable identity of this session instance; a reopen creates a new runtime id.</summary>
+    /// <summary>Stable identity of this session instance across close and reopen.</summary>
     string RuntimeId { get; }
+
+    /// <summary>Generation of the currently open transport runtime, or null while closed.</summary>
+    Guid? RuntimeGeneration { get; }
 
     SerialPortSettings Settings { get; }
 
@@ -42,6 +45,6 @@ public interface IWorkspaceSession : IAsyncDisposable
     /// <summary>Display tap fan-out for auxiliary surfaces (float send window, log filter).</summary>
     SessionTapHub DisplayTaps { get; }
 
-    /// <summary>Raw pre-formatting receive observers (host-internal plugin broker surface).</summary>
+    /// <summary>Raw RX/TX traffic hub, including the legacy RX-only observer surface.</summary>
     SessionRawTapHub RawTaps { get; }
 }

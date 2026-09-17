@@ -22,7 +22,9 @@ public sealed partial class SerialSession
             ArrayPool<byte>.Shared,
             DefaultReceiveCapacity,
             DefaultMaximumReadSize,
-            formattingProfile);
+            formattingProfile,
+            diagnosticPortName: _settings.PortName,
+            diagnosticObserver: _receiveDiagnosticObserver);
         SessionRuntime runtime = new(logWriter, sink, pipeline, _metrics);
         pipeline.Faulted += (_, exception) => OnRuntimeFault(runtime, exception);
         return runtime;
@@ -54,12 +56,14 @@ public sealed partial class SerialSession
     private void OnRuntimeFault(SessionRuntime runtime, Exception exception)
     {
         SetFault("ReceivePipeline", exception);
+        _rawTaps.EndGeneration("Faulted");
         ScheduleRuntimeCleanup(runtime);
     }
 
     private void OnTransportDisconnected(object? sender, TransportDisconnectedEventArgs e)
     {
         SetFault("Lifecycle", e.Exception);
+        _rawTaps.EndGeneration("Faulted");
         SessionRuntime? runtime = Volatile.Read(ref _runtime);
         if (runtime is not null)
         {

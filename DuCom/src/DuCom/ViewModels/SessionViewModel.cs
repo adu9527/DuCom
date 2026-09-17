@@ -85,6 +85,9 @@ public partial class SessionViewModel : ObservableObject, IAsyncDisposable, ISer
 
     public bool UnregisterDisplayTap(string tapId) => _session.DisplayTaps.Unregister(tapId);
 
+    public LineStoreSnapshot GetDisplaySnapshot(LineCursor? cursor, int maximumSegments) =>
+        _session.GetDisplaySnapshot(cursor, maximumSegments);
+
     public async ValueTask DisposeAsync()
     {
         _timedSendTimer.Stop();

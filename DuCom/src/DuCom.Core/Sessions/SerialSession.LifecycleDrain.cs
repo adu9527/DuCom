@@ -80,6 +80,7 @@ public sealed partial class SerialSession
                 PortCommandResult result = await _lifecycle.OpenAsync(cancellationToken).ConfigureAwait(false);
                 if (result == PortCommandResult.Succeeded)
                 {
+                    _rawTaps.BeginGeneration(_settingsRevision);
                     return result;
                 }
 
@@ -196,6 +197,7 @@ public sealed partial class SerialSession
             try
             {
                 PortCommandResult closeResult = await _lifecycle.CloseAsync(CancellationToken.None).ConfigureAwait(false);
+                _rawTaps.EndGeneration(closeResult is PortCommandResult.Succeeded or PortCommandResult.AlreadyClosed ? "Closed" : "Faulted");
                 if (closeResult == PortCommandResult.Faulted)
                 {
                     Volatile.Write(ref _fault, CreateFault("Lifecycle", _lifecycle.Snapshot.FaultMessage));
@@ -305,6 +307,7 @@ public sealed partial class SerialSession
         // Once the receive side is quiesced the close commits: honoring a cancellation here
         // would leave the lifecycle reporting Open over a drained, dead receive pipeline.
         PortCommandResult result = await _lifecycle.CloseAsync(CancellationToken.None).ConfigureAwait(false);
+        _rawTaps.EndGeneration(result is PortCommandResult.Succeeded or PortCommandResult.AlreadyClosed ? "Closed" : "Faulted");
         if (result is not PortCommandResult.Succeeded and not PortCommandResult.AlreadyClosed)
         {
             if (result == PortCommandResult.Faulted)

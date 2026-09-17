@@ -39,6 +39,7 @@ public partial class MainViewModel : ApplicationSettingsViewModel, IAsyncDisposa
     private string[] _commandTargetPortNames = [];
     private FramePacerState _framePacerState;
     private long _nextSlowProjectionLogTimestamp;
+    private readonly AnalysisWindowPreferencesService _analysisWindowPreferences = new();
 
     internal MainViewModel(
         IPortDiscovery portDiscovery,
@@ -183,6 +184,11 @@ public partial class MainViewModel : ApplicationSettingsViewModel, IAsyncDisposa
         "DuCom",
         "highlight-filter-rules.json");
 
+    private static string LogAnalyzerRulesFilePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "DuCom",
+        "log-analyzer-rules.json");
+
     public ObservableCollection<PortItemViewModel> AvailablePorts { get; } = [];
 
     [ObservableProperty]
@@ -222,6 +228,8 @@ public partial class MainViewModel : ApplicationSettingsViewModel, IAsyncDisposa
         SaveSettings();
         await CommandRunner.DisposeAsync();
         await Telnet.DisposeAsync();
+        _protocolDecoderWindow?.Close();
+        _variablePlotWindow?.Close();
         Watchdog.Dispose();
         VariableMonitor.Dispose();
         SessionProbes.Dispose();
@@ -234,6 +242,7 @@ public partial class MainViewModel : ApplicationSettingsViewModel, IAsyncDisposa
         }
         _floatSendWindows.CloseAll();
         _logFilterWindows.CloseAll();
+        _logAnalyzerWindow?.Close();
         await Workspace.DisposeAsync();
 
         GC.SuppressFinalize(this);

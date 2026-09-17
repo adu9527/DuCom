@@ -53,6 +53,24 @@ public partial class PluginToolWindow : FluentWindow
 
         Grid.SetRow(viewer, 1);
         shell.Children.Add(viewer);
+        if (!string.IsNullOrWhiteSpace(page.Watermark))
+        {
+            System.Windows.Controls.TextBlock watermark = new()
+            {
+                Text = page.Watermark,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(0, -12, 0, 0),
+                FontSize = Math.Max(1, FontSize + page.WatermarkFontSizeDelta),
+                FontWeight = FontWeights.SemiBold,
+                Opacity = 0.22,
+                IsHitTestVisible = false,
+            };
+            watermark.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.TextSecondary");
+            Panel.SetZIndex(watermark, 10);
+            Grid.SetRow(watermark, 1);
+            shell.Children.Add(watermark);
+        }
         // Pin the page width to the viewport (clamped by its MaxWidth): otherwise the
         // centered panel resizes with its longest wrapped text and cards visibly jump.
         viewer.SizeChanged += (_, args) => ApplyViewportSize(viewer, args.NewSize.Width, args.NewSize.Height);

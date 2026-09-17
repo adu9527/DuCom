@@ -13,4 +13,8 @@
     <InternalsVisibleTo Include="DuCom.Core.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\docs\bes_ibrt.xml" LogicalName="DuCom.Core.LogAnalysis.bes_ibrt.xml" />
+  </ItemGroup>
+
 </Project>

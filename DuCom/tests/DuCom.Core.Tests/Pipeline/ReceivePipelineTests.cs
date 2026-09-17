@@ -134,6 +134,66 @@ public sealed class ReceivePipelineTests
         Assert.Equal(40, metrics.Snapshot().ProducedBytes);
     }
 
+    [Fact]
+    public async Task LongCallbackGapWithBufferedDataPublishesOneReceiveDiagnostic()
+    {
+        FakeReceiveTransport transport = new();
+        RecordingSink sink = new();
+        List<ReceiveDiagnosticSnapshot> diagnostics = [];
+        await using ReceivePipeline pipeline = new(
+            transport,
+            sink,
+            new LoadMetrics(),
+            ArrayPool<byte>.Shared,
+            capacity: 8,
+            maximumReadSize: 2_048,
+            diagnosticPortName: "COM7",
+            diagnosticObserver: diagnostics.Add);
+        await pipeline.StartAsync();
+
+        transport.Enqueue(new byte[1_024]);
+        transport.RaiseDataAvailable();
+        await WaitUntilAsync(() => sink.Payloads.Count == 1);
+        await Task.Delay(275);
+        transport.Enqueue(new byte[1_024]);
+        transport.RaiseDataAvailable();
+        await WaitUntilAsync(() => diagnostics.Count == 1);
+        await pipeline.StopAsync();
+
+        ReceiveDiagnosticSnapshot diagnostic = diagnostics.Single();
+        Assert.Equal("COM7", diagnostic.PortName);
+        Assert.Equal("DataAvailable", diagnostic.Trigger);
+        Assert.True(diagnostic.CallbackGapMilliseconds >= 250);
+        Assert.Equal(1_024, diagnostic.InitialBytesAvailable);
+        Assert.Equal(1, diagnostic.ReadBlocks);
+        Assert.Equal(1_024, diagnostic.ReadBytes);
+        Assert.Equal(1_024, diagnostic.MaximumReadBytes);
+        Assert.False(diagnostic.CapacityLimited);
+    }
+
+    [Fact]
+    public async Task DiagnosticObserverFailureDoesNotFaultReceivePipeline()
+    {
+        FakeReceiveTransport transport = new();
+        RecordingSink sink = new();
+        await using ReceivePipeline pipeline = new(
+            transport,
+            sink,
+            new LoadMetrics(),
+            ArrayPool<byte>.Shared,
+            capacity: 8,
+            maximumReadSize: 32 * 1_024,
+            diagnosticObserver: _ => throw new InvalidOperationException("diagnostic failure"));
+        await pipeline.StartAsync();
+
+        transport.Enqueue(new byte[16 * 1_024]);
+        transport.RaiseDataAvailable();
+        await WaitUntilAsync(() => sink.Payloads.Count == 1);
+        await pipeline.StopAsync();
+
+        Assert.Null(pipeline.Fault);
+    }
+
     private sealed class RecordingSink(TimeSpan delay = default) : IReceiveBlockSink
     {
         public List<string> Payloads { get; } = [];

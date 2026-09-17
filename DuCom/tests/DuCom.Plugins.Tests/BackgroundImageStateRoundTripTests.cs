@@ -65,6 +65,44 @@ public sealed class BackgroundImageStateRoundTripTests
         }
     }
 
+    [HostBuildFact]
+    public async Task PickingFolderPreservesRandomPlayback()
+    {
+        using PickerEnvironment environment = new();
+        await using BedHarness harness = BedHarness.Create("bg-random-folder", environment: environment);
+        PluginRuntimeController controller = InstallBackground(harness);
+        Assert.True(await harness.Service.StartRegisteredAsync(controller.Manifest.Id));
+        controller = Assert.IsType<PluginRuntimeController>(harness.Service.GetOrCreateController(controller.Manifest.Id));
+
+        Assert.True(await controller.InvokeCommandAsync("apply", new Dictionary<string, string>
+        {
+            ["playback"] = "random",
+        }));
+        Assert.True(await controller.InvokeCommandAsync("pick-folder", new Dictionary<string, string>()));
+
+        await UntilAsync(() => environment.AppliedPaths.Any(path => string.Equals(path, environment.ImagePath, StringComparison.OrdinalIgnoreCase)));
+        string storage = harness.ReadPluginStorage("com.ducom.background-image");
+        Assert.Contains("\"playback\": \"random\"", storage);
+        Assert.Contains(environment.FolderPath.Replace("\\", "\\\\"), storage);
+    }
+
+    [HostBuildFact]
+    public async Task LegacyPercentageOpacityIsNormalizedWhenLoaded()
+    {
+        BackgroundEnvironment environment = new();
+        await using BedHarness harness = BedHarness.Create("bg-opacity-load", environment: environment);
+        string storageDirectory = Path.Combine(harness.Paths.StorageRoot, "com.ducom.background-image");
+        Directory.CreateDirectory(storageDirectory);
+        File.WriteAllText(Path.Combine(storageDirectory, "config.json"), "{\"enabled\":true,\"opacity\":18}");
+
+        PluginRuntimeController controller = InstallBackground(harness);
+        Assert.True(await harness.Service.StartRegisteredAsync(controller.Manifest.Id));
+        controller = Assert.IsType<PluginRuntimeController>(harness.Service.GetOrCreateController(controller.Manifest.Id));
+        Assert.True(await controller.InvokeCommandAsync("open", new Dictionary<string, string>()));
+
+        AssertPageShows(environment, enabled: true, opacity: 18);
+    }
+
     private static void AssertPageShows(BackgroundEnvironment environment, bool enabled, int opacity)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(10);
@@ -105,7 +143,7 @@ public sealed class BackgroundImageStateRoundTripTests
         }
     }
 
-    private sealed class BackgroundEnvironment : FakeEnvironment
+    private class BackgroundEnvironment : FakeEnvironment
     {
         public System.Collections.Concurrent.ConcurrentQueue<IReadOnlyList<UiNode>> PublishedNodes { get; } = new();
 
@@ -113,6 +151,59 @@ public sealed class BackgroundImageStateRoundTripTests
         {
             base.UpdateToolPage(pluginId, contributionId, nodes);
             PublishedNodes.Enqueue(nodes);
+        }
+    }
+
+    private sealed class PickerEnvironment : BackgroundEnvironment, IDisposable
+    {
+        public PickerEnvironment()
+        {
+            FolderPath = Path.Combine(Path.GetTempPath(), $"ducom-background-random-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(FolderPath);
+            ImagePath = Path.Combine(FolderPath, "background.png");
+            File.WriteAllBytes(ImagePath, [0x89, 0x50, 0x4E, 0x47]);
+        }
+
+        public string FolderPath { get; }
+
+        public string ImagePath { get; }
+
+        public System.Collections.Concurrent.ConcurrentQueue<string> AppliedPaths { get; } = new();
+
+        public override async Task<DuCom.PluginHost.HostPickResult?> PickReadAsync(string pluginId, DuCom.PluginHost.HostPickRequest request, CancellationToken cancellationToken)
+        {
+            // Exceeds the normal worker command deadline to reproduce a real user taking time
+            // in the native folder picker.
+            await Task.Delay(TimeSpan.FromSeconds(3), cancellationToken);
+            return new DuCom.PluginHost.HostPickResult
+            {
+                DisplayPath = FolderPath,
+                IsDirectory = true,
+                Remembered = true,
+            };
+        }
+
+        public override string? TryResolveRememberedReadPath(string pluginId, string requestedPath)
+        {
+            string normalized = Path.GetFullPath(requestedPath);
+            return string.Equals(normalized, FolderPath, StringComparison.OrdinalIgnoreCase)
+                || normalized.StartsWith(FolderPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                    ? normalized
+                    : null;
+        }
+
+        public override void ApplyBackground(DuCom.PluginHost.BackgroundApply apply)
+        {
+            base.ApplyBackground(apply);
+            if (apply.ImageTokenPath is not null)
+            {
+                AppliedPaths.Enqueue(apply.ImageTokenPath);
+            }
+        }
+
+        public void Dispose()
+        {
+            try { Directory.Delete(FolderPath, recursive: true); } catch { }
         }
     }
 

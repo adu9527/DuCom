@@ -35,7 +35,7 @@ public sealed partial class BoundedLogEditor
         }
 
         int relativeStart = Math.Clamp(match.StartIndex, 0, line.Text.Length);
-        int start = line.StartOffset + relativeStart;
+        int start = checked((int)(line.StartOffset - _documentOriginOffset + relativeStart));
         int length = Math.Clamp(match.Length, 0, line.Text.Length - relativeStart);
         _applyingSearchSelection = true;
         try

@@ -10,6 +10,7 @@ namespace DuCom.Services;
 internal sealed class LeaseAwareWorkspaceSession(IWorkspaceSession inner, SerialLeaseCoordinator leases) : IWorkspaceSession
 {
     public string RuntimeId => inner.RuntimeId;
+    public Guid? RuntimeGeneration => inner.RuntimeGeneration;
     public SerialPortSettings Settings => inner.Settings;
     public SerialSessionStatusSnapshot Status => inner.Status;
     public string LogDirectory => inner.LogDirectory;

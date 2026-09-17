@@ -158,8 +158,14 @@ public sealed class SessionProbeProvider : IDisposable
 
                 SessionViewModel captured = session;
                 Func<LineCursor?, LineStoreSnapshot> pull = cursor => captured.WorkspaceSession.GetDisplaySnapshot(cursor, 2_048);
+                Func<LineCursor?, int, LineStoreSnapshot> pullPage = (cursor, pageSize) =>
+                    captured.WorkspaceSession.GetDisplaySnapshot(cursor, Math.Clamp(pageSize, 1, 16_384));
                 watchdog.Add(new WatchdogSessionProbe(captured.PortName, IsOpen: true, pull));
-                monitor.Add(new VariableMonitorSessionProbe(captured.PortName, IsOpen: true, pull));
+                monitor.Add(new VariableMonitorSessionProbe(
+                    captured.PortName,
+                    true,
+                    captured.WorkspaceSession.RuntimeId,
+                    pullPage));
                 telnet.Add(new TelnetSessionProbe(
                     captured.PortName,
                     pull,

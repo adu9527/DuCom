@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DuCom.Core.Parsing;
 
 namespace DuCom.Core.Pipeline;
@@ -19,7 +20,12 @@ public sealed partial class ReceivePipeline
         try
         {
             ReceiveFormattingProfile formattingProfile = Volatile.Read(ref _formattingProfile);
-            ReadAvailableIntoChannel(formattingProfile);
+            long now = Stopwatch.GetTimestamp();
+            long previous = Interlocked.Exchange(ref _lastDataAvailableTimestamp, now);
+            double callbackGapMilliseconds = previous == 0
+                ? 0
+                : Stopwatch.GetElapsedTime(previous, now).TotalMilliseconds;
+            ReadAvailableIntoChannel(formattingProfile, "DataAvailable", callbackGapMilliseconds);
         }
         catch (Exception exception)
         {
@@ -37,11 +43,20 @@ public sealed partial class ReceivePipeline
         }
     }
 
-    private void ReadAvailableIntoChannel(ReceiveFormattingProfile? formattingProfile = null)
+    private void ReadAvailableIntoChannel(
+        ReceiveFormattingProfile? formattingProfile = null,
+        string trigger = "BackpressureResume",
+        double callbackGapMilliseconds = 0)
     {
         lock (_readGate)
         {
             formattingProfile ??= Volatile.Read(ref _formattingProfile);
+            int initialBytesAvailable = _transport.BytesAvailable;
+            long diagnosticBatchId = BeginDiagnosticBatch(trigger, callbackGapMilliseconds, initialBytesAvailable);
+            int readBlocks = 0;
+            int readBytes = 0;
+            int maximumReadBytes = 0;
+            int queueDepthPeak = Volatile.Read(ref _queuedBlocks);
             while (Volatile.Read(ref _stopping) == 0 && _transport.BytesAvailable > 0 && _capacitySlots.Wait(0))
             {
                 int requested = Math.Min(_transport.BytesAvailable, _maximumReadSize);
@@ -71,7 +86,8 @@ public sealed partial class ReceivePipeline
                     buffer,
                     length,
                     DateTimeOffset.UtcNow,
-                    formattingProfile);
+                    formattingProfile,
+                    diagnosticBatchId);
                 if (!_channel.Writer.TryWrite(block))
                 {
                     block.Dispose();
@@ -80,9 +96,23 @@ public sealed partial class ReceivePipeline
                 }
 
                 int queued = Interlocked.Increment(ref _queuedBlocks);
+                readBlocks++;
+                readBytes += length;
+                maximumReadBytes = Math.Max(maximumReadBytes, length);
+                queueDepthPeak = Math.Max(queueDepthPeak, queued);
                 _metrics.ObserveReceiveQueueDepth(queued);
                 _metrics.AddAcceptedBlock(length);
             }
+            int remainingBytesAvailable = _transport.BytesAvailable;
+            bool capacityLimited = remainingBytesAvailable > 0 && _capacitySlots.CurrentCount == 0;
+            CompleteDiagnosticRead(
+                diagnosticBatchId,
+                readBlocks,
+                readBytes,
+                maximumReadBytes,
+                queueDepthPeak,
+                remainingBytesAvailable,
+                capacityLimited);
         }
     }
 
@@ -96,7 +126,12 @@ public sealed partial class ReceivePipeline
                 {
                     try
                     {
+                        long startedAt = Stopwatch.GetTimestamp();
                         await _sink.ProcessAsync(block, _processorCancellation.Token).ConfigureAwait(false);
+                        CompleteDiagnosticProcessing(
+                            block.DiagnosticBatchId,
+                            block.DiagnosticFormattedLines,
+                            Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
                     }
                     finally
                     {

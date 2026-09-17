@@ -99,6 +99,8 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
         {
             try
             {
+                // OpenAsync owns the per-port operation gate. The lease remains registered
+                // throughout restore, so non-owner operations fail without a nested gate wait.
                 await _serialLeases.RunAsOwnerAsync(lease.LeaseId, async () => restored = await session.OpenAsync(cancellationToken) == Core.Ports.PortCommandResult.Succeeded);
                 if (!restored) message = "The previous DuCom session could not be restored.";
             }
@@ -130,7 +132,10 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
         return sessions;
     }
 
-    public IReadOnlyList<HostSerialPort> GetSerialPorts() => [.. _portsProvider().Select(port => new HostSerialPort(
+    public IReadOnlyList<HostSerialPort> GetSerialPorts() => [.. _portsProvider()
+        .Where(port => !string.Equals(port.PortType, "VAR", StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(port.DeviceInstanceId))
+        .Select(port => new HostSerialPort(
         port.PortName,
         string.IsNullOrWhiteSpace(port.DisplayDeviceName) ? port.PortName : port.DisplayDeviceName,
         port.VidPid,

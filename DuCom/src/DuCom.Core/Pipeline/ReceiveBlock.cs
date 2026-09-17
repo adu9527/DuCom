@@ -13,13 +13,15 @@ public sealed class ReceiveBlock : IDisposable
         byte[] buffer,
         int length,
         DateTimeOffset receivedAtUtc,
-        ReceiveFormattingProfile formattingProfile)
+        ReceiveFormattingProfile formattingProfile,
+        long diagnosticBatchId = 0)
     {
         _pool = pool;
         _buffer = buffer;
         Length = length;
         ReceivedAtUtc = receivedAtUtc;
         FormattingProfile = formattingProfile ?? throw new ArgumentNullException(nameof(formattingProfile));
+        DiagnosticBatchId = diagnosticBatchId;
     }
 
     public int Length { get; }
@@ -27,6 +29,10 @@ public sealed class ReceiveBlock : IDisposable
     public DateTimeOffset ReceivedAtUtc { get; }
 
     public ReceiveFormattingProfile FormattingProfile { get; }
+
+    internal long DiagnosticBatchId { get; }
+
+    internal int DiagnosticFormattedLines { get; set; }
 
     public ReadOnlyMemory<byte> Memory => (_buffer ?? throw new ObjectDisposedException(nameof(ReceiveBlock))).AsMemory(0, Length);
 

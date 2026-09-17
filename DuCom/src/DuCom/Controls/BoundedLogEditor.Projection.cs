@@ -19,7 +19,9 @@ public sealed partial class BoundedLogEditor
         int overlapStart = FindOverlapStart(target);
         int removeCount = overlapStart < 0 ? _projected.Count : overlapStart;
         int retainedCount = overlapStart < 0 ? 0 : Math.Min(_projected.Count - overlapStart, target.Count);
-        int removeCharacters = removeCount == 0 ? 0 : _projected[removeCount - 1].EndOffset;
+        int removeCharacters = removeCount == 0
+            ? 0
+            : checked((int)(_projected[removeCount - 1].EndOffset - _documentOriginOffset));
         int appendStart = retainedCount;
         bool follow = FollowEnd && !_followSuppressed && SelectionLength == 0;
         int oldSelectionStart = SelectionStart;
@@ -29,25 +31,28 @@ public sealed partial class BoundedLogEditor
         {
             Document.Remove(0, removeCharacters);
             _projected.RemoveRange(0, removeCount);
-            ShiftProjectedOffsets(-removeCharacters);
-            ShiftSpans(-removeCharacters);
+            _documentOriginOffset += removeCharacters;
+            _spans.RemoveAll(span => span.Offset + span.Length <= _documentOriginOffset);
         }
 
         int matchingPrefix = FindMatchingPrefix(target, retainedCount);
         retainedCount = matchingPrefix;
         if (retainedCount < _projected.Count)
         {
-            int offset = retainedCount == 0 ? 0 : _projected[retainedCount - 1].EndOffset;
+            int offset = retainedCount == 0
+                ? 0
+                : checked((int)(_projected[retainedCount - 1].EndOffset - _documentOriginOffset));
             Document.Remove(offset, Document.TextLength - offset);
             _projected.RemoveRange(retainedCount, _projected.Count - retainedCount);
-            _spans.RemoveAll(span => span.Offset >= offset);
+            long absoluteOffset = _documentOriginOffset + offset;
+            _spans.RemoveAll(span => span.Offset >= absoluteOffset);
             appendStart = retainedCount;
         }
 
         AppendLines(target, appendStart);
         Document.UndoStack.ClearAll();
 
-        _colorizer.SetSpans(_spans);
+        _colorizer.SetSpans(_spans, _documentOriginOffset);
         RestoreSelection(oldSelectionStart, oldSelectionLength, removeCharacters);
         if (follow && SelectionLength == 0)
         {
@@ -65,15 +70,16 @@ public sealed partial class BoundedLogEditor
     {
         _projected.Clear();
         _spans.Clear();
+        _documentOriginOffset = 0;
         _appliedMatch = null;
         _searchSelectionStart = -1;
         _searchSelectionLength = 0;
 
         System.Text.StringBuilder text = new();
-        int documentOffset = 0;
+        long documentOffset = 0;
         foreach (LogLineViewModel line in target)
         {
-            int lineStart = documentOffset;
+            long lineStart = documentOffset;
             int runOffset = 0;
             foreach (StyleRun run in line.StyledRuns)
             {
@@ -91,7 +97,7 @@ public sealed partial class BoundedLogEditor
 
         Document.Text = text.ToString();
         Document.UndoStack.ClearAll();
-        _colorizer.SetSpans(_spans);
+        _colorizer.SetSpans(_spans, _documentOriginOffset);
         TextArea.TextView.InvalidateMeasure();
         if (FollowEnd && !_followSuppressed)
         {
@@ -200,11 +206,11 @@ public sealed partial class BoundedLogEditor
         }
 
         System.Text.StringBuilder text = new();
-        int documentOffset = Document.TextLength;
+        long documentOffset = _documentOriginOffset + Document.TextLength;
         for (int index = startIndex; index < lines.Count; index++)
         {
             LogLineViewModel line = lines[index];
-            int lineStart = documentOffset;
+            long lineStart = documentOffset;
             int runOffset = 0;
             foreach (StyleRun run in line.StyledRuns)
             {
@@ -242,6 +248,7 @@ public sealed partial class BoundedLogEditor
     {
         _projected.Clear();
         _spans.Clear();
+        _documentOriginOffset = 0;
         _appliedMatch = null;
         _searchSelectionStart = -1;
         _searchSelectionLength = 0;

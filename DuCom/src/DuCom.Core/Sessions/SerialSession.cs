@@ -25,6 +25,7 @@ public sealed partial class SerialSession : IAsyncDisposable
     private readonly bool _timestampEnabled;
     private readonly string _timestampFormat;
     private long _formattingProfileVersion;
+    private long _settingsRevision;
     private readonly SessionLogWriterOptions _logOptions;
     private readonly bool _sendPrefixEnabled;
     private readonly string _sendPrefix;
@@ -33,6 +34,7 @@ public sealed partial class SerialSession : IAsyncDisposable
     private readonly BudgetedLineStore _lineStore;
     private readonly SessionTapHub _displayTaps = new();
     private readonly SessionRawTapHub _rawTaps = new();
+    private readonly Action<ReceiveDiagnosticSnapshot>? _receiveDiagnosticObserver;
     private SessionRuntime? _runtime;
     private SessionFaultSnapshot? _fault;
     private Task? _disposeTask;
@@ -47,7 +49,8 @@ public sealed partial class SerialSession : IAsyncDisposable
         int lineBudgetBytes,
         bool sendPrefixEnabled = true,
         string sendPrefix = "TX > ",
-        string timestampFormat = "HH:mm:ss.fff")
+        string timestampFormat = "HH:mm:ss.fff",
+        Action<ReceiveDiagnosticSnapshot>? receiveDiagnosticObserver = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         settings.Validate();
@@ -66,6 +69,7 @@ public sealed partial class SerialSession : IAsyncDisposable
         _logOptions = logOptions;
         _sendPrefixEnabled = sendPrefixEnabled;
         _sendPrefix = sendPrefix ?? string.Empty;
+        _receiveDiagnosticObserver = receiveDiagnosticObserver;
         _lineStore = new BudgetedLineStore(lineBudgetBytes, DefaultMaximumSegmentCharacters);
         _lifecycle = new PortLifecycle(settings.PortName, transport);
         _transport.Disconnected += OnTransportDisconnected;
@@ -139,6 +143,7 @@ public sealed partial class SerialSession : IAsyncDisposable
                 }
 
                 _settings = settings;
+                _rawTaps.UpdateSettingsRevision(++_settingsRevision);
             }
             catch (Exception failure)
             {
@@ -202,6 +207,7 @@ public sealed partial class SerialSession : IAsyncDisposable
             };
 
             await _transport.WriteAsync(payload, cancellationToken).ConfigureAwait(false);
+            _rawTaps.PublishTransmit(payload, DateTimeOffset.UtcNow);
 
             _displayTaps.NotifySent(mode);
             string displayText = mode == SendMode.Str ? text : FormatHex(payload);

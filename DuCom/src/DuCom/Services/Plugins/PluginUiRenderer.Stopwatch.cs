@@ -10,7 +10,7 @@ public static partial class PluginUiRenderer
     /// <summary>
     /// Stopwatch page: a top bar with the always-on-top toggle and shortcut hints, a live
     /// ticking display driven by the plugin's state string, formatted lap rows, and the
-    /// plugin's action buttons. Space toggles run, L records a lap, R resets (double-press).
+    /// plugin's action buttons. Space toggles run, L records a lap, and R resets.
     /// </summary>
     private static FrameworkElement RenderStopwatch(IReadOnlyList<UiNode> nodes, PluginCommandRouter commands)
     {

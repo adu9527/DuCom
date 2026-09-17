@@ -58,12 +58,13 @@ public static partial class PluginUiRenderer
 
         if (opacity is not null)
         {
-            settings.Children.Add(new TextBlock { Text = Application.Current.TryFindResource("Plugins.BackgroundImage.Opacity") as string ?? "图片透明度", Style = Application.Current.TryFindResource("Style.FieldLabel") as Style, Margin = new Thickness(0, 16, 0, 4) });
+            settings.Children.Add(new TextBlock { Text = Application.Current.TryFindResource("Plugins.BackgroundImage.Opacity") as string ?? "背景图不透明度", Style = Application.Current.TryFindResource("Style.FieldLabel") as Style, Margin = new Thickness(0, 16, 0, 4) });
             settings.Children.Add(CreateLiveOpacitySlider(opacity, commands));
         }
 
-        if (fields.TryGetValue("intervalSeconds", out UiTextNode? interval) && RenderNode(interval, commands) is Control intervalControl)
+        if (fields.TryGetValue("intervalSeconds", out UiTextNode? interval))
         {
+            FrameworkElement intervalControl = RenderNode(interval, commands);
             settings.Children.Add(new TextBlock { Text = Application.Current.TryFindResource("Plugins.BackgroundImage.Interval") as string ?? "定时切换间隔（秒）", Style = Application.Current.TryFindResource("Style.FieldLabel") as Style, Margin = new Thickness(0, 16, 0, 4) });
             intervalControl.LostFocus += (_, _) => commands.InvokeCommand("apply", submitForm: true);
             settings.Children.Add(intervalControl);

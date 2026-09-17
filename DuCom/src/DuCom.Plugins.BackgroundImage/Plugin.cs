@@ -30,7 +30,7 @@ public sealed partial class Plugin : DuComPlugin
                 BackgroundConfig? loaded = JsonSerializer.Deserialize<BackgroundConfig>(json, BackgroundConfig.JsonOptions);
                 if (loaded is not null)
                 {
-                    _config = loaded;
+                    _config = loaded with { Opacity = NormalizeOpacity(loaded.Opacity) };
                 }
             }
             catch (JsonException)

@@ -1,5 +1,6 @@
 using System.IO;
 using DuCom.Core.Logging;
+using DuCom.Core.Diagnostics;
 using DuCom.Core.Parsing;
 using DuCom.Core.Ports;
 using DuCom.Core.Sending;
@@ -48,10 +49,13 @@ internal sealed class SerialWorkspaceSession : IWorkspaceSession
             displayBudgetBytes,
             sendPrefixEnabled,
             sendPrefix,
-            timestampFormat);
+            timestampFormat,
+            LogReceiveDiagnostic);
     }
 
     public string RuntimeId => _session.RuntimeId;
+
+    public Guid? RuntimeGeneration => _session.RuntimeGeneration;
 
     public SerialPortSettings Settings => _session.Settings;
 
@@ -65,6 +69,15 @@ internal sealed class SerialWorkspaceSession : IWorkspaceSession
         _session.CreateLogSnapshotAsync(cancellationToken);
 
     public event EventHandler<SessionWarningEventArgs>? Warning;
+
+    private static void LogReceiveDiagnostic(ReceiveDiagnosticSnapshot snapshot) =>
+        Program.DiagnosticLog?.Information(
+            $"Receive burst. Port={snapshot.PortName}; Trigger={snapshot.Trigger}; " +
+            $"CallbackGapMs={snapshot.CallbackGapMilliseconds:0.0}; InitialBytesAvailable={snapshot.InitialBytesAvailable}; " +
+            $"ReadBlocks={snapshot.ReadBlocks}; ReadBytes={snapshot.ReadBytes}; MaxReadBytes={snapshot.MaximumReadBytes}; " +
+            $"QueueDepthPeak={snapshot.QueueDepthPeak}; RemainingBytesAvailable={snapshot.RemainingBytesAvailable}; " +
+            $"CapacityLimited={snapshot.CapacityLimited}; FormattedLines={snapshot.FormattedLines}; " +
+            $"ProcessingMs={snapshot.ProcessingMilliseconds:0.0}");
 
     public Task<PortCommandResult> OpenAsync(CancellationToken cancellationToken = default) =>
         _session.OpenAsync(cancellationToken);

@@ -104,6 +104,29 @@ public sealed class PortListComposerTests
     }
 
     [Fact]
+    public void PhysicalOnlyViewDropsBluetoothPortsClassifiedAsVirtual()
+    {
+        DiscoveredPort bluetooth = new(
+            "COM50",
+            WindowsPortDiscovery.GetPortType(
+                "BTHENUM\\{00001101-0000-1000-8000-00805F9B34FB}_VID&000102B0_PID&0000\\9&1&0",
+                "Standard Serial over Bluetooth link (COM50)"),
+            string.Empty,
+            "Standard Serial over Bluetooth link",
+            "Microsoft",
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            string.Empty);
+
+        IReadOnlyList<ComposedPort> ports = Compose(
+            [Usb("COM42"), bluetooth],
+            showVirtual: false);
+
+        Assert.Equal(["COM42"], ports.Select(port => port.PortName).ToList());
+    }
+
+    [Fact]
     public void SerialPortsAreDroppedWhenSerialIsHidden()
     {
         IReadOnlyList<ComposedPort> ports = Compose(

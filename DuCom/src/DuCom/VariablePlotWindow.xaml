@@ -1,0 +1,48 @@
+<ui:FluentWindow x:Class="DuCom.VariablePlotWindow"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:controls="clr-namespace:DuCom.Controls"
+                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                  Title="{DynamicResource VariablePlot.Title}" Width="1200" Height="760" MinWidth="900" MinHeight="560"
+                  Icon="/Assets/DuCom.ico" ExtendsContentIntoTitleBar="True" WindowBackdropType="Mica" WindowStartupLocation="CenterOwner">
+    <Grid Background="{DynamicResource Brush.ShellSurface}">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <ui:TitleBar Title="{DynamicResource VariablePlot.Title}" ShowClose="False" ShowMaximize="False" ShowMinimize="False">
+            <ui:TitleBar.TrailingContent><controls:WindowCaptionButtons ShowMaximize="True" ShowMinimize="True"/></ui:TitleBar.TrailingContent>
+        </ui:TitleBar>
+        <Border Grid.Row="1" Margin="12,8" Padding="10" Background="{DynamicResource Brush.ToolbarSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="8">
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="PauseButton" MinWidth="82" Click="Pause_Click" Content="{DynamicResource Analysis.Pause}"/>
+                <Button Margin="8,0,0,0" MinWidth="72" Click="Clear_Click" Content="{DynamicResource FloatSend.Clear}"/>
+                <Button Margin="8,0,0,0" MinWidth="88" Click="Export_Click" Content="{DynamicResource Analysis.ExportCsv}"/>
+                <CheckBox x:Name="FollowCheck" Margin="18,0,0,0" VerticalAlignment="Center" Content="{DynamicResource Analysis.Follow}"/>
+                <TextBlock Margin="18,0,6,0" VerticalAlignment="Center" Text="{DynamicResource Analysis.TimeWindow}"/>
+                <ComboBox x:Name="WindowCombo" Width="90" SelectionChanged="WindowCombo_SelectionChanged">
+                    <ComboBoxItem Tag="10" Content="10 s"/><ComboBoxItem Tag="30" Content="30 s"/><ComboBoxItem Tag="60" Content="60 s"/><ComboBoxItem Tag="300" Content="300 s"/>
+                </ComboBox>
+                <Button Margin="8,0,0,0" Click="ResetView_Click" Content="{DynamicResource Analysis.ResetView}"/>
+                <Button Margin="18,0,0,0" Click="Reload_Click" Content="{DynamicResource Analysis.ReloadConfig}"/>
+                <Button Margin="8,0,0,0" Click="OpenConfig_Click" Content="{DynamicResource Analysis.OpenConfig}"/>
+                <Button Margin="8,0,0,0" Click="ResetConfig_Click" Content="{DynamicResource Analysis.ResetTemplates}"/>
+            </StackPanel>
+        </Border>
+        <Grid Grid.Row="2" Margin="12,0,12,8">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="280"/><ColumnDefinition Width="6"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+            <Border Padding="8" Background="{DynamicResource Brush.PanelSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="8">
+                <DataGrid x:Name="SeriesGrid" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False" ItemsSource="{Binding Series}">
+                    <DataGrid.Columns>
+                        <DataGridCheckBoxColumn Width="42" Binding="{Binding IsVisible}" Header="{DynamicResource Analysis.Show}"/>
+                        <DataGridTextColumn Width="*" IsReadOnly="True" Binding="{Binding Name}" Header="{DynamicResource Analysis.Series}"/>
+                        <DataGridTextColumn Width="78" IsReadOnly="True" Binding="{Binding CurrentValue}" Header="{DynamicResource Analysis.Value}"/>
+                        <DataGridTextColumn Width="58" IsReadOnly="True" Binding="{Binding Unit}" Header="{DynamicResource Analysis.Unit}"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch"/>
+            <Border Grid.Column="2" Background="{DynamicResource Brush.PanelSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="8">
+                <controls:TimeSeriesPlotControl x:Name="Plot" ClipToBounds="True"/>
+            </Border>
+        </Grid>
+        <DockPanel Grid.Row="3" Margin="14,0,14,10"><TextBlock x:Name="StatusText" Foreground="{DynamicResource Brush.TextSecondary}"/></DockPanel>
+    </Grid>
+</ui:FluentWindow>

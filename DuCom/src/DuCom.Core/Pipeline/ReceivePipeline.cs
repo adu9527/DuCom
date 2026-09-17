@@ -23,6 +23,8 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
     private readonly IReceiveTransport _transport;
     private readonly TimeSpan _drainTimeout;
     private readonly long _maximumDrainBytes;
+    private readonly string _diagnosticPortName;
+    private readonly Action<ReceiveDiagnosticSnapshot>? _diagnosticObserver;
     private readonly CancellationTokenSource _processorCancellation = new();
     private readonly ManualResetEventSlim _callbacksIdle = new(initialState: true);
     private readonly SemaphoreSlim _capacitySlots;
@@ -37,6 +39,11 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
     private int _queuedBlocks;
     private int _started;
     private int _stopping;
+    private long _diagnosticBatchSequence;
+    private long _lastDataAvailableTimestamp;
+    private long _nextDiagnosticPublishTimestamp;
+    private readonly object _diagnosticGate = new();
+    private readonly Dictionary<long, ReceiveDiagnosticBatch> _diagnosticBatches = [];
 
     public ReceivePipeline(
         IReceiveTransport transport,
@@ -46,7 +53,9 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
         int capacity,
         int maximumReadSize,
         TimeSpan? drainTimeout = null,
-        long? maximumDrainBytes = null)
+        long? maximumDrainBytes = null,
+        string? diagnosticPortName = null,
+        Action<ReceiveDiagnosticSnapshot>? diagnosticObserver = null)
         : this(
             transport,
             sink,
@@ -56,7 +65,9 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
             maximumReadSize,
             new ReceiveFormattingProfile(0, System.Text.Encoding.UTF8.WebName, ReceiveDisplayMode.Str, false),
             drainTimeout,
-            maximumDrainBytes)
+            maximumDrainBytes,
+            diagnosticPortName,
+            diagnosticObserver)
     {
     }
 
@@ -69,7 +80,9 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
         int maximumReadSize,
         ReceiveFormattingProfile formattingProfile,
         TimeSpan? drainTimeout = null,
-        long? maximumDrainBytes = null)
+        long? maximumDrainBytes = null,
+        string? diagnosticPortName = null,
+        Action<ReceiveDiagnosticSnapshot>? diagnosticObserver = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _sink = sink ?? throw new ArgumentNullException(nameof(sink));
@@ -92,6 +105,8 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
         _maximumReadSize = maximumReadSize;
         _drainTimeout = drainTimeout ?? DefaultDrainTimeout;
         _maximumDrainBytes = maximumDrainBytes ?? DefaultMaximumDrainBytes;
+        _diagnosticPortName = diagnosticPortName ?? string.Empty;
+        _diagnosticObserver = diagnosticObserver;
         _capacitySlots = new SemaphoreSlim(capacity, capacity);
         _channel = Channel.CreateBounded<ReceiveBlock>(new BoundedChannelOptions(capacity)
         {

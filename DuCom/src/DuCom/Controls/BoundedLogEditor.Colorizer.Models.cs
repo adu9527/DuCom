@@ -13,27 +13,7 @@ public sealed partial class BoundedLogEditor
     private static readonly ConcurrentDictionary<int, SolidColorBrush> BrushCache = new();
     private readonly LogColorizer _colorizer = new();
     private readonly List<ColorSpan> _spans = [];
-
-    private void ShiftProjectedOffsets(int delta)
-    {
-        for (int index = 0; index < _projected.Count; index++)
-        {
-            _projected[index] = _projected[index] with
-            {
-                StartOffset = _projected[index].StartOffset + delta,
-                EndOffset = _projected[index].EndOffset + delta,
-            };
-        }
-    }
-
-    private void ShiftSpans(int delta)
-    {
-        _spans.RemoveAll(span => span.Offset + span.Length <= -delta);
-        for (int index = 0; index < _spans.Count; index++)
-        {
-            _spans[index] = _spans[index] with { Offset = _spans[index].Offset + delta };
-        }
-    }
+    private long _documentOriginOffset;
 
     private static bool Matches(ProjectedLine projected, LogLineViewModel line) =>
         ReferenceEquals(projected.Source, line) ||
@@ -44,8 +24,8 @@ public sealed partial class BoundedLogEditor
 
     private sealed record ProjectedLine(
         LogLineViewModel Source,
-        int StartOffset,
-        int EndOffset)
+        long StartOffset,
+        long EndOffset)
     {
         public long LogicalId => Source.LogicalId;
         public int SegmentIndex => Source.SegmentIndex;
@@ -55,13 +35,18 @@ public sealed partial class BoundedLogEditor
 
     private sealed record ViewportAnchor(long LogicalId, int SegmentIndex, double OffsetWithinLine);
 
-    private sealed record ColorSpan(int Offset, int Length, StyleRun Style);
+    private readonly record struct ColorSpan(long Offset, int Length, StyleRun Style);
 
     private sealed class LogColorizer : DocumentColorizingTransformer
     {
         private IReadOnlyList<ColorSpan> _spans = [];
+        private long _originOffset;
 
-        public void SetSpans(IReadOnlyList<ColorSpan> spans) => _spans = spans;
+        public void SetSpans(IReadOnlyList<ColorSpan> spans, long originOffset = 0)
+        {
+            _spans = spans;
+            _originOffset = originOffset;
+        }
 
         protected override void ColorizeLine(DocumentLine line)
         {
@@ -70,12 +55,13 @@ public sealed partial class BoundedLogEditor
             for (; index < _spans.Count; index++)
             {
                 ColorSpan span = _spans[index];
-                if (span.Offset >= lineEnd)
+                long spanOffset = span.Offset - _originOffset;
+                if (spanOffset >= lineEnd)
                 {
                     break;
                 }
-                int start = Math.Max(line.Offset, span.Offset);
-                int end = Math.Min(lineEnd, span.Offset + span.Length);
+                int start = (int)Math.Max(line.Offset, spanOffset);
+                int end = (int)Math.Min(lineEnd, spanOffset + span.Length);
                 if (start < end)
                 {
                     ChangeLinePart(start, end, element => ApplyStyle(element, span.Style));
@@ -90,7 +76,7 @@ public sealed partial class BoundedLogEditor
             while (low < high)
             {
                 int middle = low + (high - low) / 2;
-                if (_spans[middle].Offset + _spans[middle].Length <= offset)
+                if (_spans[middle].Offset - _originOffset + _spans[middle].Length <= offset)
                 {
                     low = middle + 1;
                 }

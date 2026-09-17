@@ -2,38 +2,40 @@ using DuCom.Core.Diagnostics;
 
 namespace DuCom.Services;
 
-/// <summary>
-/// Per-port variable monitoring on a one-second single-flight background worker, fed by
-/// immutable UI-thread session snapshots through <see cref="VariableMonitorEngine"/>. Never
-/// runs in receive callbacks, never enumerates WPF collections from the timer thread, and
-/// disposal cancels and waits for the in-flight tick.
-/// </summary>
+/// <summary>Single-flight variable ingestion loop with immutable plot snapshots.</summary>
 public sealed class VariableMonitorService : IDisposable
 {
     private readonly SessionProbeProvider _probes;
-    private readonly VariableMonitorEngine _engine = new();
-    private readonly PeriodicBackgroundWorker _worker;
-    private readonly object _disposeGate = new();
-    private Task? _disposeTask;
+    private readonly VariableMonitorEngine _engine;
+    private readonly CancellationTokenSource _cancellation = new();
+    private readonly Task _loopTask;
+    private int _ingestionIntervalMs;
+    private int _disposed;
 
-    public VariableMonitorService(SessionProbeProvider probes)
+    public VariableMonitorService(SessionProbeProvider probes, VariablePlotSettings? settings = null)
     {
         _probes = probes ?? throw new ArgumentNullException(nameof(probes));
-        _worker = new PeriodicBackgroundWorker(
-            "variable-monitor",
-            TimeSpan.FromSeconds(1),
-            (cancellationToken) => Task.Run(() => _engine.Tick(_probes.MonitorSnapshot), cancellationToken),
-            (name, exception) => Program.DiagnosticLog?.Error($"{name} tick failed. {exception}"));
-        _worker.Start();
+        settings ??= new VariablePlotSettings();
+        _ingestionIntervalMs = Math.Clamp(settings.IngestionIntervalMs, 50, 1_000);
+        _engine = new VariableMonitorEngine(new VariableMonitorEngineOptions(
+            Math.Clamp(settings.MaximumRawPointsPerSeries, 100, 1_000_000),
+            TimeSpan.FromSeconds(Math.Clamp(settings.RetentionSeconds, 1, 86_400))));
+        _loopTask = Task.Run(RunAsync);
+    }
+
+    public int IngestionIntervalMs
+    {
+        get => Volatile.Read(ref _ingestionIntervalMs);
+        set => Volatile.Write(ref _ingestionIntervalMs, Math.Clamp(value, 50, 1_000));
     }
 
     public void UpdateRules(IReadOnlyList<VariableMonitorRule> rules) => _engine.UpdateRules(rules);
-
     public bool IsEmpty => _engine.IsEmpty;
-
     public IReadOnlyList<VariableMonitorRule> Rules => _engine.Rules;
-
     public IReadOnlyList<(VariableMonitorRule Rule, VariableMonitorSample? Sample)> GetRuleStates() => _engine.GetRuleStates();
+    public VariablePlotSnapshot GetPlotSnapshot() => _engine.GetPlotSnapshot();
+    public void ClearPlot() => _engine.ClearHistory();
+    public string ExportPlotCsv() => VariablePlotCsv.ToLongTable(GetPlotSnapshot());
 
     /// <summary>Exports one CSV row per rule with its latest sample.</summary>
     public string ExportCsv()
@@ -41,12 +43,9 @@ public sealed class VariableMonitorService : IDisposable
         System.Text.StringBuilder builder = new("Name,Port,Pattern,Enabled,Order,Value,SampledAtUtc,MatchCount\r\n");
         foreach ((VariableMonitorRule rule, VariableMonitorSample? sample) in GetRuleStates())
         {
-            builder.Append(Escape(rule.Name)).Append(',')
-                .Append(Escape(rule.PortName ?? string.Empty)).Append(',')
-                .Append(Escape(rule.Pattern)).Append(',')
-                .Append(rule.IsEnabled ? "1" : "0").Append(',')
-                .Append(rule.Order).Append(',')
-                .Append(Escape(sample?.Value ?? string.Empty)).Append(',')
+            builder.Append(Escape(rule.Name)).Append(',').Append(Escape(rule.PortName ?? string.Empty)).Append(',')
+                .Append(Escape(rule.Pattern)).Append(',').Append(rule.IsEnabled ? "1" : "0").Append(',')
+                .Append(rule.Order).Append(',').Append(Escape(sample?.Value ?? string.Empty)).Append(',')
                 .Append(Escape(sample?.SampledAtUtc.ToString("O") ?? string.Empty)).Append(',')
                 .Append(sample?.MatchCount ?? 0).Append("\r\n");
         }
@@ -54,36 +53,34 @@ public sealed class VariableMonitorService : IDisposable
         return builder.ToString();
     }
 
-    private static string Escape(string value) =>
-        value.Contains(',') || value.Contains('"') || value.Contains('\n')
-            ? "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\""
-            : value;
-
-    public void Dispose()
+    private async Task RunAsync()
     {
-        Task disposeTask;
-        lock (_disposeGate)
-        {
-            disposeTask = _disposeTask ??= DisposeCoreAsync();
-        }
-
         try
         {
-            disposeTask.Wait(TimeSpan.FromSeconds(5));
+            while (!_cancellation.IsCancellationRequested)
+            {
+                await Task.Delay(IngestionIntervalMs, _cancellation.Token).ConfigureAwait(false);
+                _engine.Tick(_probes.MonitorSnapshot);
+            }
         }
-        catch (AggregateException)
+        catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
         {
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Error($"variable-monitor loop failed. {exception}");
         }
     }
 
-    private async Task DisposeCoreAsync()
+    private static string Escape(string value) => value.Contains(',') || value.Contains('"') || value.Contains('\n')
+        ? "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\""
+        : value;
+
+    public void Dispose()
     {
-        try
-        {
-            await _worker.DisposeAsync().ConfigureAwait(false);
-        }
-        catch
-        {
-        }
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _cancellation.Cancel();
+        try { _loopTask.Wait(TimeSpan.FromSeconds(5)); } catch (AggregateException) { }
+        _cancellation.Dispose();
     }
 }

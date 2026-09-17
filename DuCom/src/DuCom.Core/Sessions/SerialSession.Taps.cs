@@ -12,9 +12,12 @@ public sealed partial class SerialSession
     /// <summary>Display tap fan-out for auxiliary surfaces (float send window, log filter).</summary>
     public SessionTapHub DisplayTaps => _displayTaps;
 
-    /// <summary>Raw pre-formatting receive observers (host-internal broker surface).</summary>
+    /// <summary>Raw RX/TX traffic hub, including the legacy RX-only tap surface.</summary>
     public SessionRawTapHub RawTaps => _rawTaps;
 
-    /// <summary>Stable identity of this session instance; a reopen creates a new runtime id.</summary>
+    /// <summary>Stable identity of this session instance across close and reopen.</summary>
     public string RuntimeId { get; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>Generation of the currently open transport runtime, or null while closed.</summary>
+    public Guid? RuntimeGeneration => _rawTaps.Generation;
 }

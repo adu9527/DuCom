@@ -1,4 +1,5 @@
 using DuCom.Core.Diagnostics;
+using System.Globalization;
 
 namespace DuCom.Core.Tests.Diagnostics;
 
@@ -121,5 +122,81 @@ public sealed class VariableMonitorEvaluatorTests
         evaluator.UpdateRules([CreateRule("other", @"x=(\d+)")]);
 
         Assert.Empty(evaluator.Samples);
+    }
+
+    [Fact]
+    public void Rule_SixArgumentConstructionUsesPlottingDefaults()
+    {
+        VariableMonitorRule rule = CreateRule("temperature", @"(-?\d+)");
+
+        Assert.Equal(VariableMonitorValueType.Number, rule.ValueType);
+        Assert.Null(rule.ValueGroup);
+        Assert.Equal(1, rule.Scale);
+        Assert.Equal(0, rule.Offset);
+        Assert.True(rule.PlotEnabled);
+        Assert.Equal(VariableMonitorSamplingMode.EveryMatch, rule.SamplingMode);
+        Assert.Equal(20, rule.SampleIntervalMs);
+    }
+
+    [Fact]
+    public void AppendLine_UsesNamedGroupThenFallsBackToFirstCapture()
+    {
+        VariableMonitorRule named = CreateRule("named", @"x=(?<value>-?\d+(?:\.\d+)?)") with { ValueGroup = "value" };
+        VariableMonitorRule fallback = CreateRule("fallback", @"y=(-?\d+)") with { ValueGroup = "missing" };
+        VariableMonitorEvaluator evaluator = new();
+        evaluator.UpdateRules([named, fallback]);
+
+        IReadOnlyList<VariableNumericSample> samples = evaluator.AppendLine("COM1", "x=-1.25 y=7", DateTimeOffset.UtcNow);
+
+        Assert.Equal([-1.25, 7], samples.Select(sample => sample.NumericValue));
+        Assert.Equal(["-1.25", "7"], evaluator.Samples.Select(sample => sample.Value));
+    }
+
+    [Fact]
+    public void NumericParsing_IsInvariantAndAppliesScaleAndOffset()
+    {
+        CultureInfo previous = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+            VariableMonitorRule rule = CreateRule("value", @"v=([^ ]+)") with { Scale = 2, Offset = -1 };
+            VariableMonitorEvaluator evaluator = new();
+            evaluator.UpdateRules([rule]);
+
+            VariableNumericSample sample = Assert.Single(evaluator.AppendLine(null, "v=-1.25e2", DateTimeOffset.UtcNow));
+
+            Assert.Equal(-251, sample.NumericValue);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
+    }
+
+    [Fact]
+    public void NumericFailuresAndNonFiniteValuesAreCountedPerRule()
+    {
+        VariableMonitorRule rule = CreateRule("value", @"v=(\S+)");
+        VariableMonitorEvaluator evaluator = new();
+        evaluator.UpdateRules([rule]);
+
+        Assert.Empty(evaluator.AppendLine(null, "v=oops", DateTimeOffset.UtcNow));
+        Assert.Empty(evaluator.AppendLine(null, "v=NaN", DateTimeOffset.UtcNow));
+
+        VariableMonitorRuleStatus status = Assert.Single(evaluator.RuleStatuses);
+        Assert.Equal(2, status.MatchCount);
+        Assert.Equal(1, status.NumericParseFailureCount);
+        Assert.Equal(1, status.NonFiniteValueCount);
+        Assert.Equal(VariableMonitorRuleState.NonFiniteValue, status.State);
+    }
+
+    [Fact]
+    public void InvalidRegexHasPerRuleStatus()
+    {
+        VariableMonitorEvaluator evaluator = new();
+        evaluator.UpdateRules([CreateRule("bad", "[invalid")]);
+
+        VariableMonitorRuleStatus status = Assert.Single(evaluator.RuleStatuses);
+        Assert.Equal(VariableMonitorRuleState.InvalidRegex, status.State);
     }
 }

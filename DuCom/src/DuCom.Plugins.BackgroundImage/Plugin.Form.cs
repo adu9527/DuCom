@@ -13,22 +13,10 @@ public sealed partial class Plugin
                 await Api.Ui.UpdateToolPageAsync("settings", BuildSettingsNodes(), cancellationToken);
                 return CommandInvokeOutcome.Complete();
             case "pick-image":
-                FilesPickResult? image = await Api.Files.PickReadAsync(FilePickReadOptions.File("png", "jpg", "jpeg", "bmp", "webp") with { FilterName = Zh("图片", "Images"), Remember = true }, cancellationToken);
-                if (image is not null)
-                {
-                    await ApplyConfigurationAsync(_config.Enabled, "single", image.DisplayPath, _config.FolderPath, _config.IntervalSeconds, _config.Opacity, cancellationToken);
-                    await PushSettingsPageAsync(cancellationToken);
-                }
-
+                _ = PickImageAsync();
                 return CommandInvokeOutcome.Complete();
             case "pick-folder":
-                FilesPickResult? folder = await Api.Files.PickReadAsync(FilePickReadOptions.Directory() with { Remember = true }, cancellationToken);
-                if (folder is not null)
-                {
-                    await ApplyConfigurationAsync(_config.Enabled, "sequential", _config.ImagePath, folder.DisplayPath, _config.IntervalSeconds, _config.Opacity, cancellationToken);
-                    await PushSettingsPageAsync(cancellationToken);
-                }
-
+                _ = PickFolderAsync();
                 return CommandInvokeOutcome.Complete();
             case "apply":
                 // Live apply (checkbox/slider/combo edits): never republish the page here, the
@@ -44,6 +32,45 @@ public sealed partial class Plugin
                 return AdvanceNow() ? CommandInvokeOutcome.Complete() : CommandInvokeOutcome.Complete(Zh("没有可用图片", "No images available"));
             default:
                 return CommandInvokeOutcome.Reject($"Unknown command '{commandId}'.");
+        }
+    }
+
+    private async Task PickImageAsync()
+    {
+        try
+        {
+            FilesPickResult? image = await Api.Files.PickReadAsync(FilePickReadOptions.File("png", "jpg", "jpeg", "bmp", "webp") with { FilterName = Zh("图片", "Images"), Remember = true }, CancellationToken.None);
+            if (image is not null)
+            {
+                await ApplyConfigurationAsync(_config.Enabled, "single", image.DisplayPath, _config.FolderPath, _config.IntervalSeconds, _config.Opacity, CancellationToken.None);
+            }
+        }
+        catch (PluginHostException exception) when (exception.Code == PluginErrorCode.Cancelled)
+        {
+        }
+        catch (Exception exception)
+        {
+            Api.Diagnostics.Warning($"Image selection failed: {exception.Message}");
+        }
+    }
+
+    private async Task PickFolderAsync()
+    {
+        try
+        {
+            FilesPickResult? folder = await Api.Files.PickReadAsync(FilePickReadOptions.Directory() with { Remember = true }, CancellationToken.None);
+            if (folder is not null)
+            {
+                string playback = _config.Playback == "single" ? "sequential" : _config.Playback;
+                await ApplyConfigurationAsync(_config.Enabled, playback, _config.ImagePath, folder.DisplayPath, _config.IntervalSeconds, _config.Opacity, CancellationToken.None);
+            }
+        }
+        catch (PluginHostException exception) when (exception.Code == PluginErrorCode.Cancelled)
+        {
+        }
+        catch (Exception exception)
+        {
+            Api.Diagnostics.Warning($"Folder selection failed: {exception.Message}");
         }
     }
 
