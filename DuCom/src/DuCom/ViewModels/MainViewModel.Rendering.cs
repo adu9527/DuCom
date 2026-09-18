@@ -37,10 +37,11 @@ public partial class MainViewModel
         }
 
         bool commandStateChanged = false;
+        TimeSpan projectionBudget = FramePacer.GetProjectionBudget(sessionsToProject.Count);
         foreach (SessionViewModel session in sessionsToProject)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            commandStateChanged |= session.PullDisplaySnapshot(session.Search.IsOpen);
+            commandStateChanged |= session.PullDisplaySnapshot(publishSearchSnapshot: false, projectionBudget: projectionBudget);
             stopwatch.Stop();
             if (stopwatch.Elapsed >= SlowOperationThreshold)
             {

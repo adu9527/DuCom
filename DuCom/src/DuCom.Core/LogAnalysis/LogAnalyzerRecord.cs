@@ -12,24 +12,21 @@ public sealed record LogAnalyzerRecord(
     string Module,
     string Message,
     string OriginalText,
-    IReadOnlyList<LogAnalyzerRule> MatchedRules)
+    IReadOnlyList<LogAnalyzerRule> MatchedRules,
+    IReadOnlyList<BluetoothHciAnalysis>? ProtocolAnalyses = null)
 {
-    public string Keywords { get; } = string.Join(", ", MatchedRules.Select(rule => rule.Name).Distinct(StringComparer.OrdinalIgnoreCase));
+    public IReadOnlyList<BluetoothHciAnalysis> BluetoothAnalyses { get; } = ProtocolAnalyses ?? [];
 
-    public string ChineseComment { get; } = BuildChineseComment(MatchedRules, Level, Module);
+    public string Keywords { get; } = string.Join(", ", MatchedRules.Where(rule => rule.IncludeInAnalysis).Select(rule => rule.Name)
+        .Concat((ProtocolAnalyses ?? []).Select(analysis => analysis.Keyword))
+        .Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase));
 
-    private static string BuildChineseComment(IReadOnlyList<LogAnalyzerRule> matchedRules, string level, string module)
+    public string ChineseComment { get; } = BuildChineseComment(MatchedRules, ProtocolAnalyses ?? []);
+
+    private static string BuildChineseComment(IReadOnlyList<LogAnalyzerRule> matchedRules, IReadOnlyList<BluetoothHciAnalysis> analyses)
     {
-        string comments = string.Join("；", matchedRules.Select(rule => rule.Comment)
+        string comments = string.Join("；", analyses.Select(analysis => analysis.Comment).Concat(matchedRules.Where(rule => rule.IncludeInAnalysis).Select(rule => rule.Comment))
             .Where(comment => !string.IsNullOrWhiteSpace(comment)).Distinct(StringComparer.OrdinalIgnoreCase));
-        if (!string.IsNullOrEmpty(comments)) return comments;
-        return level switch
-        {
-            "ERROR" => string.IsNullOrEmpty(module) ? "错误日志" : $"{module} 模块错误日志",
-            "WARN" => string.IsNullOrEmpty(module) ? "警告日志" : $"{module} 模块警告日志",
-            "INFO" => string.IsNullOrEmpty(module) ? "信息日志" : $"{module} 模块运行日志",
-            _ when !string.IsNullOrEmpty(module) => $"{module} 模块日志",
-            _ => "未匹配分析规则",
-        };
+        return comments;
     }
 }

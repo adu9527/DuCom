@@ -55,6 +55,7 @@ public sealed partial class SerialSession
 
             SessionRuntime runtime = CreateRuntime();
             Volatile.Write(ref _runtime, runtime);
+            Volatile.Write(ref _lastLogFilePath, null);
             Volatile.Write(ref _fault, null);
             if (Volatile.Read(ref _disposed) != 0)
             {
@@ -349,6 +350,8 @@ public sealed partial class SerialSession
             {
                 faultedDuringClose = true;
             }
+            Volatile.Write(ref _lastLogFilePath, runtime.LogWriter.CurrentFilePath);
+            Interlocked.CompareExchange(ref _runtime, null, runtime);
         }
 
         return faultedDuringClose ? PortCommandResult.Faulted : result;

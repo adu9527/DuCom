@@ -12,6 +12,8 @@ public readonly record struct FormattedLogRecord(string Text, bool BypassRotatio
     internal TaskCompletionSource<IReadOnlyList<SessionLogFileSnapshot>>? SnapshotCompletion { get; init; }
 }
 
+internal sealed record FormattedLogBatch(FormattedLogRecord[] Records);
+
 public enum SessionLogFlushReason
 {
     Periodic,
@@ -66,7 +68,7 @@ public sealed class SessionLogWriter : IAsyncDisposable
     private const int BatchSizeBytes = 64 * 1024;
     private static readonly TimeSpan BatchDelay = TimeSpan.FromMilliseconds(25);
     private static readonly TimeSpan DefaultFlushInterval = TimeSpan.FromMilliseconds(500);
-    private readonly Channel<FormattedLogRecord> _channel;
+    private readonly Channel<FormattedLogBatch> _channel;
     private readonly LoadMetrics _metrics;
     private readonly SessionLogWriterOptions _options;
     private readonly ISessionLogWriterObserver? _observer;
@@ -90,7 +92,7 @@ public sealed class SessionLogWriter : IAsyncDisposable
         _observer = observer;
         _flushInterval = options.FlushInterval ?? DefaultFlushInterval;
         OutputDirectory = options.GetOutputDirectory(DateTimeOffset.Now);
-        _channel = Channel.CreateBounded<FormattedLogRecord>(new BoundedChannelOptions(options.QueueCapacity)
+        _channel = Channel.CreateBounded<FormattedLogBatch>(new BoundedChannelOptions(options.QueueCapacity)
         {
             SingleReader = true,
             SingleWriter = false,
@@ -116,7 +118,7 @@ public sealed class SessionLogWriter : IAsyncDisposable
         FormattedLogRecord request = new(string.Empty) { SnapshotCompletion = completion };
         try
         {
-            await _channel.Writer.WriteAsync(request, cancellationToken).ConfigureAwait(false);
+            await _channel.Writer.WriteAsync(new FormattedLogBatch([request]), cancellationToken).ConfigureAwait(false);
             Interlocked.Increment(ref _queuedRecords);
             return await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -143,7 +145,18 @@ public sealed class SessionLogWriter : IAsyncDisposable
     }
 
     public async ValueTask<bool> WriteAsync(FormattedLogRecord record, CancellationToken cancellationToken = default)
+        => await WriteBatchAsync([record], cancellationToken).ConfigureAwait(false);
+
+    public async ValueTask<bool> WriteBatchAsync(
+        IReadOnlyList<FormattedLogRecord> records,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(records);
+        if (records.Count == 0)
+        {
+            return true;
+        }
+
         if (!_options.Enabled)
         {
             return true;
@@ -156,8 +169,9 @@ public sealed class SessionLogWriter : IAsyncDisposable
 
         try
         {
-            await _channel.Writer.WriteAsync(record, cancellationToken).ConfigureAwait(false);
-            int queued = Interlocked.Increment(ref _queuedRecords);
+            FormattedLogRecord[] ownedRecords = records as FormattedLogRecord[] ?? [.. records];
+            await _channel.Writer.WriteAsync(new FormattedLogBatch(ownedRecords), cancellationToken).ConfigureAwait(false);
+            int queued = Interlocked.Add(ref _queuedRecords, ownedRecords.Length);
             _metrics.ObserveLogQueueDepth(queued);
             return true;
         }
@@ -229,12 +243,15 @@ public sealed class SessionLogWriter : IAsyncDisposable
                 Task delay = Task.Delay(BatchDelay);
                 while (batchBytes < BatchSizeBytes)
                 {
-                    while (batchBytes < BatchSizeBytes && _channel.Reader.TryRead(out FormattedLogRecord record))
+                    while (batchBytes < BatchSizeBytes && _channel.Reader.TryRead(out FormattedLogBatch? queuedBatch))
                     {
-                        Interlocked.Decrement(ref _queuedRecords);
-                        int recordBytes = Encoding.UTF8.GetByteCount(record.Text);
-                        batch.Add((record, recordBytes));
-                        batchBytes += recordBytes;
+                        Interlocked.Add(ref _queuedRecords, -queuedBatch.Records.Length);
+                        foreach (FormattedLogRecord record in queuedBatch.Records)
+                        {
+                            int recordBytes = Encoding.UTF8.GetByteCount(record.Text);
+                            batch.Add((record, recordBytes));
+                            batchBytes += recordBytes;
+                        }
                     }
 
                     if (batchBytes >= BatchSizeBytes || delay.IsCompleted || _channel.Reader.Completion.IsCompleted)

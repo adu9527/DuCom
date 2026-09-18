@@ -267,4 +267,21 @@ public sealed class BudgetGovernorTests
         Assert.Null(request);
         governor.Dispose();
     }
+
+    [Fact]
+    public void PluginActivationUsesTotalBudgetInsteadOfWarningThreshold()
+    {
+        BudgetGovernor governor = new(new BudgetGovernorConfig
+        {
+            TotalBudgetBytes = long.MaxValue,
+            WarningThresholdBytes = 1,
+            SampleIntervalMilliseconds = 3600_000,
+        });
+        governor.Start();
+        PluginBudgetSample sample = governor.Sample();
+
+        Assert.True(sample.TotalPrivateBytes >= 1);
+        Assert.True(governor.CanActivatePlugins());
+        governor.Dispose();
+    }
 }

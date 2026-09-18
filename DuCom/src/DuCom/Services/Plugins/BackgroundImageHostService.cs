@@ -1,5 +1,6 @@
 using System.IO;
 using System.ComponentModel;
+using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -19,6 +20,7 @@ public sealed class BackgroundImageHostService : INotifyPropertyChanged
 
     private readonly object _gate = new();
     private ImageSource? _imageSource;
+    private byte[]? _imageDigest;
     private double _opacity;
     private bool _enabled;
     private string? _ownerPluginId;
@@ -80,37 +82,54 @@ public sealed class BackgroundImageHostService : INotifyPropertyChanged
         }
         _ = Task.Run(() =>
         {
-            BitmapSource? decoded = DecodeBounded(path);
-            Set(apply.PluginId, generation, decoded, opacity);
+            BitmapSource? decoded = DecodeBounded(path, generation, out byte[]? digest);
+            Set(apply.PluginId, generation, decoded, opacity, digest);
         });
     }
 
     public void Clear(string? pluginId = null)
     {
+        long generation;
         lock (_gate)
         {
             if (pluginId is not null && !string.Equals(pluginId, _ownerPluginId, StringComparison.Ordinal)) return;
             _ownerPluginId = null;
-            _generation++;
+            generation = ++_generation;
+            _imageDigest = null;
         }
-        Set(null, 0, null, null);
+        Set(null, generation, null, null, null);
     }
 
-    private static BitmapSource? DecodeBounded(string path)
+    private BitmapSource? DecodeBounded(string path, long generation, out byte[]? digest)
     {
+        digest = null;
         try
         {
-            FileInfo info = new(path);
-            if (!info.Exists || info.Length > MaximumImageFileBytes)
+            if (!Path.IsPathFullyQualified(path)) return null;
+            // Hash and decode the same handle, denying writes/deletion while it is open.
+            // Metadata alone cannot detect same-path edits with preserved timestamps.
+            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (stream.Length > MaximumImageFileBytes)
             {
                 return null;
             }
 
+            digest = SHA256.HashData(stream);
+            lock (_gate)
+            {
+                if (generation != _generation) return null;
+                if (_imageDigest is not null && digest.AsSpan().SequenceEqual(_imageDigest))
+                {
+                    return _imageSource as BitmapSource;
+                }
+            }
+
+            stream.Position = 0;
             BitmapImage image = new();
             image.BeginInit();
             image.CacheOption = BitmapCacheOption.OnLoad;
             image.DecodePixelWidth = MaximumDecodePixelWidth;
-            image.UriSource = new Uri(path, UriKind.Absolute);
+            image.StreamSource = stream;
             image.EndInit();
             image.Freeze();
             return image;
@@ -121,7 +140,7 @@ public sealed class BackgroundImageHostService : INotifyPropertyChanged
         }
     }
 
-    private void Set(string? pluginId, long generation, BitmapSource? source, double? opacity)
+    private void Set(string? pluginId, long generation, BitmapSource? source, double? opacity, byte[]? digest)
     {
         Application? application = Application.Current;
         if (application is null)
@@ -133,8 +152,9 @@ public sealed class BackgroundImageHostService : INotifyPropertyChanged
         {
             lock (_gate)
             {
-                if (pluginId is not null && (generation != _generation || !string.Equals(pluginId, _ownerPluginId, StringComparison.Ordinal))) return;
+                if (generation != _generation || !string.Equals(pluginId, _ownerPluginId, StringComparison.Ordinal)) return;
                 _imageSource = source;
+                _imageDigest = source is null ? null : digest;
                 if (opacity.HasValue)
                 {
                     _opacity = Math.Clamp(opacity.Value, 0d, 1d);

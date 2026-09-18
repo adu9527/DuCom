@@ -147,36 +147,86 @@ public sealed partial class PluginSystemService
 
         if (controller is not null)
         {
+            _budgetRecoveryPending.Add(controller.Manifest.Id);
             ProgramLog?.Invoke($"Budget emergency: stopping '{controller.Manifest.Id}' (pid {request.Pid}, {request.PrivateBytes:N0} bytes).");
             await controller.StopForBudgetAsync(request.Sample).ConfigureAwait(false);
             Changed?.Invoke();
+            if (_budget.CanRecoverPlugins())
+            {
+                ScheduleBudgetRecovery();
+            }
         }
     }
 
-    private async Task RecoverBudgetStoppedPluginsAsync()
+    private int _budgetRecoveryScheduled;
+
+    private void OnBudgetSampled(PluginBudgetSample sample)
     {
-        List<string> candidates;
-        lock (_controllers)
+        LogMemorySample(sample, System.Diagnostics.Stopwatch.GetTimestamp());
+        if (sample.TotalPrivateBytes < _budget.Configuration.WarningThresholdBytes)
         {
-            candidates = [.. _controllers.Values
-                .Where(candidate => candidate.State == PluginRuntimeState.StoppedByBudget)
-                .Select(candidate => candidate.Manifest.Id)];
+            ScheduleBudgetRecovery();
         }
+    }
 
-        foreach (string pluginId in candidates)
+    private void ScheduleBudgetRecovery()
+    {
+        if (Interlocked.CompareExchange(ref _budgetRecoveryScheduled, 1, 0) != 0)
         {
-            // Re-check state per plugin: another path may have restarted or disabled it.
-            PluginRuntimeController? controller = GetOrCreateController(pluginId);
-            if (controller?.State != PluginRuntimeState.StoppedByBudget)
-            {
-                continue;
-            }
+            return;
+        }
+        _ = Task.Run(RecoverOneBudgetStoppedPluginAsync);
+    }
 
-            ProgramLog?.Invoke($"Budget recovered: restarting '{pluginId}'.");
-            if (await StartRegisteredAsync(pluginId).ConfigureAwait(false))
+    private async Task RecoverOneBudgetStoppedPluginAsync()
+    {
+        try
+        {
+            await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+            try
             {
-                Changed?.Invoke();
+                if (!_budget.CanRecoverPlugins())
+                {
+                    return;
+                }
+
+                foreach (string pluginId in _budgetRecoveryPending.Order(StringComparer.Ordinal).ToArray())
+                {
+                    PluginRegistryEntry? entry = _registry.Current.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? found) ? found : null;
+                    if (entry is null || !entry.Enabled)
+                    {
+                        _budgetRecoveryPending.Remove(pluginId);
+                        continue;
+                    }
+
+                    PluginRuntimeController? controller = GetOrCreateController(pluginId);
+                    if (controller?.State == PluginRuntimeState.FaultDisabled)
+                    {
+                        _budgetRecoveryPending.Remove(pluginId);
+                        continue;
+                    }
+                    if (controller?.State != PluginRuntimeState.StoppedByBudget)
+                    {
+                        continue;
+                    }
+
+                    ProgramLog?.Invoke($"Budget recovered: restarting '{pluginId}'.");
+                    if (await StartRegisteredLockedAsync(pluginId).ConfigureAwait(false))
+                    {
+                        _budgetRecoveryPending.Remove(pluginId);
+                        Changed?.Invoke();
+                    }
+                    return;
+                }
             }
+            finally
+            {
+                _lifecycleGate.Release();
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _budgetRecoveryScheduled, 0);
         }
     }
 

@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using DuCom.PluginHost;
 using DuCom.PluginHost.Core;
+using DuCom.Core.Sessions;
 using DuCom.ViewModels;
 using Microsoft.Win32;
 
@@ -23,7 +24,7 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
     private readonly RememberedGrantsStore _rememberedGrants;
     private readonly Func<string> _logDirectoryProvider;
     private readonly object _gate = new();
-    private readonly Dictionary<string, IDisposable> _rawTapRegistrations = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, RawBridge> _rawTapRegistrations = new(StringComparer.Ordinal);
     private readonly HashSet<string> _knownSessions = new(StringComparer.Ordinal);
     private readonly List<Action<string, ReadOnlyMemory<byte>, DateTimeOffset>> _rawHandlers = [];
 
@@ -213,11 +214,52 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
                 return;
             }
 
-            _rawTapRegistrations[runtimeId] = session.RawTaps.Register(new Core.Sessions.SessionRawTap
+            RawTrafficSubscription subscription = session.RawTaps.Subscribe(new RawTrafficSubscriptionOptions
             {
                 Id = "plugin-broker",
-                Publish = (bytes, receivedAtUtc) => FanOut(runtimeId, bytes, receivedAtUtc),
+                MaximumBlocks = 512,
+                MaximumBytes = 8 * 1024 * 1024,
             });
+            CancellationTokenSource cancellation = new();
+            Task pump = Task.Run(() => PumpRawBlocksAsync(runtimeId, subscription, cancellation.Token));
+            _rawTapRegistrations[runtimeId] = new RawBridge(subscription, cancellation, pump);
+        }
+    }
+
+    private async Task PumpRawBlocksAsync(
+        string runtimeId,
+        RawTrafficSubscription subscription,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                RawTrafficSnapshot snapshot = await subscription.ReadAsync(cancellationToken).ConfigureAwait(false);
+                if (snapshot.Gap is { } gap)
+                {
+                    Program.DiagnosticLog?.Warning(
+                        $"Plugin raw bridge dropped bounded optional-consumer data. Session={runtimeId}; Reason={gap.Reason}; DroppedBlocks={gap.DroppedBlocks}; DroppedBytes={gap.DroppedBytes}");
+                }
+                foreach (RawTrafficRecord record in snapshot.Records)
+                {
+                    if (record.Direction == RawTrafficDirection.Rx)
+                    {
+                        FanOut(runtimeId, record.Bytes, record.TimestampUtc);
+                    }
+                }
+                if (snapshot.IsDisposed)
+                {
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            LogRawHandlerFaultThrottled(exception);
         }
     }
 
@@ -287,7 +329,7 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
 
             foreach (string removed in _rawTapRegistrations.Keys.Where(id => !live.Contains(id)).ToList())
             {
-                if (_rawTapRegistrations.Remove(removed, out IDisposable? registration))
+                if (_rawTapRegistrations.Remove(removed, out RawBridge? registration))
                 {
                     registration.Dispose();
                 }
@@ -514,5 +556,22 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
     private sealed class Subscription(Action dispose) : IDisposable
     {
         public void Dispose() => dispose();
+    }
+
+    private sealed class RawBridge(
+        RawTrafficSubscription subscription,
+        CancellationTokenSource cancellation,
+        Task pump) : IDisposable
+    {
+        public void Dispose()
+        {
+            cancellation.Cancel();
+            subscription.Dispose();
+            _ = pump.ContinueWith(
+                _ => cancellation.Dispose(),
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+        }
     }
 }

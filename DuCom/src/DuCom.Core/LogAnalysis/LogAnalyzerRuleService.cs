@@ -10,25 +10,29 @@ public sealed class LogAnalyzerRuleService(string filePath)
 
     public IReadOnlyList<LogAnalyzerRule> Load()
     {
+        IReadOnlyList<LogAnalyzerRule> defaults = LoadDefaults();
         if (!File.Exists(filePath))
         {
-            IReadOnlyList<LogAnalyzerRule> defaults = LoadDefaults();
             Save(defaults);
             return defaults;
         }
 
         try
         {
-            return (JsonSerializer.Deserialize<LogAnalyzerRule[]>(File.ReadAllText(filePath), JsonOptions) ?? [])
+            LogAnalyzerRule[] userRules = (JsonSerializer.Deserialize<LogAnalyzerRule[]>(File.ReadAllText(filePath), JsonOptions) ?? [])
                 .Select(rule => rule with
                 {
                     Comment = string.IsNullOrWhiteSpace(rule.Comment) ? rule.Name : rule.Comment,
                 })
                 .ToArray();
+            IReadOnlyList<LogAnalyzerRule> merged = MergeDefaults(userRules, defaults);
+            if (!userRules.SequenceEqual(merged)) Save(merged);
+            return merged;
         }
         catch
         {
-            return LoadDefaults();
+            Save(defaults);
+            return defaults;
         }
     }
 
@@ -55,5 +59,45 @@ public sealed class LogAnalyzerRuleService(string filePath)
         using Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("DuCom.Core.LogAnalysis.bes_ibrt.xml")
             ?? throw new InvalidOperationException("The built-in BES analyzer rule pack is missing.");
         return AnalyseDocRuleImporter.Import(stream);
+    }
+
+    private static List<LogAnalyzerRule> MergeDefaults(
+        LogAnalyzerRule[] userRules,
+        IReadOnlyList<LogAnalyzerRule> defaults)
+    {
+        Dictionary<string, LogAnalyzerRule> defaultsByPattern = defaults
+            .GroupBy(rule => rule.Pattern, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        HashSet<string> userPatterns = new(StringComparer.OrdinalIgnoreCase);
+        List<LogAnalyzerRule> merged = new(userRules.Length + defaults.Count);
+
+        foreach (LogAnalyzerRule userRule in userRules)
+        {
+            if (!userPatterns.Add(userRule.Pattern))
+            {
+                merged.Add(userRule);
+                continue;
+            }
+
+            if (!defaultsByPattern.TryGetValue(userRule.Pattern, out LogAnalyzerRule? defaultRule))
+            {
+                merged.Add(userRule);
+                continue;
+            }
+
+            merged.Add(defaultRule with
+            {
+                Id = userRule.Id,
+                IsEnabled = userRule.IsEnabled,
+                IsCaseSensitive = userRule.IsCaseSensitive,
+            });
+        }
+
+        foreach (LogAnalyzerRule defaultRule in defaults)
+        {
+            if (userPatterns.Add(defaultRule.Pattern)) merged.Add(defaultRule);
+        }
+
+        return merged;
     }
 }

@@ -15,6 +15,13 @@ internal static class FramePacer
     internal static readonly TimeSpan MinimumRenderInterval = TimeSpan.FromSeconds(1d / 85d);
     internal static readonly TimeSpan StatusRefreshInterval = TimeSpan.FromMilliseconds(100);
 
+    internal static TimeSpan GetProjectionBudget(int uniqueSessionCount) => uniqueSessionCount switch
+    {
+        <= 0 => TimeSpan.Zero,
+        1 => TimeSpan.FromMilliseconds(8),
+        _ => TimeSpan.FromMilliseconds(4),
+    };
+
     internal static FramePacerDecision Advance(TimeSpan now, FramePacerState state)
     {
         if (now < state.NextRenderTime)

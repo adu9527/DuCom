@@ -26,16 +26,20 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
     private readonly string _diagnosticPortName;
     private readonly Action<ReceiveDiagnosticSnapshot>? _diagnosticObserver;
     private readonly CancellationTokenSource _processorCancellation = new();
+    private readonly CancellationTokenSource _receivePumpCancellation = new();
     private readonly ManualResetEventSlim _callbacksIdle = new(initialState: true);
     private readonly SemaphoreSlim _capacitySlots;
     private readonly object _readGate = new();
     private readonly object _lifetimeGate = new();
     private ReceiveFormattingProfile _formattingProfile;
     private Task? _processorTask;
+    private Task? _receivePumpTask;
     private Task? _stopTask;
     private Task? _disposeTask;
     private Task? _cleanupTask;
     private int _activeCallbacks;
+    private int _dataAvailableCallbackActive;
+    private int _dataAvailableRequested;
     private int _queuedBlocks;
     private int _started;
     private int _stopping;
@@ -141,8 +145,19 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
             return Task.CompletedTask;
         }
 
-        _transport.DataAvailable += OnDataAvailable;
         _processorTask = Task.Run(ProcessAsync);
+        if (_transport is IDedicatedReceiveTransport)
+        {
+            _receivePumpTask = Task.Factory.StartNew(
+                () => RunDedicatedReceivePump(_receivePumpCancellation.Token),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+        }
+        else
+        {
+            _transport.DataAvailable += OnDataAvailable;
+        }
         return Task.CompletedTask;
     }
 
@@ -192,6 +207,20 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
         CancellationToken budget = budgetCancellation.Token;
 
         // Phase 1: wait for in-flight receive callbacks to exit (bounded by the budget).
+        if (_receivePumpTask is not null)
+        {
+            try
+            {
+                await _receivePumpTask.WaitAsync(budget).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (budget.IsCancellationRequested)
+            {
+                FaultPipeline(new InvalidOperationException(
+                    $"Receive close time budget {_drainTimeout.TotalSeconds:0.###}s was exceeded while waiting for the asynchronous receive pump to stop. " +
+                    "The transport will be force-closed; data owned by the pending driver read cannot be logged and this close is reported as a session fault instead of a silent loss."));
+            }
+        }
+
         if (Volatile.Read(ref _activeCallbacks) != 0)
         {
             Task waitForIdle = Task.Run(_callbacksIdle.Wait);
@@ -267,6 +296,7 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
         }
 
         _processorCancellation.Cancel();
+        _receivePumpCancellation.Cancel();
         DrainQueuedBlocks();
 
         lock (_lifetimeGate)
@@ -278,6 +308,17 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
     private async Task CleanupWhenQuiescentAsync()
     {
         await Task.Run(_callbacksIdle.Wait).ConfigureAwait(false);
+        if (_receivePumpTask is not null)
+        {
+            try
+            {
+                await _receivePumpTask.ConfigureAwait(false);
+            }
+            catch
+            {
+                // The pump fault is already recorded by RunReceivePumpAsync.
+            }
+        }
         if (_processorTask is not null)
         {
             try
@@ -292,6 +333,7 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
 
         DrainQueuedBlocks();
         _processorCancellation.Dispose();
+        _receivePumpCancellation.Dispose();
         _callbacksIdle.Dispose();
         _capacitySlots.Dispose();
     }
@@ -321,6 +363,10 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
     private void StopAccepting()
     {
         Interlocked.Exchange(ref _stopping, 1);
-        _transport.DataAvailable -= OnDataAvailable;
+        _receivePumpCancellation.Cancel();
+        if (_transport is not IDedicatedReceiveTransport)
+        {
+            _transport.DataAvailable -= OnDataAvailable;
+        }
     }
 }

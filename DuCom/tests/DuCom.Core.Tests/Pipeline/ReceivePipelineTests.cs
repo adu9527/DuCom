@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Threading.Channels;
 using DuCom.Core.Diagnostics;
 using DuCom.Core.Pipeline;
 using DuCom.Core.Ports;
@@ -194,6 +195,46 @@ public sealed class ReceivePipelineTests
         Assert.Null(pipeline.Fault);
     }
 
+    [Fact]
+    public async Task AsyncReceivePumpUsesOneReaderAndResumesAfterCapacityIsReleased()
+    {
+        TrackingPool pool = new();
+        AsyncReceiveTransport transport = new();
+        RecordingSink sink = new(delay: TimeSpan.FromMilliseconds(10));
+        LoadMetrics metrics = new();
+        await using ReceivePipeline pipeline = new(transport, sink, metrics, pool, capacity: 1, maximumReadSize: 32);
+        await pipeline.StartAsync();
+
+        transport.Enqueue([1]);
+        transport.Enqueue([2]);
+        transport.Enqueue([3]);
+        await WaitUntilAsync(() => sink.Payloads.Count == 3);
+        await pipeline.StopAsync();
+
+        Assert.Equal(["01", "02", "03"], sink.Payloads);
+        Assert.Equal(1, transport.MaximumConcurrentReads);
+        Assert.Equal(pool.RentCount, pool.ReturnCount);
+        Assert.Null(pipeline.Fault);
+    }
+
+    [Fact]
+    public async Task AsyncReceivePumpCancellationDoesNotAccessDisposedResources()
+    {
+        TrackingPool pool = new();
+        AsyncReceiveTransport transport = new();
+        ReceivePipeline pipeline = new(transport, new RecordingSink(), new LoadMetrics(), pool, capacity: 2, maximumReadSize: 32);
+        await pipeline.StartAsync();
+
+        Task stop = pipeline.StopAsync();
+        ValueTask dispose = pipeline.DisposeAsync();
+        await stop;
+        await dispose;
+
+        Assert.InRange(transport.MaximumConcurrentReads, 0, 1);
+        Assert.Equal(pool.RentCount, pool.ReturnCount);
+        Assert.Null(pipeline.Fault);
+    }
+
     private sealed class RecordingSink(TimeSpan delay = default) : IReceiveBlockSink
     {
         public List<string> Payloads { get; } = [];
@@ -249,6 +290,64 @@ public sealed class ReceivePipelineTests
 
         public void RaiseDataAvailable() => DataAvailable?.Invoke(this, EventArgs.Empty);
     }
+
+    private sealed class AsyncReceiveTransport : IReceiveTransport, IDedicatedReceiveTransport
+    {
+        private readonly Channel<byte[]> _payloads = Channel.CreateUnbounded<byte[]>();
+        private int _activeReads;
+        private int _maximumConcurrentReads;
+
+        public event EventHandler? DataAvailable
+        {
+            add { }
+            remove { }
+        }
+
+        public int BytesAvailable => 0;
+
+        public int MaximumConcurrentReads => Volatile.Read(ref _maximumConcurrentReads);
+
+        public int Read(Span<byte> destination)
+        {
+            int active = Interlocked.Increment(ref _activeReads);
+            ObserveMaximum(active);
+            try
+            {
+                if (!_payloads.Reader.TryRead(out byte[]? payload))
+                {
+                    Thread.Sleep(10);
+                    throw new TimeoutException();
+                }
+                payload.CopyTo(destination);
+                return payload.Length;
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activeReads);
+            }
+        }
+
+        public void WaitUntilOpen(CancellationToken cancellationToken) => cancellationToken.ThrowIfCancellationRequested();
+
+        public int Read(byte[] destination, int offset, int count) => Read(destination.AsSpan(offset, count));
+
+        public void Enqueue(byte[] payload) => Assert.True(_payloads.Writer.TryWrite(payload));
+
+        private void ObserveMaximum(int value)
+        {
+            int current = Volatile.Read(ref _maximumConcurrentReads);
+            while (value > current)
+            {
+                int observed = Interlocked.CompareExchange(ref _maximumConcurrentReads, value, current);
+                if (observed == current)
+                {
+                    return;
+                }
+                current = observed;
+            }
+        }
+    }
+
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {

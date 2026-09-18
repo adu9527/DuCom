@@ -6,7 +6,8 @@ namespace DuCom.Core.Storage;
 public sealed class BudgetedLineStore
 {
     private readonly object _gate = new();
-    private readonly int _maxTextBytes;
+    private readonly int _configuredMaxTextBytes;
+    private int _effectiveMaxTextBytes;
     private readonly int _maxSegmentCharacters;
     private readonly List<LogicalLine> _logicalLines = [];
     private int _firstLogicalLineIndex;
@@ -19,7 +20,8 @@ public sealed class BudgetedLineStore
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxTextBytes);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSegmentCharacters);
 
-        _maxTextBytes = maxTextBytes;
+        _configuredMaxTextBytes = maxTextBytes;
+        _effectiveMaxTextBytes = maxTextBytes;
         _maxSegmentCharacters = maxSegmentCharacters;
     }
 
@@ -34,7 +36,7 @@ public sealed class BudgetedLineStore
             _logicalLines.Add(logicalLine);
             _textBytes += logicalLine.TextBytes;
 
-            while (_textBytes > _maxTextBytes)
+            while (_textBytes > _effectiveMaxTextBytes)
             {
                 EvictOldest();
             }
@@ -67,7 +69,7 @@ public sealed class BudgetedLineStore
 
             existing.TextBytes += continuation.TextBytes;
             _textBytes += continuation.TextBytes;
-            while (_textBytes > _maxTextBytes && LiveLineCount > 0)
+            while (_textBytes > _effectiveMaxTextBytes && LiveLineCount > 0)
             {
                 EvictOldest();
             }
@@ -97,6 +99,22 @@ public sealed class BudgetedLineStore
             _logicalLines.Clear();
             _firstLogicalLineIndex = 0;
             _textBytes = 0;
+        }
+    }
+
+    public void SetMemoryPressure(bool active, int pressureBudgetBytes = 2 * 1024 * 1024)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pressureBudgetBytes);
+        lock (_gate)
+        {
+            _effectiveMaxTextBytes = active
+                ? Math.Min(_configuredMaxTextBytes, pressureBudgetBytes)
+                : _configuredMaxTextBytes;
+            while (_textBytes > _effectiveMaxTextBytes && LiveLineCount > 0)
+            {
+                EvictOldest();
+            }
+            CompactIfNeeded();
         }
     }
 
@@ -180,6 +198,94 @@ public sealed class BudgetedLineStore
         }
     }
 
+    public bool HasPendingDataOverLimit(LineCursor? cursor, int maximumSegments, int maximumCharacters)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumSegments);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumCharacters);
+        lock (_gate)
+        {
+            int segmentCount = 0;
+            int characterCount = 0;
+            int logicalLineIndex = _firstLogicalLineIndex;
+            if (cursor.HasValue)
+            {
+                long cursorLogicalId = cursor.Value.LogicalId;
+                int low = _firstLogicalLineIndex;
+                int high = _logicalLines.Count;
+                while (low < high)
+                {
+                    int middle = low + (high - low) / 2;
+                    if (_logicalLines[middle].LogicalId < cursorLogicalId)
+                    {
+                        low = middle + 1;
+                    }
+                    else
+                    {
+                        high = middle;
+                    }
+                }
+
+                logicalLineIndex = low;
+            }
+
+            for (; logicalLineIndex < _logicalLines.Count; logicalLineIndex++)
+            {
+                foreach (StoredLine line in _logicalLines[logicalLineIndex].Segments)
+                {
+                    if (cursor.HasValue &&
+                        (line.LogicalId < cursor.Value.LogicalId ||
+                         line.LogicalId == cursor.Value.LogicalId && line.SegmentIndex <= cursor.Value.SegmentIndex))
+                    {
+                        continue;
+                    }
+
+                    segmentCount++;
+                    characterCount += line.Text.Length;
+                    if (segmentCount > maximumSegments || characterCount > maximumCharacters)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+    }
+
+    public LineStoreSnapshot SnapshotTail(int maximumSegments, int maximumCharacters)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumSegments);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumCharacters);
+        lock (_gate)
+        {
+            List<StoredLine> lines = new(Math.Min(maximumSegments, 256));
+            int characterCount = 0;
+
+            for (int logicalLineIndex = _logicalLines.Count - 1;
+                 logicalLineIndex >= _firstLogicalLineIndex;
+                 logicalLineIndex--)
+            {
+                List<StoredLine> segments = _logicalLines[logicalLineIndex].Segments;
+                for (int segmentIndex = segments.Count - 1; segmentIndex >= 0; segmentIndex--)
+                {
+                    StoredLine line = segments[segmentIndex];
+                    if (lines.Count == maximumSegments ||
+                        lines.Count > 0 && characterCount + line.Text.Length > maximumCharacters)
+                    {
+                        lines.Reverse();
+                        return CreateSnapshot(lines);
+                    }
+
+                    lines.Add(line);
+                    characterCount += line.Text.Length;
+                }
+            }
+
+            lines.Reverse();
+            return CreateSnapshot(lines);
+        }
+    }
+
     private LineStoreSnapshot CreateSnapshot(IReadOnlyList<StoredLine> lines) => new(
         LiveLineCount == 0 ? null : _logicalLines[_firstLogicalLineIndex].LogicalId,
         LiveLineCount == 0 ? null : _logicalLines[^1].LogicalId,
@@ -238,7 +344,9 @@ public sealed class BudgetedLineStore
 
     private void EvictOldest()
     {
-        LogicalLine evicted = _logicalLines[_firstLogicalLineIndex++];
+        LogicalLine evicted = _logicalLines[_firstLogicalLineIndex];
+        // Only the live suffix is read; release payloads before deferred list compaction.
+        _logicalLines[_firstLogicalLineIndex++] = null!;
         _textBytes -= evicted.TextBytes;
         _evictedLineCount++;
     }

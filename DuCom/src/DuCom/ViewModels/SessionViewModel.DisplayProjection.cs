@@ -15,11 +15,20 @@ public partial class SessionViewModel
     private int _renderedLastSegmentIndex = -1;
     private const int MaximumVisibleSegments = 10_000;
     private const int MaximumVisibleCharacters = 1_400_000;
+    private const int PressureVisibleSegments = 1_000;
+    private const int PressureVisibleCharacters = 140_000;
     private const int MaximumSegmentsPerRender = 128;
+    private const int MaximumPendingSegments = 4_096;
+    private const int MaximumPendingCharacters = 2 * 1024 * 1024;
+    private const int PendingSegmentsLowWatermark = 2_048;
+    private const int PendingCharactersLowWatermark = 1024 * 1024;
+    private long _nextPendingLimitCheckTimestamp;
     private LineStoreSnapshot _visibleSearchSnapshot = new(null, null, 0, []);
     private bool _visibleSearchSnapshotDirty = true;
     private long _nextSearchSnapshotTimestamp;
     private int _visibleCharacterCount;
+    private bool _lastProjectionForcedStandalone;
+    private bool _memoryPressureActive;
     private const char EscapeCharacter = '\u001B';
 
     public BatchObservableCollection<LogLineViewModel> VisibleLines { get; } = [];
@@ -40,6 +49,17 @@ public partial class SessionViewModel
 
     internal LineStoreSnapshot GetVisibleSearchSnapshot() => Volatile.Read(ref _visibleSearchSnapshot);
 
+    internal void SetMemoryPressure(bool active)
+    {
+        _memoryPressureActive = active;
+        _session.SetMemoryPressure(active);
+        if (active && FollowEnd)
+        {
+            TrimVisibleLines(PressureVisibleSegments, PressureVisibleCharacters);
+            UpdateVisibleSearchSnapshot();
+        }
+    }
+
     private void UpdateVisibleSearchSnapshot()
     {
         StoredLine[] lines = [.. VisibleLines.Select(line => new StoredLine(
@@ -57,15 +77,39 @@ public partial class SessionViewModel
         _visibleSearchSnapshotDirty = false;
     }
 
-    public bool PullDisplaySnapshot(bool publishSearchSnapshot = false)
+    public bool PullDisplaySnapshot(bool publishSearchSnapshot = false, TimeSpan? projectionBudget = null)
     {
+        long projectionDeadline = projectionBudget is { } budget && budget > TimeSpan.Zero
+            ? Stopwatch.GetTimestamp() + (long)(budget.TotalSeconds * Stopwatch.Frequency)
+            : long.MaxValue;
         bool stateChanged = RefreshState();
         LineCursor? cursor = _renderedLastLogicalId.HasValue
             ? new LineCursor(_renderedLastLogicalId.Value, _renderedLastSegmentIndex)
             : null;
-        // Keep each workspace's projection batch small enough for a stable UI frame.
-        // Split panes call this independently and never share a quota or cursor.
-        LineStoreSnapshot snapshot = _session.GetDisplaySnapshot(cursor, MaximumSegmentsPerRender);
+        long now = Stopwatch.GetTimestamp();
+        bool pendingOverflow = now >= _nextPendingLimitCheckTimestamp &&
+            _session.HasPendingDisplayDataOverLimit(cursor, MaximumPendingSegments, MaximumPendingCharacters);
+        LineStoreSnapshot snapshot;
+        if (pendingOverflow)
+        {
+            _nextPendingLimitCheckTimestamp = now + Stopwatch.Frequency / 4;
+            LineStoreSnapshot latest = _session.GetLatestDisplaySnapshot(
+                PendingSegmentsLowWatermark,
+                PendingCharactersLowWatermark);
+            snapshot = latest with { Lines = latest.Lines.Take(MaximumSegmentsPerRender).ToArray() };
+            _projector.Reset();
+            _lastProjectionForcedStandalone = false;
+        }
+        else
+        {
+            if (now >= _nextPendingLimitCheckTimestamp)
+            {
+                _nextPendingLimitCheckTimestamp = now + Stopwatch.Frequency / 4;
+            }
+            // Keep each workspace's projection batch small enough for a stable UI frame.
+            // Split panes call this independently and never share a quota or cursor.
+            snapshot = _session.GetDisplaySnapshot(cursor, MaximumSegmentsPerRender);
+        }
         if (EvictedLineCount != snapshot.EvictedLineCount)
         {
             EvictedLineCount = snapshot.EvictedLineCount;
@@ -84,6 +128,7 @@ public partial class SessionViewModel
             _projector.Reset();
             _renderedLastLogicalId = null;
             _renderedLastSegmentIndex = -1;
+            _lastProjectionForcedStandalone = false;
             if (publishSearchSnapshot && ShouldPublishSearchSnapshot())
             {
                 UpdateVisibleSearchSnapshot();
@@ -108,7 +153,8 @@ public partial class SessionViewModel
         IReadOnlyList<HighlightFilterRule> effectiveRules = FilterEnabled
             ? HighlightFilterRules
             : HighlightFilterRules.Where(rule => rule.Kind != HighlightFilterRuleKind.Filter).ToArray();
-        foreach (StoredLine line in snapshot.Lines)
+        int processedSegments = 0;
+        foreach (StoredLine line in snapshot.Lines.Take(MaximumSegmentsPerRender))
         {
             if (_renderedLastLogicalId is not null &&
                 (line.LogicalId < _renderedLastLogicalId ||
@@ -129,10 +175,17 @@ public partial class SessionViewModel
             {
                 _renderedLastLogicalId = line.LogicalId;
                 _renderedLastSegmentIndex = line.SegmentIndex;
+                processedSegments++;
+                if (processedSegments > 0 && Stopwatch.GetTimestamp() >= projectionDeadline)
+                {
+                    break;
+                }
                 continue;
             }
 
             if (VisibleLines.Count > 0 &&
+                !projection.ForceStandaloneLine &&
+                !_lastProjectionForcedStandalone &&
                 VisibleLines[^1].LogicalId == line.LogicalId &&
                 VisibleLines[^1].Text.Length + projection.DisplayText.Length <= 4_096)
             {
@@ -159,13 +212,31 @@ public partial class SessionViewModel
                 _visibleCharacterCount += GetDisplayCharacterCount(visibleLine);
             }
             _visibleSearchSnapshotDirty = true;
+            _lastProjectionForcedStandalone = projection.ForceStandaloneLine;
             _renderedLastLogicalId = line.LogicalId;
             _renderedLastSegmentIndex = line.SegmentIndex;
+            processedSegments++;
+            if (Stopwatch.GetTimestamp() >= projectionDeadline)
+            {
+                break;
+            }
         }
 
+        int maximumVisibleSegments = _memoryPressureActive ? PressureVisibleSegments : MaximumVisibleSegments;
+        int maximumVisibleCharacters = _memoryPressureActive ? PressureVisibleCharacters : MaximumVisibleCharacters;
+        TrimVisibleLines(maximumVisibleSegments, maximumVisibleCharacters);
+        if (publishSearchSnapshot && ShouldPublishSearchSnapshot())
+        {
+            UpdateVisibleSearchSnapshot();
+        }
+        return stateChanged;
+    }
+
+    private void TrimVisibleLines(int maximumSegments, int maximumCharacters)
+    {
         int trimCount = 0;
-        while (VisibleLines.Count - trimCount > MaximumVisibleSegments ||
-               _visibleCharacterCount > MaximumVisibleCharacters && VisibleLines.Count - trimCount > 1)
+        while (VisibleLines.Count - trimCount > maximumSegments ||
+               _visibleCharacterCount > maximumCharacters && VisibleLines.Count - trimCount > 1)
         {
             _visibleCharacterCount -= GetDisplayCharacterCount(VisibleLines[trimCount]);
             trimCount++;
@@ -175,11 +246,6 @@ public partial class SessionViewModel
             VisibleLines.RemoveFirst(trimCount);
             _visibleSearchSnapshotDirty = true;
         }
-        if (publishSearchSnapshot && ShouldPublishSearchSnapshot())
-        {
-            UpdateVisibleSearchSnapshot();
-        }
-        return stateChanged;
     }
 
     private bool ShouldPublishSearchSnapshot()
@@ -209,6 +275,7 @@ public partial class SessionViewModel
         _projector.Reset();
         _renderedLastLogicalId = null;
         _renderedLastSegmentIndex = -1;
+        _lastProjectionForcedStandalone = false;
         UpdateVisibleSearchSnapshot();
     }
 

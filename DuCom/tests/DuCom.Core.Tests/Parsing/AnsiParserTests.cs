@@ -198,6 +198,28 @@ public class AnsiParserTests
     }
 
     [Fact]
+    public void Parse_OverlongOscSequenceRecoversToPlainText()
+    {
+        AnsiParser parser = new();
+
+        _ = parser.Parse("\u001B]" + new string('x', 1_024));
+        IReadOnlyList<AnsiRun> runs = parser.Parse("plain");
+
+        Assert.Equal("plain", Assert.Single(runs).Text);
+    }
+
+    [Fact]
+    public void Parse_OverlongCsiSequenceRecoversToPlainText()
+    {
+        AnsiParser parser = new();
+
+        _ = parser.Parse("\u001B[" + new string('1', 64));
+        IReadOnlyList<AnsiRun> runs = parser.Parse("plain");
+
+        Assert.Equal("plain", Assert.Single(runs).Text);
+    }
+
+    [Fact]
     public void Parse_SoftWrapSegmentBoundary_SplitsRunsCorrectly()
     {
         var parser = new AnsiParser();

@@ -23,7 +23,10 @@ internal sealed class LeaseAwareWorkspaceSession(IWorkspaceSession inner, Serial
     public Task ApplySettingsAsync(SerialPortSettings settings, CancellationToken cancellationToken = default) => leases.RunPortOperationAsync(Settings.PortName, async () => { Demand(); await inner.ApplySettingsAsync(settings, cancellationToken); return true; });
     public ValueTask SendAsync(SendMode mode, string text, NewlinePolicy newline, CancellationToken cancellationToken = default) => new(leases.RunPortOperationAsync(Settings.PortName, async () => { Demand(); await inner.SendAsync(mode, text, newline, cancellationToken); return true; }));
     public LineStoreSnapshot GetDisplaySnapshot(LineCursor? after, int maxCount) => inner.GetDisplaySnapshot(after, maxCount);
+    public bool HasPendingDisplayDataOverLimit(LineCursor? after, int maxCount, int maxCharacters) => inner.HasPendingDisplayDataOverLimit(after, maxCount, maxCharacters);
+    public LineStoreSnapshot GetLatestDisplaySnapshot(int maxCount, int maxCharacters) => inner.GetLatestDisplaySnapshot(maxCount, maxCharacters);
     public void ClearDisplay() => inner.ClearDisplay();
+    public void SetMemoryPressure(bool active) => inner.SetMemoryPressure(active);
     public Task<IReadOnlyList<SessionLogFileSnapshot>> CreateLogSnapshotAsync(CancellationToken cancellationToken = default) => inner.CreateLogSnapshotAsync(cancellationToken);
     public ValueTask DisposeAsync() => inner.DisposeAsync();
     private void Demand() { if (!leases.CanUse(Settings.PortName)) throw new InvalidOperationException($"Serial port '{Settings.PortName}' is leased by a plugin task."); }

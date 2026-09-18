@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.Text;
 
@@ -25,7 +26,7 @@ public sealed class StatefulReceiveFormatter
         Encoding encoding,
         ReceiveDisplayMode mode,
         bool timestampEnabled,
-        int maximumLineCharacters = 4_096,
+        int maximumLineCharacters = 512,
         string malformedInputReplacement = "\uFFFD",
         bool escapeNullBytes = true,
         ReceiveNewlinePolicy newlinePolicy = ReceiveNewlinePolicy.NormalizeCrLfCrLf,
@@ -89,14 +90,21 @@ public sealed class StatefulReceiveFormatter
         }
 
         List<FormattedLine> lines = [];
-        char[] characters = new char[_encoding.GetMaxCharCount(0)];
-        int characterCount = _decoder.GetChars([], characters, flush: true);
-        if (characterCount > 0)
+        char[] characters = ArrayPool<char>.Shared.Rent(_encoding.GetMaxCharCount(0));
+        try
         {
-            ProcessCharacters(
-                characters.AsSpan(0, characterCount),
-                _pendingInputReceivedAtUtc ?? _lineReceivedAtUtc ?? _lastInputReceivedAtUtc ?? DateTimeOffset.UtcNow,
-                lines);
+            int characterCount = _decoder.GetChars([], characters, flush: true);
+            if (characterCount > 0)
+            {
+                ProcessCharacters(
+                    characters.AsSpan(0, characterCount),
+                    _pendingInputReceivedAtUtc ?? _lineReceivedAtUtc ?? _lastInputReceivedAtUtc ?? DateTimeOffset.UtcNow,
+                    lines);
+            }
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(characters);
         }
 
         _decoder.Reset();
@@ -165,14 +173,21 @@ public sealed class StatefulReceiveFormatter
         }
 
         _pendingInputReceivedAtUtc ??= receivedAtUtc;
-        char[] characters = new char[_encoding.GetMaxCharCount(bytes.Length)];
-        int characterCount = _decoder.GetChars(bytes, characters, flush: false);
-        if (characterCount == 0)
+        char[] characters = ArrayPool<char>.Shared.Rent(_encoding.GetMaxCharCount(bytes.Length));
+        try
         {
-            return lines;
-        }
+            int characterCount = _decoder.GetChars(bytes, characters, flush: false);
+            if (characterCount == 0)
+            {
+                return lines;
+            }
 
-        ProcessCharacters(characters.AsSpan(0, characterCount), _pendingInputReceivedAtUtc.Value, lines);
+            ProcessCharacters(characters.AsSpan(0, characterCount), _pendingInputReceivedAtUtc.Value, lines);
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(characters);
+        }
         _pendingInputReceivedAtUtc = null;
 
         if (_line.Length > 0)
@@ -221,7 +236,9 @@ public sealed class StatefulReceiveFormatter
                 _line.Append(character == '\0' && _escapeNullBytes ? "\\0" : character);
                 if (_line.Length >= _maximumLineCharacters && !char.IsHighSurrogate(character))
                 {
-                    lines.Add(SoftWrapLine());
+                    // A hard boundary prevents malformed, newline-free input from remaining
+                    // one logical line across the line store, logger, ANSI and highlight paths.
+                    lines.Add(CompleteLine());
                 }
             }
         }

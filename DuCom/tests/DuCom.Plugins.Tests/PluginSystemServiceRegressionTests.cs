@@ -385,7 +385,7 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
     [Theory]
     [InlineData(null)]
     [InlineData(false)]
-    public async Task RecoveryDisablesBeforeStartAndNotifiesOnlyOnceAcrossRestarts(bool? clean)
+    public async Task RecoveryRestoresPersistedEnabledStateWithoutPopup(bool? clean)
     {
         PluginSystemService seed = Create();
         await seed.InitializeAsync([]);
@@ -401,9 +401,12 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         FakeEnvironment firstEnvironment = new();
         PluginSystemService first = Create(firstEnvironment);
         await first.InitializeAsync([]);
-        Assert.NotNull(first.Registry.Current.Plugins[Id].FaultDisabled);
-        Assert.Equal("old-activation", first.Registry.Current.Plugins[Id].LastAttempt!.ActivationId);
-        Assert.Single(firstEnvironment.FaultNotices);
+        PluginRegistryEntry recovered = first.Registry.Current.Plugins[Id];
+        Assert.True(recovered.Enabled);
+        Assert.NotEqual("old-activation", recovered.LastAttempt!.ActivationId);
+        Assert.Empty(firstEnvironment.FaultNotices);
+        Assert.Empty(first.Registry.Current.PendingNotices);
+        Assert.True(first.BuildManagerRows().Single(row => row.Id == Id).Enabled);
         Assert.False(await first.StartRegisteredAsync(Id));
         FakeEnvironment secondEnvironment = new();
         PluginSystemService second = Create(secondEnvironment);
@@ -414,7 +417,7 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task BuiltInRecoveryIsRecordedWithoutPopupAndLegacyNoticeIsRemoved()
+    public async Task BuiltInRecoveryRestoresEnabledStateWithoutPopupAndRemovesLegacyNotice()
     {
         PluginSystemService seed = Create();
         await seed.InitializeAsync([]);
@@ -438,11 +441,12 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         Assert.Empty(environment.FaultNotices);
         Assert.DoesNotContain(restarted.Registry.Current.PendingNotices, notice => notice.PluginId == Id);
         Assert.True(restarted.Registry.Current.Plugins[Id].LastAttempt!.RecoveryNotified);
-        Assert.NotNull(restarted.Registry.Current.Plugins[Id].FaultDisabled);
+        Assert.True(restarted.Registry.Current.Plugins[Id].Enabled);
+        Assert.NotEqual("built-in-old", restarted.Registry.Current.Plugins[Id].LastAttempt!.ActivationId);
     }
 
     [Fact]
-    public async Task UndisplayedRecoveryNoticeIsRetriedWithoutDuplicatingPendingActivation()
+    public async Task LegacyRecoveryNoticeIsSilentlyConsumed()
     {
         PluginSystemService seed = Create();
         await seed.InitializeAsync([]);
@@ -454,23 +458,20 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
                 LastAttempt = new AttemptRecord { ActivationId = "a1", HostRunId = "old" },
             };
         });
-        for (int run = 0; run < 2; run++)
+        seed.Registry.Mutate(data =>
         {
-            PluginSystemService deferred = Create(new UnavailableNoticeEnvironment());
-            await deferred.InitializeAsync([]);
-            Assert.Single(deferred.Registry.Current.PendingNotices);
-            Assert.False(deferred.Registry.Current.Plugins[Id].LastAttempt!.RecoveryNotified);
-        }
-        FakeEnvironment available = new();
-        PluginSystemService delivered = Create(available);
-        await delivered.InitializeAsync([]);
-        Assert.Single(available.FaultNotices);
-        Assert.Empty(delivered.Registry.Current.PendingNotices);
-        Assert.True(delivered.Registry.Current.Plugins[Id].LastAttempt!.RecoveryNotified);
+            data.PendingNotices.Add(new PendingNoticeRecord { PluginId = Id, ActivationId = "a1", Reason = "legacy" });
+        });
+        FakeEnvironment environment = new();
+        PluginSystemService restarted = Create(environment);
+        await restarted.InitializeAsync([]);
+        Assert.Empty(environment.FaultNotices);
+        Assert.Empty(restarted.Registry.Current.PendingNotices);
+        Assert.True(restarted.Registry.Current.Plugins[Id].LastAttempt!.RecoveryNotified);
     }
 
     [Fact]
-    public async Task FaultNoticeDisplayExceptionLeavesThePersistedNoticePending()
+    public async Task RuntimeFaultIsPersistedWithoutRequestingPopup()
     {
         PluginSystemService seed = Create();
         await seed.InitializeAsync([]);
@@ -484,14 +485,17 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
             };
             return data;
         });
-        PluginSystemService service = Create(new ThrowingNoticeEnvironment());
+        FakeEnvironment environment = new();
+        PluginSystemService service = Create(environment);
         await service.InitializeAsync([]);
         var controller = Assert.IsType<PluginRuntimeController>(service.GetOrCreateController(Id));
 
         await controller.FaultAsync("test failure", exitConfirmed: true);
 
-        Assert.Contains(service.Registry.Current.PendingNotices, notice => notice.ActivationId == controller.ActivationId);
-        Assert.False(service.Registry.Current.Plugins[Id].FaultDisabled!.Notified);
+        Assert.Empty(environment.FaultNotices);
+        Assert.Empty(service.Registry.Current.PendingNotices);
+        Assert.True(service.Registry.Current.Plugins[Id].FaultDisabled!.Notified);
+        Assert.Contains("test failure", service.BuildManagerRows().Single(row => row.Id == Id).FaultReason);
     }
 
     [Fact]
@@ -517,10 +521,13 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
     public Task InitializeAsync() => Task.CompletedTask;
 
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public async Task FactoryRefreshUsesEmbeddedContentAndPreservesUserState(bool legacyDigest, bool changedContent)
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, true)]
+    public async Task FactoryRefreshUsesEmbeddedContentAndPreservesUserState(bool legacyDigest, bool changedContent, bool streamed)
     {
         PluginSystemService seed = Create();
         await seed.InitializeAsync([]);
@@ -560,6 +567,8 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         };
 
         PluginSystemService restarted = Create();
+        if (streamed)
+            factory = factory with { Files = Directory.GetFiles(stage).Select(path => FactoryPackFile.FromStream(Path.GetFileName(path), () => File.OpenRead(path))).ToList() };
         await restarted.InitializeAsync([factory]);
         PluginRegistryEntry refreshed = restarted.Registry.Current.Plugins[Id];
         Assert.Equal(DuCom.PluginHost.Packages.PluginPackageInstaller.ComputeDirectoryDigest(stage), refreshed.InstalledVersions.Single().Digest);
@@ -652,77 +661,194 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(false, "shown")]
-    [InlineData(false, "unavailable")]
-    [InlineData(false, "exception")]
-    [InlineData(false, "shutdown")]
-    [InlineData(true, "shown")]
-    [InlineData(true, "unavailable")]
-    [InlineData(true, "exception")]
-    [InlineData(true, "shutdown")]
-    public async Task NoticeIsConsumedOnlyAfterAsyncDisplayConfirmation(bool recovery, string outcome)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FactoryRepairsTamperingDuringSafeStartAndSkipsIdenticalReinstall(bool streamed)
+    {
+        PluginSystemService seed = Create();
+        await seed.InitializeAsync([]);
+        Assert.True(seed.InstallPack(Pack("1.0.0")).Accepted);
+        seed.SafeStartAllPlugins = true;
+        seed.SetEnabled(Id, true, stopImmediately: false);
+        InstalledVersionRecord installed = seed.Registry.Current.Plugins[Id].InstalledVersions.Single();
+        File.WriteAllText(Path.Combine(installed.Path, "Test.dll"), "tampered");
+        File.WriteAllText(Path.Combine(installed.Path, "extra.bin"), "injected");
+        string stage = Path.Combine(_root, "stage-1.0.0");
+        FactoryPackDefinition factory = new()
+        {
+            PluginId = Id, Version = "1.0.0",
+            Files = Directory.GetFiles(stage).Select(path => new FactoryPackFile(Path.GetFileName(path), () => File.ReadAllBytes(path))).ToList(),
+        };
+
+        PluginSystemService restarted = Create();
+        if (streamed)
+            factory = factory with { Files = Directory.GetFiles(stage).Select(path => FactoryPackFile.FromStream(Path.GetFileName(path), () => File.OpenRead(path))).ToList() };
+        await restarted.InitializeAsync([factory]);
+        InstalledVersionRecord repaired = restarted.Registry.Current.Plugins[Id].InstalledVersions.Single();
+        Assert.Equal(installed.Digest, PluginPackageInstaller.ComputeDirectoryDigest(repaired.Path));
+        Assert.False(File.Exists(Path.Combine(repaired.Path, "extra.bin")));
+        Assert.True(restarted.SafeStartAllPlugins);
+        Assert.Null(restarted.Registry.Current.Plugins[Id].LastAttempt);
+        Assert.False(await restarted.StartRegisteredAsync(Id));
+        Assert.Empty(Directory.GetDirectories(Path.Combine(restarted.Paths.InstalledRoot, "Staging")));
+
+        PluginSystemService next = Create();
+        await next.InitializeAsync([factory]);
+        Assert.Equal(repaired, next.Registry.Current.Plugins[Id].InstalledVersions.Single());
+        Assert.Single(Directory.GetDirectories(Path.Combine(next.Paths.InstalledRoot, "Backups")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FactoryReadFailureOrPathEscapePreservesInstalledFilesAndRegistry(bool escape)
+    {
+        PluginSystemService seed = Create();
+        await seed.InitializeAsync([]);
+        Assert.True(seed.InstallPack(Pack("1.0.0")).Accepted);
+        InstalledVersionRecord installed = seed.Registry.Current.Plugins[Id].InstalledVersions.Single();
+        string registry = File.ReadAllText(seed.Paths.RegistryPath);
+        string stage = Path.Combine(_root, "stage-1.0.0");
+        FactoryPackDefinition factory = new()
+        {
+            PluginId = Id, Version = "1.0.0",
+            Files = Directory.GetFiles(stage).Select(path => new FactoryPackFile(Path.GetFileName(path), () => File.ReadAllBytes(path))).ToList(),
+        };
+        factory.Files.Add(escape
+            ? new FactoryPackFile("../escape.bin", () => [1, 2, 3])
+            : new FactoryPackFile("broken.bin", () => throw new IOException("Source failed.")));
+
+        PluginSystemService restarted = Create();
+        if (escape)
+            await Assert.ThrowsAsync<InvalidOperationException>(() => restarted.InitializeAsync([factory]));
+        else
+            await Assert.ThrowsAsync<IOException>(() => restarted.InitializeAsync([factory]));
+        Assert.Equal(registry, File.ReadAllText(seed.Paths.RegistryPath));
+        Assert.Equal(installed, restarted.Registry.Current.Plugins[Id].InstalledVersions.Single());
+        Assert.Equal(installed.Digest, PluginPackageInstaller.ComputeDirectoryDigest(installed.Path));
+        Assert.False(Directory.Exists(Path.Combine(restarted.Paths.InstalledRoot, "Backups")));
+        Assert.Empty(Directory.GetFileSystemEntries(Path.Combine(restarted.Paths.InstalledRoot, "Staging")));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FactoryStreamsHandleShortReadsAndDisposeOnSuccessOrFailure(bool fail)
+    {
+        PluginSystemService seed = Create();
+        await seed.InitializeAsync([]);
+        Assert.True(seed.InstallPack(Pack("1.0.0")).Accepted);
+        InstalledVersionRecord installed = seed.Registry.Current.Plugins[Id].InstalledVersions.Single();
+        string registry = File.ReadAllText(seed.Paths.RegistryPath);
+        string stage = Path.Combine(_root, "stage-1.0.0");
+        byte[] payload = Enumerable.Range(0, 200_003).Select(i => (byte)i).ToArray();
+        ShortReadStream? opened = null;
+        FactoryPackDefinition factory = new()
+        {
+            PluginId = Id, Version = "1.0.0",
+            Files = Directory.GetFiles(stage).Select(path => FactoryPackFile.FromStream(Path.GetFileName(path), () => File.OpenRead(path))).ToList(),
+        };
+        factory.Files.Add(FactoryPackFile.FromStream("nested/payload.bin", () => opened = new ShortReadStream(payload, fail)));
+        PluginSystemService restarted = Create();
+        if (fail)
+        {
+            await Assert.ThrowsAsync<IOException>(() => restarted.InitializeAsync([factory]));
+            Assert.Equal(registry, File.ReadAllText(seed.Paths.RegistryPath));
+            Assert.Equal(installed.Digest, PluginPackageInstaller.ComputeDirectoryDigest(installed.Path));
+            Assert.False(Directory.Exists(Path.Combine(restarted.Paths.InstalledRoot, "Backups")));
+        }
+        else
+        {
+            await restarted.InitializeAsync([factory]);
+            Assert.Equal(payload, File.ReadAllBytes(Path.Combine(installed.Path, "nested", "payload.bin")));
+        }
+        Assert.NotNull(opened);
+        Assert.True(opened.Disposed);
+        Assert.Empty(Directory.GetFileSystemEntries(Path.Combine(restarted.Paths.InstalledRoot, "Staging")));
+    }
+
+    [Fact]
+    public void FactoryStreamModelRetainsLegacyContentAndRecordCopies()
+    {
+        FactoryPackFile file = FactoryPackFile.FromStream("file.bin", () => new MemoryStream([1, 2, 3]));
+        var (path, content) = file;
+        Assert.Equal("file.bin", path);
+        Assert.Equal(new byte[] { 1, 2, 3 }, content());
+        using Stream first = file.OpenRead();
+        using Stream second = file.OpenRead();
+        Assert.NotSame(first, second);
+        Assert.Equal(1, first.ReadByte());
+        Assert.Equal(1, second.ReadByte());
+        using Stream replaced = (file with { Content = () => [9] }).OpenRead();
+        Assert.Equal(9, replaced.ReadByte());
+        using Stream legacy = new FactoryPackFile("old.bin", () => [8]).OpenRead();
+        Assert.Equal(8, legacy.ReadByte());
+    }
+
+    [Fact]
+    public async Task EmbeddedFactoryPacksMaterializeExactResourceBytesDuringSafeStart()
+    {
+        PluginSystemService seed = Create();
+        await seed.InitializeAsync([]);
+        seed.SafeStartAllPlugins = true;
+        IReadOnlyList<FactoryPackDefinition> packs = DuCom.Services.Plugins.PluginSystemHost.BuildFactoryPacks();
+        Assert.Equal(PluginSystemService.FactoryIds.Order(), packs.Select(pack => pack.PluginId).Order());
+        PluginSystemService restarted = Create();
+        await restarted.InitializeAsync(packs);
+        foreach (FactoryPackDefinition pack in packs)
+        {
+            PluginRegistryEntry entry = restarted.Registry.Current.Plugins[pack.PluginId];
+            InstalledVersionRecord installed = Assert.Single(entry.InstalledVersions);
+            Assert.Null(entry.LastAttempt);
+            Assert.Equal(pack.Files.Count, Directory.GetFiles(installed.Path, "*", SearchOption.AllDirectories).Length);
+            foreach (FactoryPackFile file in pack.Files)
+            {
+                using Stream embedded = typeof(DuCom.Services.Plugins.PluginSystemHost).Assembly.GetManifestResourceStream(
+                    $"DuCom.Factory.{pack.PluginId}/{pack.Version}/{file.RelativePath}")!;
+                using Stream actual = File.OpenRead(Path.Combine(installed.Path, file.RelativePath));
+                Assert.Equal(System.Security.Cryptography.SHA256.HashData(embedded), System.Security.Cryptography.SHA256.HashData(actual));
+            }
+            Assert.Equal(installed.Digest, PluginPackageInstaller.ComputeDirectoryDigest(installed.Path));
+        }
+    }
+
+    private sealed class ShortReadStream(byte[] bytes, bool fail) : Stream
+    {
+        private int _position;
+        public bool Disposed { get; private set; }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (fail && _position >= 14) throw new IOException("Source interrupted.");
+            int read = Math.Min(Math.Min(count, 7), bytes.Length - _position);
+            bytes.AsSpan(_position, read).CopyTo(buffer.AsSpan(offset, read));
+            _position += read;
+            return read;
+        }
+        protected override void Dispose(bool disposing) { Disposed = true; base.Dispose(disposing); }
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    [Fact]
+    public async Task AutomaticFaultNeverCallsPopupEnvironment()
     {
         DeferredNoticeEnvironment environment = new();
         PluginSystemService service = Create(environment);
         await service.InitializeAsync([]);
         Assert.True(service.InstallPack(Pack("1.0.0")).Accepted);
-        Task completed;
-        string activationId;
-        if (recovery)
-        {
-            activationId = "old-activation";
-            service.Registry.Mutate(data =>
-            {
-                data.Plugins[Id] = data.Plugins[Id] with
-                {
-                    LastAttempt = new AttemptRecord { ActivationId = activationId, HostRunId = "old-host" },
-                };
-            });
-            service = Create(environment);
-            completed = service.InitializeAsync([]);
-        }
-        else
-        {
-            TaskCompletionSource handled = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            service.FaultNotice += _ => handled.TrySetResult();
-            PluginRuntimeController controller = Assert.IsType<PluginRuntimeController>(service.GetOrCreateController(Id));
-            await controller.FaultAsync("test failure", exitConfirmed: true);
-            activationId = controller.ActivationId;
-            completed = handled.Task;
-        }
+        PluginRuntimeController controller = Assert.IsType<PluginRuntimeController>(service.GetOrCreateController(Id));
+        await controller.FaultAsync("test failure", exitConfirmed: true);
 
-        await environment.Requested.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.False(completed.IsCompleted);
-        Assert.Single(service.Registry.Current.PendingNotices);
-        Assert.False(service.Registry.Current.Plugins[Id].FaultDisabled!.Notified);
-        // Check the durable state as well as the in-memory snapshot while UI work is queued.
-        PluginRegistryStore persisted = new(service.Paths.RegistryPath);
-        persisted.Load();
-        Assert.Single(persisted.Current.PendingNotices);
-
-        switch (outcome)
-        {
-            case "shown": environment.Displayed.SetResult(true); break;
-            case "unavailable": environment.Displayed.SetResult(false); break;
-            case "exception": environment.Displayed.SetException(new InvalidOperationException("Show failed")); break;
-            case "shutdown": environment.Displayed.SetCanceled(); break;
-        }
-        await completed.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal(outcome == "shown", service.Registry.Current.Plugins[Id].FaultDisabled!.Notified);
-        if (outcome == "shown")
-        {
-            Assert.Empty(service.Registry.Current.PendingNotices);
-        }
-        else
-        {
-            Assert.Equal(activationId, Assert.Single(service.Registry.Current.PendingNotices).ActivationId);
-        }
-
-        FakeEnvironment restartedEnvironment = new();
-        PluginSystemService restarted = Create(restartedEnvironment);
-        await restarted.InitializeAsync([]);
-        Assert.Equal(outcome == "shown" ? 0 : 1, restartedEnvironment.FaultNotices.Count);
-        Assert.Empty(restarted.Registry.Current.PendingNotices);
+        Assert.False(environment.Requested.Task.IsCompleted);
+        Assert.Empty(service.Registry.Current.PendingNotices);
+        Assert.True(service.Registry.Current.Plugins[Id].FaultDisabled!.Notified);
     }
 
     private sealed class DeferredNoticeEnvironment : UnavailableNoticeEnvironment

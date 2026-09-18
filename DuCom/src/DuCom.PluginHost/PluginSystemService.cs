@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Diagnostics;
 using DuCom.Plugin;
 using DuCom.PluginHost.Core;
 using DuCom.PluginHost.Diagnostics;
@@ -8,7 +9,34 @@ using DuCom.PluginHost.Security;
 
 namespace DuCom.PluginHost;
 
-public sealed record FactoryPackFile(string RelativePath, Func<byte[]> Content);
+public sealed record FactoryPackFile(string RelativePath, Func<byte[]> Content)
+{
+    private Func<Stream>? _openStream;
+    private Func<byte[]>? _streamContent;
+
+    /// <summary>Creates a file whose factory returns a fresh readable stream owned by the caller.</summary>
+    public static FactoryPackFile FromStream(string relativePath, Func<Stream> openStream)
+    {
+        ArgumentNullException.ThrowIfNull(openStream);
+        Func<byte[]> content = () =>
+        {
+            using Stream source = openStream();
+            using MemoryStream buffer = new();
+            source.CopyTo(buffer);
+            return buffer.ToArray();
+        };
+        return new FactoryPackFile(relativePath, content) { _openStream = openStream, _streamContent = content };
+    }
+
+    /// <summary>Opens file content; the caller must dispose the returned stream.</summary>
+    public Stream OpenRead()
+    {
+        // Honor legacy record copies that replace Content using a with expression.
+        return _openStream is not null && ReferenceEquals(Content, _streamContent)
+            ? _openStream()
+            : new MemoryStream(Content(), writable: false);
+    }
+}
 
 public sealed record FactoryPackDefinition
 {
@@ -43,6 +71,8 @@ public sealed record PluginManagerRow
 
     public bool IsInactive => !IsActive;
 
+    public bool IsDisabled => !Enabled;
+
     public bool IsBuiltIn => string.Equals(Source, "BuiltIn", StringComparison.Ordinal);
 
     public string Description => Id switch
@@ -72,8 +102,11 @@ public sealed partial class PluginSystemService : IAsyncDisposable
     private readonly Dictionary<string, PluginRuntimeController> _controllers = new(StringComparer.Ordinal);
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _startupRejections = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+    private readonly HashSet<string> _budgetRecoveryPending = new(StringComparer.Ordinal);
     private readonly string _hostExecutablePath;
     private readonly Func<string, bool> _isOfficialNamespace;
+    private long _lastBudgetWarningLogTimestamp;
+    private long _lastBudgetWarningLoggedBytes;
     private bool _initialized;
 
     public PluginSystemService(
@@ -94,13 +127,14 @@ public sealed partial class PluginSystemService : IAsyncDisposable
         _hostTempDiskBudget = new HostTempDiskBudget(_budget.Configuration.HostTempDiskQuotaBytes);
         _hostTempLedger = new HostTempResourceLedger(paths.TempRoot, _registry.HostRunId, _hostTempDiskBudget);
         _isOfficialNamespace = isOfficialNamespace ?? (id => id.StartsWith("com.ducom.", StringComparison.Ordinal) && FactoryIds.Contains(id));
-        _budget.Warning += sample => ProgramLog?.Invoke($"Plugin budget warning: total={sample.TotalPrivateBytes:N0} host={sample.HostPrivateBytes:N0}");
+        _budget.Warning += LogBudgetWarning;
         _budget.EmergencyStop += request => _ = HandleBudgetStopAsync(request);
         // Budget stops are protective, not faults: once memory recovers below the warning
         // line, quietly restart the plugins that were stopped so features come back alive
         // without asking the user to babysit the restart button.
-        _budget.Recovered += sample => _ = RecoverBudgetStoppedPluginsAsync();
-        _budget.Recovered += sample => ProgramLog?.Invoke($"Plugin budget recovered: total={sample.TotalPrivateBytes:N0}");
+        _budget.Sampled += OnBudgetSampled;
+        _budget.RestrictionRecovered += sample => ScheduleBudgetRecovery();
+        _budget.Recovered += LogBudgetRecovered;
     }
 
     public static readonly IReadOnlyList<string> FactoryIds =
@@ -134,8 +168,39 @@ public sealed partial class PluginSystemService : IAsyncDisposable
         }
     }
 
+    private void LogBudgetWarning(PluginBudgetSample sample)
+    {
+        const long minimumGrowthBytes = 32L * 1024 * 1024;
+        long now = Stopwatch.GetTimestamp();
+        long previousTimestamp = Volatile.Read(ref _lastBudgetWarningLogTimestamp);
+        long previousBytes = Volatile.Read(ref _lastBudgetWarningLoggedBytes);
+        if (previousTimestamp != 0 &&
+            now - previousTimestamp < 30L * Stopwatch.Frequency &&
+            sample.TotalPrivateBytes - previousBytes < minimumGrowthBytes)
+        {
+            return;
+        }
+
+        Volatile.Write(ref _lastBudgetWarningLogTimestamp, now);
+        Volatile.Write(ref _lastBudgetWarningLoggedBytes, sample.TotalPrivateBytes);
+        ProgramLog?.Invoke(FormatBudgetSample("Plugin budget warning", sample));
+    }
+
+    private void LogBudgetRecovered(PluginBudgetSample sample)
+    {
+        Volatile.Write(ref _lastBudgetWarningLogTimestamp, 0);
+        Volatile.Write(ref _lastBudgetWarningLoggedBytes, 0);
+        ProgramLog?.Invoke(FormatBudgetSample("Plugin budget recovered", sample));
+    }
+
+    private static string FormatBudgetSample(string prefix, PluginBudgetSample sample) =>
+        $"{prefix}: total={sample.TotalPrivateBytes:N0} host={sample.HostPrivateBytes:N0} " +
+        $"managed={sample.ManagedHeapBytes:N0} heap={sample.ManagedHeapSizeBytes:N0} fragmented={sample.ManagedFragmentedBytes:N0} " +
+        $"threads={sample.ProcessThreadCount} poolThreads={sample.ThreadPoolThreadCount} pendingWork={sample.ThreadPoolPendingWorkItemCount:N0}";
+
     public async ValueTask DisposeAsync()
     {
+        _budget.Sampled -= OnBudgetSampled;
         await CancelAutoRestartsAsync().ConfigureAwait(false);
         await StopAllAsync().ConfigureAwait(false);
         _budget.Dispose();

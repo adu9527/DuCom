@@ -139,6 +139,33 @@ public sealed class ReceivePipelineStopDisposeTests
         Assert.Equal(pool.RentCount, pool.ReturnCount);
     }
 
+    [Fact]
+    public async Task RepeatedDataAvailableNotificationsDoNotBlockWhileOneCallbackIsReading()
+    {
+        TrackingPool pool = new();
+        SlowCallbackTransport transport = new();
+        RecordingSink sink = new();
+        LoadMetrics metrics = new();
+        await using ReceivePipeline pipeline = new(transport, sink, metrics, pool, capacity: 8, maximumReadSize: 32);
+        await pipeline.StartAsync();
+
+        transport.Enqueue([1]);
+        Task firstCallback = Task.Run(transport.RaiseDataAvailable);
+        await WaitUntilAsync(() => transport.ReadEntries >= 1);
+
+        Task[] repeatedNotifications = [.. Enumerable.Range(0, 200)
+            .Select(_ => Task.Run(transport.RaiseDataAvailable))];
+        await Task.WhenAll(repeatedNotifications).WaitAsync(TimeSpan.FromSeconds(2));
+
+        transport.ReleaseCallbacks();
+        await firstCallback;
+        await pipeline.StopAsync();
+
+        Assert.Equal(["01"], sink.Payloads);
+        Assert.Equal(pool.RentCount, pool.ReturnCount);
+        Assert.Null(pipeline.Fault);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));

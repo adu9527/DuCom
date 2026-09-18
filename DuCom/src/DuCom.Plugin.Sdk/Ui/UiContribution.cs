@@ -58,6 +58,7 @@ public enum UiTextStyle
     Heading,
     Caption,
     Accent,
+    Running,
     Success,
     Warning,
 }

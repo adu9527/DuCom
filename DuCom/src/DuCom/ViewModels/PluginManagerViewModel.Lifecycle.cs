@@ -159,6 +159,100 @@ public partial class PluginManagerViewModel
     }
 
     [RelayCommand]
+    private async Task EnableAllPluginsAsync()
+    {
+        if (IsChangingState || _mainViewModel.PluginSystem is not { } system)
+        {
+            return;
+        }
+        if (system.Service.SafeStartAllPlugins)
+        {
+            OperationMessage = Resource("Plugins.SafeStart.Blocked");
+            return;
+        }
+
+        IsChangingState = true;
+        OperationMessage = Resource("Plugins.Working");
+        int started = 0;
+        int failed = 0;
+        try
+        {
+            foreach (PluginManagerRow row in system.Service.BuildManagerRows().OrderBy(row => row.Id, StringComparer.Ordinal))
+            {
+                try
+                {
+                    PluginManagerRow? current = system.Service.BuildManagerRows().FirstOrDefault(item => item.Id == row.Id);
+                    if (current?.IsActive == true)
+                    {
+                        continue;
+                    }
+                    if (current?.State == PluginRuntimeState.FaultDisabled)
+                    {
+                        system.Service.ClearFaultDisable(row.Id);
+                    }
+                    system.Service.SetEnabled(row.Id, true, stopImmediately: false);
+                    if (await system.Service.StartRegisteredAsync(row.Id))
+                    {
+                        started++;
+                    }
+                    else
+                    {
+                        failed++;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    failed++;
+                    Program.DiagnosticLog?.Error($"Enable all plugins failed for '{row.Id}'.", exception);
+                }
+            }
+            OperationMessage = string.Format(Resource("Plugins.EnableAll.Completed"), started, failed);
+        }
+        finally
+        {
+            IsChangingState = false;
+            RefreshPlugins();
+        }
+    }
+
+    [RelayCommand]
+    private async Task DisableAllPluginsAsync()
+    {
+        if (IsChangingState || _mainViewModel.PluginSystem is not { } system)
+        {
+            return;
+        }
+
+        IsChangingState = true;
+        OperationMessage = Resource("Plugins.Working");
+        int stopped = 0;
+        int failed = 0;
+        try
+        {
+            foreach (PluginManagerRow row in system.Service.BuildManagerRows().OrderBy(row => row.Id, StringComparer.Ordinal))
+            {
+                try
+                {
+                    system.Service.SetEnabled(row.Id, false, stopImmediately: false);
+                    await system.Service.StopAsync(row.Id);
+                    stopped++;
+                }
+                catch (Exception exception)
+                {
+                    failed++;
+                    Program.DiagnosticLog?.Error($"Disable all plugins failed for '{row.Id}'.", exception);
+                }
+            }
+            OperationMessage = string.Format(Resource("Plugins.DisableAll.Completed"), stopped, failed);
+        }
+        finally
+        {
+            IsChangingState = false;
+            RefreshPlugins();
+        }
+    }
+
+    [RelayCommand]
     private async Task RetryPluginAsync(PluginManagerRow? row)
     {
         if (row is null) return;

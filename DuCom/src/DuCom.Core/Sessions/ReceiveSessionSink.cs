@@ -15,6 +15,7 @@ public sealed class ReceiveSessionSink(
 {
     private readonly object _gate = new();
     private readonly SemaphoreSlim _formatterLock = new(1, 1);
+    private readonly AnsiTextSanitizer _logSanitizer = new();
     private StatefulReceiveFormatter? _formatter;
     private ReceiveFormattingProfile? _activeProfile;
     private FormattedLine? _pendingLine;
@@ -93,6 +94,7 @@ public sealed class ReceiveSessionSink(
         bool commitUnterminated,
         CancellationToken cancellationToken)
     {
+        List<FormattedLogRecord>? logRecords = null;
         foreach (FormattedLine line in lines)
         {
             if (line.IsTerminated || line.IsSoftWrapped || commitUnterminated)
@@ -111,11 +113,9 @@ public sealed class ReceiveSessionSink(
                 }
 
                 metrics.AddLineRecords(1);
-                string logText = line.IsTerminated ? line.Text + "\r\n" : line.Text;
-                if (!await logWriter.WriteAsync(new FormattedLogRecord(logText), cancellationToken).ConfigureAwait(false))
-                {
-                    throw new IOException("Formatted log writer rejected an accepted receive line.");
-                }
+                string sanitizedText = _logSanitizer.Sanitize(line.Text);
+                string logText = line.IsTerminated ? sanitizedText + "\r\n" : sanitizedText;
+                (logRecords ??= new List<FormattedLogRecord>(lines.Count)).Add(new FormattedLogRecord(logText));
 
                 lock (_gate)
                 {
@@ -134,6 +134,12 @@ public sealed class ReceiveSessionSink(
                     _pendingLine = line;
                 }
             }
+        }
+
+        if (logRecords is not null &&
+            !await logWriter.WriteBatchAsync(logRecords, cancellationToken).ConfigureAwait(false))
+        {
+            throw new IOException("Formatted log writer rejected accepted receive lines.");
         }
     }
 }

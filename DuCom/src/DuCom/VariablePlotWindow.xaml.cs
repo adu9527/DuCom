@@ -22,6 +22,7 @@ public partial class VariablePlotWindow : IDisposable
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(50) };
     private bool _displayPaused;
     private bool _disposed;
+    private VariablePlotSnapshot? _displayedSnapshot;
     private VariableMonitorConfiguration _configuration;
 
     public VariablePlotWindow(VariableMonitorService monitor, Action<VariableMonitorConfiguration> applyConfiguration,
@@ -53,15 +54,26 @@ public partial class VariablePlotWindow : IDisposable
             if (!current.TryGetValue(series.Rule.Id, out VariablePlotSeriesRow? row))
             {
                 row = new VariablePlotSeriesRow(series.Rule);
-                row.PropertyChanged += (_, args) => { if (args.PropertyName == nameof(VariablePlotSeriesRow.IsVisible)) Render(snapshot); };
+                row.PropertyChanged += OnSeriesPropertyChanged;
                 Series.Add(row);
             }
             row.Update(series);
         }
-        foreach (VariablePlotSeriesRow removed in Series.Where(row => snapshot.Series.All(item => item.Rule.Id != row.Id)).ToArray()) Series.Remove(removed);
+        foreach (VariablePlotSeriesRow removed in Series.Where(row => snapshot.Series.All(item => item.Rule.Id != row.Id)).ToArray())
+        {
+            removed.PropertyChanged -= OnSeriesPropertyChanged;
+            Series.Remove(removed);
+        }
         Render(snapshot);
+        _displayedSnapshot = snapshot;
         long evicted = snapshot.Series.Sum(item => item.EvictedSampleCount);
         StatusText.Text = string.Format(CultureInfo.CurrentCulture, Resource("VariablePlot.StatusFormat"), snapshot.Series.Count, snapshot.Gaps.Count, evicted);
+    }
+
+    private void OnSeriesPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(VariablePlotSeriesRow.IsVisible) && _displayedSnapshot is { } snapshot)
+            Render(snapshot);
     }
 
     private void Render(VariablePlotSnapshot snapshot)
@@ -131,6 +143,8 @@ public partial class VariablePlotWindow : IDisposable
         if (_disposed) return;
         _disposed = true;
         _timer.Stop(); _timer.Tick -= OnTick;
+        foreach (VariablePlotSeriesRow row in Series) row.PropertyChanged -= OnSeriesPropertyChanged;
+        _displayedSnapshot = null;
         Rect bounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
         AnalysisWindowPreferences all = _preferences.Load();
         _preferences.Save(all with { VariablePlot = new AnalysisWindowPreference(bounds.Left, bounds.Top, bounds.Width, bounds.Height,

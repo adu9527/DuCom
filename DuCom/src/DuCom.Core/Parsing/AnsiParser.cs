@@ -10,6 +10,8 @@ public sealed class AnsiParser
     private const char OscIntroducer = ']';
     private const char StringTerminator = '\\';
     private const char Bell = '\u0007';
+    private const int MaximumCsiCharacters = 64;
+    private const int MaximumOscCharacters = 1_024;
 
     private readonly StringBuilder _pendingText = new();
     private readonly StringBuilder _csiBuffer = new();
@@ -115,6 +117,11 @@ public sealed class AnsiParser
                 else if (IsCsiIntermediateOrParameter(character))
                 {
                     _csiBuffer.Append(character);
+                    if (_csiBuffer.Length >= MaximumCsiCharacters)
+                    {
+                        _csiBuffer.Clear();
+                        _state = ParseState.Normal;
+                    }
                 }
                 else if (character == Escape)
                 {
@@ -138,6 +145,11 @@ public sealed class AnsiParser
                 else if (character == Escape)
                 {
                     _oscBuffer.Append(character);
+                    if (_oscBuffer.Length >= MaximumOscCharacters)
+                    {
+                        _oscBuffer.Clear();
+                        _state = ParseState.Normal;
+                    }
                 }
                 else if (character == StringTerminator && _oscBuffer.Length > 0 && _oscBuffer[^1] == Escape)
                 {
@@ -147,6 +159,11 @@ public sealed class AnsiParser
                 else
                 {
                     _oscBuffer.Append(character);
+                    if (_oscBuffer.Length >= MaximumOscCharacters)
+                    {
+                        _oscBuffer.Clear();
+                        _state = ParseState.Normal;
+                    }
                 }
 
                 break;

@@ -43,6 +43,7 @@ public partial class SessionViewModel
         _visibleSearchSnapshotDirty = true;
         _renderedLastLogicalId = null;
         _renderedLastSegmentIndex = -1;
+        _lastProjectionForcedStandalone = false;
     }
 
     public void ReplaceHighlightRuleProjects(IReadOnlyList<HighlightFilterRuleProject> projects)

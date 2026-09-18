@@ -37,9 +37,12 @@ public sealed partial class BoundedLogEditor
 
     private readonly record struct ColorSpan(long Offset, int Length, StyleRun Style);
 
+    private readonly record struct SearchColorSpan(long Offset, int Length);
+
     private sealed class LogColorizer : DocumentColorizingTransformer
     {
         private IReadOnlyList<ColorSpan> _spans = [];
+        private IReadOnlyList<SearchColorSpan> _searchSpans = [];
         private long _originOffset;
 
         public void SetSpans(IReadOnlyList<ColorSpan> spans, long originOffset = 0)
@@ -47,6 +50,8 @@ public sealed partial class BoundedLogEditor
             _spans = spans;
             _originOffset = originOffset;
         }
+
+        public void SetSearchSpans(IReadOnlyList<SearchColorSpan> spans) => _searchSpans = spans;
 
         protected override void ColorizeLine(DocumentLine line)
         {
@@ -67,6 +72,57 @@ public sealed partial class BoundedLogEditor
                     ChangeLinePart(start, end, element => ApplyStyle(element, span.Style));
                 }
             }
+
+
+            Brush searchBackground = (Brush?)(Application.Current?.TryFindResource("Brush.SearchMatchBackground"))
+                ?? Brushes.Gold;
+            Brush searchForeground = (Brush?)(Application.Current?.TryFindResource("Brush.SearchMatchForeground"))
+                ?? Brushes.Black;
+            int searchIndex = LowerBoundSearch(line.Offset);
+            for (; searchIndex < _searchSpans.Count; searchIndex++)
+            {
+                SearchColorSpan span = _searchSpans[searchIndex];
+                long spanOffset = span.Offset - _originOffset;
+                if (spanOffset >= lineEnd)
+                {
+                    break;
+                }
+                int start = (int)Math.Max(line.Offset, spanOffset);
+                int end = (int)Math.Min(lineEnd, spanOffset + span.Length);
+                if (start < end)
+                {
+                    ChangeLinePart(start, end, element =>
+                    {
+                        element.BackgroundBrush = searchBackground;
+                        element.TextRunProperties.SetForegroundBrush(searchForeground);
+                        element.TextRunProperties.SetTypeface(new Typeface(
+                            element.TextRunProperties.Typeface.FontFamily,
+                            element.TextRunProperties.Typeface.Style,
+                            FontWeights.SemiBold,
+                            element.TextRunProperties.Typeface.Stretch));
+                    });
+                }
+            }
+        }
+
+        private int LowerBoundSearch(int offset)
+        {
+            int low = 0;
+            int high = _searchSpans.Count;
+            while (low < high)
+            {
+                int middle = low + (high - low) / 2;
+                SearchColorSpan span = _searchSpans[middle];
+                if (span.Offset - _originOffset + span.Length <= offset)
+                {
+                    low = middle + 1;
+                }
+                else
+                {
+                    high = middle;
+                }
+            }
+            return low;
         }
 
         private int LowerBound(int offset)

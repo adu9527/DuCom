@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DuCom.Core.Parsing;
 using Xunit;
 
@@ -146,6 +147,63 @@ public class AnsiDisplayProjectorTests
         Assert.Equal(reference.ForegroundR, run.ForegroundR);
         Assert.Equal(reference.ForegroundG, run.ForegroundG);
         Assert.Equal(reference.ForegroundB, run.ForegroundB);
+    }
+
+    [Fact]
+    public void SuspiciousGibberishMustContinueForOneAndAHalfSecondsBeforeWarning()
+    {
+        long timestamp = 100;
+        DateTimeOffset now = new(2026, 9, 17, 12, 58, 9, 248, TimeSpan.FromHours(8));
+        AnsiDisplayProjector projector = new(() => timestamp, () => now);
+
+        AnsiProjection first = projector.Project("a\uFFFD\u0001\uFFFD\u0090\uE000z", []);
+        timestamp += Stopwatch.Frequency;
+        AnsiProjection beforeThreshold = projector.Project("a\uFFFD\u0001\uFFFD\u0090\uE000z", []);
+        timestamp += Stopwatch.Frequency / 2;
+        AnsiProjection warning = projector.Project("a\uFFFD\u0001\uFFFD\u0090\uE000z", []);
+        AnsiProjection repeated = projector.Project("a\uFFFD\u0001\uFFFD\u0090\uE000z", []);
+
+        Assert.False(first.IsVisible);
+        Assert.False(beforeThreshold.IsVisible);
+        Assert.Equal("[12:58:09.248] *************************检测到大量乱码，请检查波特率设置或者检查设备是否正常*************************", warning.DisplayText);
+        Assert.True(warning.IsVisible);
+        Assert.True(warning.ForceStandaloneLine);
+        Assert.False(repeated.IsVisible);
+        Assert.Empty(repeated.Runs);
+    }
+
+    [Fact]
+    public void NormalTextResetsGibberishSuppression()
+    {
+        long timestamp = 0;
+        AnsiDisplayProjector projector = new(() => timestamp);
+        const string Gibberish = "a\uFFFD\u0001\uFFFD\u0090\uE000z";
+
+        _ = projector.Project(Gibberish, []);
+        timestamp += Stopwatch.Frequency * 3 / 2;
+        Assert.True(projector.Project(Gibberish, []).IsVisible);
+        Assert.Equal("[12:00:00.000] feed watchdog", projector.Project("[12:00:00.000] feed watchdog", []).DisplayText);
+        AnsiProjection nextGibberish = projector.Project(Gibberish, []);
+
+        Assert.False(nextGibberish.IsVisible);
+    }
+
+    [Fact]
+    public void ShortRandomFragmentsDoNotResetTheOneAndAHalfSecondTimer()
+    {
+        long timestamp = 0;
+        AnsiDisplayProjector projector = new(() => timestamp);
+
+        Assert.False(projector.Project("a\uFFFD\u0001\uFFFD\u0090\uE000z", []).IsVisible);
+        timestamp += Stopwatch.Frequency / 2;
+        Assert.False(projector.Project("kcc", []).IsVisible);
+        timestamp += Stopwatch.Frequency / 2;
+        Assert.False(projector.Project("d", []).IsVisible);
+        timestamp += Stopwatch.Frequency / 2;
+        AnsiProjection warning = projector.Project("more", []);
+
+        Assert.True(warning.IsVisible);
+        Assert.Contains("检测到大量乱码", warning.DisplayText, StringComparison.Ordinal);
     }
 
     private static StyleRun ProjectSingleSegmentForComparison(string segment)

@@ -12,8 +12,8 @@ public enum SessionTapDisplayFormat
 /// <summary>
 /// One auxiliary display surface (float send window, log filter window) mirroring the
 /// session receive/transmit text stream. <see cref="FormatSelector"/> and
-/// <see cref="Publish"/> run on the receive pipeline thread: they must never block, never
-/// touch UI objects, and only enqueue work for the UI thread.
+/// <see cref="Publish"/> runs on the receive pipeline thread unless bounded asynchronous
+/// delivery is enabled. Inline callbacks must never block or touch UI objects.
 /// </summary>
 public sealed class SessionDisplayTap
 {
@@ -25,6 +25,12 @@ public sealed class SessionDisplayTap
 
     /// <summary>Optional timestamp-aware callback for analysis surfaces.</summary>
     public Action<string, DateTimeOffset>? PublishTimestamped { get; init; }
+
+    public bool BoundedAsyncDelivery { get; init; }
+
+    public int MaximumPendingPublications { get; init; } = 256;
+
+    public int MaximumPendingCharacters { get; init; } = 1024 * 1024;
 }
 
 /// <summary>
@@ -46,6 +52,8 @@ public sealed class SessionTapHub
     public void Register(SessionDisplayTap tap)
     {
         ArgumentNullException.ThrowIfNull(tap);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tap.MaximumPendingPublications);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(tap.MaximumPendingCharacters);
         lock (_gate)
         {
             if (!_runtimesByTapId.ContainsKey(tap.Id) && _runtimesByTapId.Count >= MaximumTapCount)
@@ -53,7 +61,11 @@ public sealed class SessionTapHub
                 throw new InvalidOperationException($"At most {MaximumTapCount} display taps may be registered per session.");
             }
 
-            _runtimesByTapId[tap.Id] = new TapRuntime(tap);
+            if (_runtimesByTapId.Remove(tap.Id, out TapRuntime? previous))
+            {
+                previous.Deactivate();
+            }
+            _runtimesByTapId[tap.Id] = new TapRuntime(this, tap);
         }
     }
 
@@ -61,7 +73,12 @@ public sealed class SessionTapHub
     {
         lock (_gate)
         {
-            return _runtimesByTapId.Remove(tapId);
+            if (!_runtimesByTapId.Remove(tapId, out TapRuntime? runtime))
+            {
+                return false;
+            }
+            runtime.Deactivate();
+            return true;
         }
     }
 
@@ -183,12 +200,14 @@ public sealed class SessionTapHub
         // taken while some other thread holds the hub lock.
         foreach (TapPublication publication in publications)
         {
+            if (publication.Runtime.Tap.BoundedAsyncDelivery)
+            {
+                publication.Runtime.Enqueue(publication.Payload, publication.ReceivedAtUtc);
+                continue;
+            }
             try
             {
-                if (publication.Runtime.Tap.PublishTimestamped is { } publishTimestamped)
-                    publishTimestamped(publication.Payload, publication.ReceivedAtUtc);
-                else
-                    publication.Runtime.Tap.Publish(publication.Payload);
+                publication.Runtime.Publish(publication.Payload, publication.ReceivedAtUtc);
             }
             catch (Exception)
             {
@@ -222,12 +241,14 @@ public sealed class SessionTapHub
 
         foreach (TapPublication publication in publications)
         {
+            if (publication.Runtime.Tap.BoundedAsyncDelivery)
+            {
+                publication.Runtime.Enqueue(publication.Payload, publication.ReceivedAtUtc);
+                continue;
+            }
             try
             {
-                if (publication.Runtime.Tap.PublishTimestamped is { } publishTimestamped)
-                    publishTimestamped(publication.Payload, publication.ReceivedAtUtc);
-                else
-                    publication.Runtime.Tap.Publish(publication.Payload);
+                publication.Runtime.Publish(publication.Payload, publication.ReceivedAtUtc);
             }
             catch (Exception)
             {
@@ -244,6 +265,7 @@ public sealed class SessionTapHub
         if (_runtimesByTapId.TryGetValue(runtime.Tap.Id, out TapRuntime? current) && ReferenceEquals(current, runtime))
         {
             _runtimesByTapId.Remove(runtime.Tap.Id);
+            runtime.Deactivate();
         }
     }
 
@@ -251,8 +273,16 @@ public sealed class SessionTapHub
 
     private sealed class TapRuntime
     {
-        public TapRuntime(SessionDisplayTap tap)
+        private readonly SessionTapHub _owner;
+        private readonly object _deliveryGate = new();
+        private readonly Queue<(string Payload, DateTimeOffset Timestamp)> _pending = new();
+        private int _pendingCharacters;
+        private bool _drainScheduled;
+        private bool _active = true;
+
+        public TapRuntime(SessionTapHub owner, SessionDisplayTap tap)
         {
+            _owner = owner;
             Tap = tap;
         }
 
@@ -265,5 +295,88 @@ public sealed class SessionTapHub
         public bool HasEmittedContent { get; set; }
 
         public bool AwaitsSeparator { get; set; }
+
+        public void Enqueue(string payload, DateTimeOffset timestamp)
+        {
+            lock (_deliveryGate)
+            {
+                if (!_active)
+                {
+                    return;
+                }
+
+                while (_pending.Count > 0 &&
+                    (_pending.Count >= Tap.MaximumPendingPublications ||
+                     _pendingCharacters + payload.Length > Tap.MaximumPendingCharacters))
+                {
+                    (string dropped, _) = _pending.Dequeue();
+                    _pendingCharacters -= dropped.Length;
+                }
+
+                if (payload.Length > Tap.MaximumPendingCharacters)
+                {
+                    return;
+                }
+
+                _pending.Enqueue((payload, timestamp));
+                _pendingCharacters += payload.Length;
+                if (_drainScheduled)
+                {
+                    return;
+                }
+                _drainScheduled = true;
+            }
+
+            _ = Task.Run(DrainAsync);
+        }
+
+        public void Deactivate()
+        {
+            lock (_deliveryGate)
+            {
+                _active = false;
+                _pending.Clear();
+                _pendingCharacters = 0;
+            }
+        }
+
+        public void Publish(string payload, DateTimeOffset timestamp)
+        {
+            if (Tap.PublishTimestamped is { } publishTimestamped)
+                publishTimestamped(payload, timestamp);
+            else
+                Tap.Publish(payload);
+        }
+
+        private Task DrainAsync()
+        {
+            while (true)
+            {
+                (string Payload, DateTimeOffset Timestamp) publication;
+                lock (_deliveryGate)
+                {
+                    if (!_active || _pending.Count == 0)
+                    {
+                        _drainScheduled = false;
+                        return Task.CompletedTask;
+                    }
+                    publication = _pending.Dequeue();
+                    _pendingCharacters -= publication.Payload.Length;
+                }
+
+                try
+                {
+                    Publish(publication.Payload, publication.Timestamp);
+                }
+                catch
+                {
+                    lock (_owner._gate)
+                    {
+                        _owner.RemoveIfCurrent(this);
+                    }
+                    return Task.CompletedTask;
+                }
+            }
+        }
     }
 }

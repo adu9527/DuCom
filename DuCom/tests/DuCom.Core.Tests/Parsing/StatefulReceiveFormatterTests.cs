@@ -183,14 +183,14 @@ public sealed class StatefulReceiveFormatterTests
     }
 
     [Fact]
-    public void LongUnterminatedInputIsSoftWrappedWithoutGrowingAnUnboundedSnapshot()
+    public void LongUnterminatedInputIsHardWrappedAtTheConfiguredLimit()
     {
         StatefulReceiveFormatter formatter = new(Encoding.UTF8, ReceiveDisplayMode.Str, false, maximumLineCharacters: 4);
 
         Assert.Equal(
             [
-                new FormattedLine("abcd", false, FirstReceivedAt, IsSoftWrapped: true),
-                new FormattedLine("efgh", false, FirstReceivedAt, IsSoftWrapped: true),
+                new FormattedLine("abcd", true, FirstReceivedAt),
+                new FormattedLine("efgh", true, FirstReceivedAt),
                 new FormattedLine("ij", false, FirstReceivedAt, IsSoftWrapped: true),
             ],
             formatter.Append("abcdefghij"u8, FirstReceivedAt));

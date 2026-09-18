@@ -208,6 +208,20 @@ public sealed class RawTrafficSubscription : IAsyncDisposable, IDisposable
         }
     }
 
+    internal void TrimForMemoryPressure(int maximumBlocks = 32, int maximumBytes = 256 * 1024)
+    {
+        lock (_gate)
+        {
+            while (_records.Count > maximumBlocks || _queuedBytes > maximumBytes)
+            {
+                RawTrafficRecord dropped = _records.Dequeue();
+                _queuedBytes -= dropped.Bytes.Length;
+                AddGap(dropped.Cursor, 1, dropped.Bytes.Length, "MemoryPressure");
+            }
+            _available.TrySetResult();
+        }
+    }
+
     private void AddGap(RawTrafficCursor cursor, long blocks, long bytes, string reason)
     {
         _gapCursor = cursor;
@@ -360,6 +374,19 @@ public sealed class SessionRawTapHub
         foreach (RawTrafficSubscription subscription in subscriptions)
         {
             subscription.Flush(cursor, reason);
+        }
+    }
+
+    public void TrimForMemoryPressure()
+    {
+        RawTrafficSubscription[] subscriptions;
+        lock (_gate)
+        {
+            subscriptions = [.. _subscriptions.Values];
+        }
+        foreach (RawTrafficSubscription subscription in subscriptions)
+        {
+            subscription.TrimForMemoryPressure();
         }
     }
 

@@ -25,7 +25,7 @@ public sealed record ReceiveFormattingProfile(
     string EncodingName,
     ReceiveDisplayMode DisplayMode,
     bool TimestampEnabled,
-    int MaximumLineCharacters = 4_096,
+    int MaximumLineCharacters = 512,
     string MalformedInputReplacement = "\uFFFD",
     bool EscapeNullBytes = true,
     ReceiveNewlinePolicy NewlinePolicy = ReceiveNewlinePolicy.NormalizeCrLfCrLf,

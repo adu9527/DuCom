@@ -63,6 +63,7 @@ public partial class LogFilterWindow : FluentWindow
             Id = TapId,
             FormatSelector = () => _recvShowHex ? SessionTapDisplayFormat.Hex : SessionTapDisplayFormat.Str,
             Publish = EnqueueText,
+            BoundedAsyncDelivery = true,
         });
         _session.PropertyChanged += OnSessionPropertyChanged;
     }

@@ -7,7 +7,22 @@ public sealed partial class SerialSession
     public LineStoreSnapshot GetLinesAfter(LineCursor? cursor, int maximumSegments = 2_048) =>
         _lineStore.SnapshotAfter(cursor, maximumSegments);
 
+    public bool HasPendingLinesOverLimit(LineCursor? cursor, int maximumSegments, int maximumCharacters) =>
+        _lineStore.HasPendingDataOverLimit(cursor, maximumSegments, maximumCharacters);
+
+    public LineStoreSnapshot GetLatestLines(int maximumSegments, int maximumCharacters) =>
+        _lineStore.SnapshotTail(maximumSegments, maximumCharacters);
+
     public void ClearDisplay() => _lineStore.Clear();
+
+    public void SetMemoryPressure(bool active)
+    {
+        _lineStore.SetMemoryPressure(active);
+        if (active)
+        {
+            _rawTaps.TrimForMemoryPressure();
+        }
+    }
 
     /// <summary>Display tap fan-out for auxiliary surfaces (float send window, log filter).</summary>
     public SessionTapHub DisplayTaps => _displayTaps;

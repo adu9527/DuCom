@@ -28,11 +28,28 @@ public partial class App
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "DuCom",
                 "log-package-preferences.json"));
-            _ = pluginSystem.InitializeAsync(legacySettings, legacyPreferences);
+            _ = InitializePluginSystemAsync(pluginSystem, legacySettings, legacyPreferences);
         }
         catch (Exception exception)
         {
             DiagnosticLog?.Error("Plugin system startup failed; the core continues without plugins.", exception);
+        }
+    }
+
+    private static async Task InitializePluginSystemAsync(
+        Services.Plugins.PluginSystemHost pluginSystem,
+        string legacySettings,
+        string? legacyPreferences)
+    {
+        try
+        {
+            await pluginSystem.InitializeAsync(legacySettings, legacyPreferences);
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Error(
+                "Plugin system startup failed; details are available in the plugin manager and diagnostic log.",
+                exception);
         }
     }
 

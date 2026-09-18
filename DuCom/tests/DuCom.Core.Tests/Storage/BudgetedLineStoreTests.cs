@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 using System.Text;
 using DuCom.Core.Storage;
 
@@ -6,6 +7,23 @@ namespace DuCom.Core.Tests.Storage;
 
 public sealed class BudgetedLineStoreTests
 {
+    [Fact]
+    public void MemoryPressureImmediatelyEvictsToPressureBudgetAndCanRecoverConfiguredLimit()
+    {
+        BudgetedLineStore store = new(maxTextBytes: 128, maxSegmentCharacters: 64);
+        store.Append(LineDirection.Rx, DateTimeOffset.UtcNow, new string('a', 60), true);
+        store.Append(LineDirection.Rx, DateTimeOffset.UtcNow, new string('b', 60), true);
+
+        store.SetMemoryPressure(active: true, pressureBudgetBytes: 64);
+        LineStoreSnapshot pressured = store.Snapshot();
+        Assert.Single(pressured.Lines);
+        Assert.Equal(new string('b', 60), pressured.Lines[0].Text);
+
+        store.SetMemoryPressure(active: false);
+        store.Append(LineDirection.Rx, DateTimeOffset.UtcNow, new string('c', 60), true);
+        Assert.Equal(2, store.Snapshot().Lines.Count);
+    }
+
     [Fact]
     public void AppendSegmentsLongTextWithOneLogicalId()
     {
@@ -204,6 +222,35 @@ public sealed class BudgetedLineStoreTests
     }
 
     [Fact]
+    public void SnapshotTailKeepsLatestSegmentsWithinBothLimits()
+    {
+        BudgetedLineStore store = new(maxTextBytes: 10_000, maxSegmentCharacters: 4);
+        for (int index = 0; index < 10; index++)
+        {
+            store.Append(LineDirection.Rx, DateTimeOffset.UtcNow, $"{index:D4}", isTerminated: true);
+        }
+
+        LineStoreSnapshot snapshot = store.SnapshotTail(maximumSegments: 5, maximumCharacters: 12);
+
+        Assert.Equal([8L, 9L, 10L], snapshot.Lines.Select(line => line.LogicalId));
+        Assert.Equal(["0007", "0008", "0009"], snapshot.Lines.Select(line => line.Text));
+    }
+
+    [Fact]
+    public void PendingLimitCheckStartsAfterCursorAndUsesBothLimits()
+    {
+        BudgetedLineStore store = new(maxTextBytes: 10_000, maxSegmentCharacters: 4);
+        for (int index = 0; index < 10; index++)
+        {
+            store.Append(LineDirection.Rx, DateTimeOffset.UtcNow, $"{index:D4}", isTerminated: true);
+        }
+
+        Assert.True(store.HasPendingDataOverLimit(new LineCursor(5, 0), maximumSegments: 4, maximumCharacters: 100));
+        Assert.True(store.HasPendingDataOverLimit(new LineCursor(5, 0), maximumSegments: 10, maximumCharacters: 16));
+        Assert.False(store.HasPendingDataOverLimit(new LineCursor(5, 0), maximumSegments: 5, maximumCharacters: 20));
+    }
+
+    [Fact]
     public void SustainedEvictionPreservesSnapshotAndCursorSemantics()
     {
         BudgetedLineStore store = new(maxTextBytes: 2_000, maxSegmentCharacters: 8);
@@ -220,6 +267,64 @@ public sealed class BudgetedLineStoreTests
 
         LineStoreSnapshot tail = store.SnapshotAfter(new LineCursor(19_995, 0), maximumSegments: 5);
         Assert.Equal([19_996L, 19_997L, 19_998L, 19_999L, 20_000L], tail.Lines.Select(line => line.LogicalId));
+    }
+
+    [Theory]
+    [InlineData("append")]
+    [InlineData("continuation")]
+    [InlineData("pressure")]
+    [InlineData("oversized")]
+    public void EvictionReleasesTextBeforeListCompaction(string operation)
+    {
+        BudgetedLineStore store = new(maxTextBytes: 100_000, maxSegmentCharacters: 200_000);
+        WeakReference text = AppendAndEvict(store, operation);
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        Assert.False(text.IsAlive);
+        Assert.Equal(1, store.Snapshot().EvictedLineCount);
+        GC.KeepAlive(store);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference AppendAndEvict(BudgetedLineStore store, string operation)
+    {
+        string text = new('x', operation == "oversized" ? 100_001 : 60_000);
+        long id = store.Append(LineDirection.Rx, DateTimeOffset.UtcNow, text, false);
+        WeakReference reference = new(text);
+        switch (operation)
+        {
+            case "append":
+                store.Append(LineDirection.Rx, DateTimeOffset.UtcNow, new string('y', 60_000), true);
+                break;
+            case "continuation":
+                store.AppendContinuation(id, new string('y', 60_000), true);
+                break;
+            case "pressure":
+                store.SetMemoryPressure(true, 1);
+                break;
+        }
+        return reference;
+    }
+
+    [Fact]
+    public void EvictionDoesNotModifyPreviouslyPublishedSnapshotOrReviveContinuation()
+    {
+        BudgetedLineStore store = new(maxTextBytes: 4, maxSegmentCharacters: 2);
+        long oldId = store.Append(LineDirection.Rx, DateTimeOffset.UtcNow, "abcd", false);
+        LineStoreSnapshot before = store.Snapshot();
+        store.Append(LineDirection.Tx, DateTimeOffset.UtcNow, "efgh", true);
+        store.AppendContinuation(oldId, "ij", true);
+        store.CompleteContinuation(oldId);
+
+        Assert.Equal(["ab", "cd"], before.Lines.Select(line => line.Text));
+        Assert.All(before.Lines, line => Assert.False(line.IsTerminated));
+        Assert.Equal(["ef", "gh"], store.Snapshot().Lines.Select(line => line.Text));
+        Assert.Equal(["ef", "gh"], store.SnapshotAfter(new LineCursor(oldId, 1), 10).Lines.Select(line => line.Text));
+        Assert.Equal(["gh"], store.SnapshotTail(1, 2).Lines.Select(line => line.Text));
+        Assert.Equal(1, store.Snapshot().EvictedLineCount);
     }
 
     private static void AssertSnapshotIsConsistent(LineStoreSnapshot snapshot)

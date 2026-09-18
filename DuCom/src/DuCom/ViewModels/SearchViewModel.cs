@@ -17,7 +17,11 @@ public partial class SearchViewModel : ObservableObject
     private CancellationTokenSource? _debounceSource;
     private CancellationTokenSource? _searchSource;
     private int _searchGeneration;
+    private long _snapshotRevision;
+    private int _snapshotRefreshScheduled;
+    private int _snapshotRefreshPending;
     private SearchMatch[] _matches = [];
+    private Func<LineCursor?> _navigationAnchorProvider = static () => null;
     private CompositeFormat? _resultsFormat;
 
     public SearchViewModel()
@@ -53,6 +57,8 @@ public partial class SearchViewModel : ObservableObject
 
     public int TotalMatches => _matches.Length;
 
+    public IReadOnlyList<SearchMatch> Matches => _matches;
+
     public SearchMatch? CurrentMatch => CurrentMatchIndex >= 0 && CurrentMatchIndex < _matches.Length
         ? _matches[CurrentMatchIndex]
         : null;
@@ -64,6 +70,8 @@ public partial class SearchViewModel : ObservableObject
     private CompositeFormat ResultsFormat => _resultsFormat ??= CompositeFormat.Parse(GetResourceString("Search.ResultsFormat"));
 
     public event EventHandler? FocusRequested;
+
+    public event EventHandler? NavigationRequested;
 
     public void AttachSnapshotProvider(Func<LineStoreSnapshot?> snapshotProvider)
     {
@@ -77,13 +85,47 @@ public partial class SearchViewModel : ObservableObject
         }
     }
 
-    partial void OnSearchTextChanged(string value) => _ = DebouncedSearchAsync();
+    public void AttachNavigationAnchorProvider(Func<LineCursor?> provider) =>
+        _navigationAnchorProvider = provider ?? throw new ArgumentNullException(nameof(provider));
 
-    partial void OnUseRegexChanged(bool value) => _ = DebouncedSearchAsync();
+    public void NotifySnapshotChanged()
+    {
+        Interlocked.Increment(ref _snapshotRevision);
+        ReconcileMatchesWithCurrentSnapshot();
+        Interlocked.Exchange(ref _snapshotRefreshPending, 1);
+        if (!IsOpen || string.IsNullOrEmpty(SearchText) || Interlocked.Exchange(ref _snapshotRefreshScheduled, 1) != 0)
+        {
+            return;
+        }
 
-    partial void OnMatchCaseChanged(bool value) => _ = DebouncedSearchAsync();
+        _ = RefreshForSnapshotChangeAsync();
+    }
 
-    partial void OnMatchWholeLineChanged(bool value) => _ = DebouncedSearchAsync();
+    partial void OnSearchTextChanged(string value)
+    {
+        CancelPendingWork();
+        StatusText = string.Empty;
+        if (IsOpen && !string.IsNullOrEmpty(value))
+        {
+            _ = DebouncedSearchAsync();
+        }
+    }
+
+    partial void OnUseRegexChanged(bool value) => RestartForOptionChange();
+
+    partial void OnMatchCaseChanged(bool value) => RestartForOptionChange();
+
+    partial void OnMatchWholeLineChanged(bool value) => RestartForOptionChange();
+
+    private void RestartForOptionChange()
+    {
+        CancelPendingWork();
+        StatusText = string.Empty;
+        if (IsOpen && !string.IsNullOrEmpty(SearchText))
+        {
+            _ = DebouncedSearchAsync();
+        }
+    }
 
     [RelayCommand]
     private void Open()
@@ -112,6 +154,7 @@ public partial class SearchViewModel : ObservableObject
         OnPropertyChanged(nameof(CurrentMatch));
         OnPropertyChanged(nameof(CurrentMatchDisplay));
         OnPropertyChanged(nameof(TotalMatches));
+        OnPropertyChanged(nameof(Matches));
     }
 
     private void InvalidatePendingWork() => CancelPendingWork();
@@ -133,9 +176,10 @@ public partial class SearchViewModel : ObservableObject
             return;
         }
 
-        CurrentMatchIndex = CurrentMatchIndex < 0 || CurrentMatchIndex >= _matches.Length - 1
-            ? 0
-            : CurrentMatchIndex + 1;
+        NavigationRequested?.Invoke(this, EventArgs.Empty);
+        CurrentMatchIndex = CurrentMatchIndex < 0
+            ? FindInitialMatchIndex(forward: true)
+            : CurrentMatchIndex >= _matches.Length - 1 ? 0 : CurrentMatchIndex + 1;
     }
 
     [RelayCommand]
@@ -146,9 +190,94 @@ public partial class SearchViewModel : ObservableObject
             return;
         }
 
-        CurrentMatchIndex = CurrentMatchIndex <= 0
-            ? _matches.Length - 1
-            : CurrentMatchIndex - 1;
+        NavigationRequested?.Invoke(this, EventArgs.Empty);
+        CurrentMatchIndex = CurrentMatchIndex < 0
+            ? FindInitialMatchIndex(forward: false)
+            : CurrentMatchIndex == 0 ? _matches.Length - 1 : CurrentMatchIndex - 1;
+    }
+
+    private int FindInitialMatchIndex(bool forward)
+    {
+        LineCursor? anchor = _navigationAnchorProvider();
+        if (anchor is null)
+        {
+            return forward ? 0 : _matches.Length - 1;
+        }
+
+        if (forward)
+        {
+            for (int index = 0; index < _matches.Length; index++)
+            {
+                SearchMatch match = _matches[index];
+                if (match.LogicalId > anchor.Value.LogicalId ||
+                    match.LogicalId == anchor.Value.LogicalId && match.SegmentIndex >= anchor.Value.SegmentIndex)
+                {
+                    return index;
+                }
+            }
+            return 0;
+        }
+
+        for (int index = _matches.Length - 1; index >= 0; index--)
+        {
+            SearchMatch match = _matches[index];
+            if (match.LogicalId < anchor.Value.LogicalId ||
+                match.LogicalId == anchor.Value.LogicalId && match.SegmentIndex <= anchor.Value.SegmentIndex)
+            {
+                return index;
+            }
+        }
+        return _matches.Length - 1;
+    }
+
+    private async Task RefreshForSnapshotChangeAsync()
+    {
+        try
+        {
+            while (Interlocked.Exchange(ref _snapshotRefreshPending, 0) != 0)
+            {
+                await Task.Delay(DebounceMilliseconds).ConfigureAwait(false);
+                await SearchAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _snapshotRefreshScheduled, 0);
+            if (IsOpen && !string.IsNullOrEmpty(SearchText) && Volatile.Read(ref _snapshotRefreshPending) != 0)
+            {
+                NotifySnapshotChanged();
+            }
+        }
+    }
+
+    private void ReconcileMatchesWithCurrentSnapshot()
+    {
+        if (_matches.Length == 0)
+        {
+            return;
+        }
+
+        LineStoreSnapshot? snapshot = _snapshotProvider();
+        if (snapshot is null)
+        {
+            ClearResults();
+            return;
+        }
+
+        HashSet<(long LogicalId, int SegmentIndex)> visible = [.. snapshot.Lines.Select(line => (line.LogicalId, line.SegmentIndex))];
+        SearchMatch[] retained = [.. _matches.Where(match => visible.Contains((match.LogicalId, match.SegmentIndex)))];
+        if (retained.Length == _matches.Length)
+        {
+            return;
+        }
+
+        _matches = retained;
+        CurrentMatchIndex = -1;
+        StatusText = retained.Length == 0 ? GetResourceString("Search.NoResults") : string.Empty;
+        OnPropertyChanged(nameof(TotalMatches));
+        OnPropertyChanged(nameof(Matches));
+        OnPropertyChanged(nameof(CurrentMatch));
+        OnPropertyChanged(nameof(CurrentMatchDisplay));
     }
 
     private async Task DebouncedSearchAsync()
@@ -188,11 +317,14 @@ public partial class SearchViewModel : ObservableObject
         }
 
         int generation = Interlocked.Increment(ref _searchGeneration);
+        long snapshotRevision = Interlocked.Read(ref _snapshotRevision);
         _searchSource?.Cancel();
         CancellationTokenSource cts = new();
         _searchSource = cts;
         CancellationToken linkedToken = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token).Token;
 
+        LineStoreSnapshot? snapshot = null;
+        await _dispatcher.InvokeAsync(() => snapshot = _snapshotProvider());
         SearchResult result;
         try
         {
@@ -200,7 +332,7 @@ public partial class SearchViewModel : ObservableObject
             // performs a full line-store walk while the search bar is active.
             result = await Task.Run(
                 () => SafeSearchExecutor.Execute(
-                    () => _snapshotProvider(),
+                    () => snapshot,
                     request,
                     OnSnapshotProviderError,
                     linkedToken),
@@ -211,7 +343,7 @@ public partial class SearchViewModel : ObservableObject
             return;
         }
 
-        await ApplyResultAsync(result, generation).ConfigureAwait(false);
+        await ApplyResultAsync(result, generation, snapshotRevision).ConfigureAwait(false);
     }
 
     private static bool snapshotOrPatternEmpty(SearchRequest request) =>
@@ -220,11 +352,15 @@ public partial class SearchViewModel : ObservableObject
     private static void OnSnapshotProviderError(Exception exception) =>
         Program.DiagnosticLog?.Warning("Search snapshot provider failed.", exception);
 
-    private async Task ApplyResultAsync(SearchResult result, int? expectedGeneration = null)
+    private async Task ApplyResultAsync(SearchResult result, int? expectedGeneration = null, long? expectedSnapshotRevision = null)
     {
         await _dispatcher.InvokeAsync(() =>
         {
             if (expectedGeneration.HasValue && expectedGeneration.Value != _searchGeneration)
+            {
+                return;
+            }
+            if (expectedSnapshotRevision.HasValue && expectedSnapshotRevision.Value != Interlocked.Read(ref _snapshotRevision))
             {
                 return;
             }
@@ -235,9 +371,10 @@ public partial class SearchViewModel : ObservableObject
             }
 
             _matches = result.Matches.ToArray();
-            CurrentMatchIndex = _matches.Length > 0 ? 0 : -1;
+            CurrentMatchIndex = -1;
             UpdateStatusText(result);
             OnPropertyChanged(nameof(TotalMatches));
+            OnPropertyChanged(nameof(Matches));
             OnPropertyChanged(nameof(CurrentMatch));
         });
     }
@@ -248,6 +385,7 @@ public partial class SearchViewModel : ObservableObject
         CurrentMatchIndex = -1;
         StatusText = string.Empty;
         OnPropertyChanged(nameof(TotalMatches));
+        OnPropertyChanged(nameof(Matches));
         OnPropertyChanged(nameof(CurrentMatchDisplay));
         OnPropertyChanged(nameof(CurrentMatch));
     }

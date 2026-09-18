@@ -1,5 +1,6 @@
 using System.IO;
 using System.Reflection;
+using System.Diagnostics;
 using DuCom.PluginHost;
 using DuCom.PluginHost.Core;
 using DuCom.ViewModels;
@@ -13,9 +14,15 @@ namespace DuCom.Services.Plugins;
 /// </summary>
 public sealed class PluginSystemHost : IAsyncDisposable
 {
+    private const long MemoryPressureEnterBytes = 800L * 1024 * 1024;
+    private const long MemoryPressureExitBytes = 550L * 1024 * 1024;
+    private const long MemoryPressureMaintenanceBytes = 650L * 1024 * 1024;
+    private static readonly TimeSpan MemoryPressureMaintenanceInterval = TimeSpan.FromSeconds(30);
     private readonly PluginSystemService _service;
     private readonly DuComPluginHostEnvironment _environment;
     private readonly RememberedGrantsStore _rememberedGrants;
+    private bool _memoryPressureActive;
+    private long _nextMemoryPressureMaintenanceTimestamp;
 
     public PluginSystemHost(Func<IEnumerable<SessionViewModel>> sessionsProvider, Func<IEnumerable<PortItemViewModel>> portsProvider, SerialLeaseCoordinator serialLeases, BudgetGovernorConfig? budgetConfig = null, Func<string>? logDirectoryProvider = null)
     {
@@ -32,6 +39,7 @@ public sealed class PluginSystemHost : IAsyncDisposable
             executable,
             budgetConfig);
         _service.ProgramLog += message => Program.DiagnosticLog?.Information(message);
+        _service.Budget.Sampled += OnBudgetSampled;
         PluginHost.Diagnostics.PluginHostTrace.Sink = (level, message, exception) =>
         {
             switch (level)
@@ -58,6 +66,39 @@ public sealed class PluginSystemHost : IAsyncDisposable
     public BackgroundImageHostService Background { get; }
 
     public DuComPluginHostEnvironment Environment => _environment;
+
+    public event Action<bool, long>? MemoryPressureChanged;
+
+    public event Action<PluginBudgetSample>? MemoryPressureMaintenanceRequested;
+
+    private void OnBudgetSampled(PluginBudgetSample sample)
+    {
+        bool next = _memoryPressureActive
+            ? sample.TotalPrivateBytes >= MemoryPressureExitBytes
+            : sample.TotalPrivateBytes >= MemoryPressureEnterBytes;
+        if (next == _memoryPressureActive)
+        {
+            if (next && sample.TotalPrivateBytes >= MemoryPressureMaintenanceBytes)
+            {
+                long now = Stopwatch.GetTimestamp();
+                long nextMaintenance = Volatile.Read(ref _nextMemoryPressureMaintenanceTimestamp);
+                if (now >= nextMaintenance && Interlocked.CompareExchange(
+                        ref _nextMemoryPressureMaintenanceTimestamp,
+                        now + (long)(MemoryPressureMaintenanceInterval.TotalSeconds * Stopwatch.Frequency),
+                        nextMaintenance) == nextMaintenance)
+                {
+                    MemoryPressureMaintenanceRequested?.Invoke(sample);
+                }
+            }
+            return;
+        }
+
+        _memoryPressureActive = next;
+        Volatile.Write(
+            ref _nextMemoryPressureMaintenanceTimestamp,
+            Stopwatch.GetTimestamp() + (long)(MemoryPressureMaintenanceInterval.TotalSeconds * Stopwatch.Frequency));
+        MemoryPressureChanged?.Invoke(next, sample.TotalPrivateBytes);
+    }
 
     public async Task InitializeAsync(string legacySettingsJson, string? legacyLogPackagePreferencesJson)
     {
@@ -102,14 +143,9 @@ public sealed class PluginSystemHost : IAsyncDisposable
             }
 
             string local = relativePath;
-            pack.Files.Add(new FactoryPackFile(NormalizeKey(local), () =>
-            {
-                using Stream stream = assembly.GetManifestResourceStream(resource)
-                    ?? throw new InvalidOperationException($"Embedded factory resource '{resource}' disappeared.");
-                using MemoryStream buffer = new();
-                stream.CopyTo(buffer);
-                return buffer.ToArray();
-            }));
+            pack.Files.Add(FactoryPackFile.FromStream(NormalizeKey(local), () =>
+                assembly.GetManifestResourceStream(resource)
+                    ?? throw new InvalidOperationException($"Embedded factory resource '{resource}' disappeared.")));
         }
 
         return packs;
@@ -167,6 +203,7 @@ public sealed class PluginSystemHost : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _service.Budget.Sampled -= OnBudgetSampled;
         await _service.DisposeAsync();
     }
 }

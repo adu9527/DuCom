@@ -4,7 +4,7 @@ namespace DuCom.PluginHost.Core;
 
 public sealed record BudgetGovernorConfig
 {
-    public long TotalBudgetBytes { get; init; } = 1_000_000_000;
+    public long TotalBudgetBytes { get; init; } = 1024L * 1024 * 1024;
     public long WarningThresholdBytes { get; init; } = 800_000_000;
     public long CoreReserveBytes { get; init; } = 500_000_000;
     public long PerPluginQuotaBytes { get; init; } = 250_000_000;
@@ -16,6 +16,12 @@ public sealed record PluginBudgetSample
 {
     public required long HostPrivateBytes { get; init; }
     public required long TotalPrivateBytes { get; init; }
+    public required long ManagedHeapBytes { get; init; }
+    public required long ManagedHeapSizeBytes { get; init; }
+    public required long ManagedFragmentedBytes { get; init; }
+    public required int ProcessThreadCount { get; init; }
+    public required int ThreadPoolThreadCount { get; init; }
+    public required long ThreadPoolPendingWorkItemCount { get; init; }
     public required IReadOnlyList<(string PluginId, uint Pid, long PrivateBytes)> Workers { get; init; }
 }
 
@@ -41,15 +47,20 @@ public sealed class BudgetGovernor : IDisposable
     private readonly Dictionary<uint, long> _lastBytes = new();
     private Timer? _timer;
     private bool _warningActive;
+    private bool _restrictionActive;
     private int _hostProcessId;
 
     public BudgetGovernorConfig Configuration => _config;
 
     public event Action<PluginBudgetSample>? Warning;
 
+    public event Action<PluginBudgetSample>? Sampled;
+
     public event Action<BudgetStopRequest>? EmergencyStop;
 
     public event Action<PluginBudgetSample>? Recovered;
+
+    public event Action<PluginBudgetSample>? RestrictionRecovered;
 
     public PluginBudgetSample? LastSample { get; private set; }
 
@@ -89,12 +100,20 @@ public sealed class BudgetGovernor : IDisposable
     public bool CanActivatePlugins()
     {
         PluginBudgetSample? sample = LastSample;
+        return sample is null || sample.TotalPrivateBytes < _config.TotalBudgetBytes;
+    }
+
+    public bool CanRecoverPlugins()
+    {
+        PluginBudgetSample? sample = LastSample;
         return sample is null || sample.TotalPrivateBytes < _config.WarningThresholdBytes;
     }
 
     public PluginBudgetSample Sample()
     {
-        long host = GetPrivateBytes(_hostProcessId);
+        ProcessMemorySnapshot hostSnapshot = GetProcessMemorySnapshot(_hostProcessId);
+        long host = hostSnapshot.PrivateBytes;
+        GCMemoryInfo gc = GC.GetGCMemoryInfo();
         List<(string, uint, long)> workers = [];
         uint[] pids;
         lock (_gate)
@@ -121,12 +140,20 @@ public sealed class BudgetGovernor : IDisposable
         {
             HostPrivateBytes = host,
             TotalPrivateBytes = total,
+            ManagedHeapBytes = GC.GetTotalMemory(forceFullCollection: false),
+            ManagedHeapSizeBytes = gc.HeapSizeBytes,
+            ManagedFragmentedBytes = gc.FragmentedBytes,
+            ProcessThreadCount = hostSnapshot.ThreadCount,
+            ThreadPoolThreadCount = ThreadPool.ThreadCount,
+            ThreadPoolPendingWorkItemCount = ThreadPool.PendingWorkItemCount,
             Workers = workers,
         };
         LastSample = sample;
+        Sampled?.Invoke(sample);
 
         if (total >= _config.TotalBudgetBytes)
         {
+            _restrictionActive = true;
             (string pluginId, uint pid, long bytes) = workers.OrderByDescending(w => w.Item3).FirstOrDefault();
             if (pid != 0)
             {
@@ -145,15 +172,24 @@ public sealed class BudgetGovernor : IDisposable
 
             _warningActive = true;
         }
-        else if (total >= _config.WarningThresholdBytes)
+        else
         {
-            _warningActive = true;
-            Warning?.Invoke(sample);
-        }
-        else if (_warningActive)
-        {
-            _warningActive = false;
-            Recovered?.Invoke(sample);
+            if (_restrictionActive)
+            {
+                _restrictionActive = false;
+                RestrictionRecovered?.Invoke(sample);
+            }
+
+            if (total >= _config.WarningThresholdBytes)
+            {
+                _warningActive = true;
+                Warning?.Invoke(sample);
+            }
+            else if (_warningActive)
+            {
+                _warningActive = false;
+                Recovered?.Invoke(sample);
+            }
         }
 
         return sample;
@@ -168,18 +204,23 @@ public sealed class BudgetGovernor : IDisposable
     }
 
     private static long GetPrivateBytes(int pid)
+        => GetProcessMemorySnapshot(pid).PrivateBytes;
+
+    private static ProcessMemorySnapshot GetProcessMemorySnapshot(int pid)
     {
         try
         {
             using Process process = Process.GetProcessById(pid);
             process.Refresh();
-            return process.PrivateMemorySize64;
+            return new ProcessMemorySnapshot(process.PrivateMemorySize64, process.Threads.Count);
         }
         catch (Exception)
         {
-            return -1;
+            return new ProcessMemorySnapshot(-1, -1);
         }
     }
+
+    private readonly record struct ProcessMemorySnapshot(long PrivateBytes, int ThreadCount);
 
     public void Dispose()
     {

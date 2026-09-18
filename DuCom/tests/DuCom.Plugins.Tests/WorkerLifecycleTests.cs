@@ -34,14 +34,14 @@ public sealed class WorkerLifecycleTests
         Assert.False(await harness.Service.StartRegisteredAsync("org.example.bed-crash"));
 
         await WaitForAsync(() => harness.Service.BuildManagerRows().Any(row => row.Id == "org.example.bed-crash" && row.State == PluginRuntimeState.FaultDisabled), TimeSpan.FromSeconds(20));
-        Assert.Single(harness.Environment.FaultNotices, notice => notice.PluginId == "org.example.bed-crash");
+        Assert.Empty(harness.Environment.FaultNotices);
 
         PluginRegistryEntry entry = harness.Service.Registry.Current.Plugins["org.example.bed-crash"];
         Assert.NotNull(entry.FaultDisabled);
         Assert.Equal("1.0.0", entry.FaultDisabled!.Version);
 
         Assert.False(await harness.Service.StartRegisteredAsync("org.example.bed-crash"));
-        Assert.Single(harness.Environment.FaultNotices, notice => notice.PluginId == "org.example.bed-crash");
+        Assert.Empty(harness.Environment.FaultNotices);
     }
 
     [HostBuildFact]
@@ -51,21 +51,22 @@ public sealed class WorkerLifecycleTests
         harness.InstallBed("ctor-crash");
         Assert.False(await harness.Service.StartRegisteredAsync("org.example.bed-ctor-crash"));
         await WaitForAsync(() => harness.Service.BuildManagerRows().Any(row => row.Id == "org.example.bed-ctor-crash" && row.State == PluginRuntimeState.FaultDisabled), TimeSpan.FromSeconds(20));
-        Assert.Single(harness.Environment.FaultNotices, notice => notice.PluginId == "org.example.bed-ctor-crash");
+        Assert.Empty(harness.Environment.FaultNotices);
     }
 
     [HostBuildFact]
-    public async Task ExplicitRetryProducesOneNewNoticePerFailedGeneration()
+    public async Task ExplicitRetryProducesANewFaultGenerationWithoutPopup()
     {
         using BedHarness harness = BedHarness.Create("retry");
         harness.InstallBed("crash");
         await harness.Service.StartRegisteredAsync("org.example.bed-crash");
-        await WaitForAsync(() => harness.Environment.FaultNotices.Any(notice => notice.PluginId == "org.example.bed-crash"), TimeSpan.FromSeconds(20));
+        await WaitForAsync(() => harness.Service.Registry.Current.Plugins["org.example.bed-crash"].FaultDisabled is not null, TimeSpan.FromSeconds(20));
+        string firstActivation = harness.Service.Registry.Current.Plugins["org.example.bed-crash"].FaultDisabled!.ActivationId;
 
         harness.Service.ClearFaultDisable("org.example.bed-crash");
         await harness.Service.StartRegisteredAsync("org.example.bed-crash");
-        await WaitForAsync(() => harness.Environment.FaultNotices.Count(notice => notice.PluginId == "org.example.bed-crash") >= 2, TimeSpan.FromSeconds(20));
-        Assert.Equal(2, harness.Environment.FaultNotices.Count(notice => notice.PluginId == "org.example.bed-crash"));
+        await WaitForAsync(() => harness.Service.Registry.Current.Plugins["org.example.bed-crash"].FaultDisabled is { } fault && fault.ActivationId != firstActivation, TimeSpan.FromSeconds(20));
+        Assert.Empty(harness.Environment.FaultNotices);
     }
 
     [HostBuildFact]
@@ -75,7 +76,7 @@ public sealed class WorkerLifecycleTests
         harness.InstallBed("hang");
         Assert.False(await harness.Service.StartRegisteredAsync("org.example.bed-hang"));
         await WaitForAsync(() => harness.Service.BuildManagerRows().Any(row => row.Id == "org.example.bed-hang" && row.State == PluginRuntimeState.FaultDisabled), TimeSpan.FromSeconds(25));
-        Assert.Contains(harness.Environment.FaultNotices, notice => notice.PluginId == "org.example.bed-hang");
+        Assert.Empty(harness.Environment.FaultNotices);
     }
 
     [HostBuildFact]
@@ -88,7 +89,7 @@ public sealed class WorkerLifecycleTests
         await WaitForAsync(() => harness.Service.BuildManagerRows().Any(row => row.Id == "org.example.bed-flood" && row.State == PluginRuntimeState.FaultDisabled), TimeSpan.FromSeconds(60));
         PluginRegistryEntry entry = harness.Service.Registry.Current.Plugins["org.example.bed-flood"];
         Assert.NotNull(entry.FaultDisabled);
-        Assert.Single(harness.Environment.FaultNotices, notice => notice.PluginId == "org.example.bed-flood");
+        Assert.Empty(harness.Environment.FaultNotices);
     }
 
     [HostBuildFact]

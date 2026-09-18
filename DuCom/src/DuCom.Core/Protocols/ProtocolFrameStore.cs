@@ -71,11 +71,11 @@ public sealed class ProtocolFrameStore
                 .Where(item => item.StoreSequence > after)
                 .Take(maximumFrames)
                 .ToArray();
-            StoredProtocolFrame[] all = _frames.ToArray();
+            // Only the oldest frames are evicted, so a nonempty queue ends at the last assigned sequence.
             return new ProtocolFrameSnapshot(
                 _generation,
-                all.Length == 0 ? null : all[0].StoreSequence,
-                all.Length == 0 ? null : all[^1].StoreSequence,
+                _frames.Count == 0 ? null : _frames.Peek().StoreSequence,
+                _frames.Count == 0 ? null : _nextSequence - 1,
                 _evictedCount,
                 reset,
                 new ReadOnlyCollection<StoredProtocolFrame>(selected));

@@ -96,7 +96,7 @@ public sealed class ShortcutEngine
 
     private void OpenSearch()
     {
-        SessionViewModel? session = _viewModel.Workspace.SelectedSession ?? _viewModel.Workspace.SelectedRightSession;
+        SessionViewModel? session = _viewModel.Workspace.ActiveSession;
         if (session is not null)
         {
             _viewModel.Workspace.OpenSearchFor(session);

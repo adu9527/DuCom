@@ -73,6 +73,122 @@ public sealed class ProtocolContractsAndStoreTests
     }
 
     [Fact]
+    public void EmptyAndClearedStoreHaveNoSequenceBounds()
+    {
+        ProtocolFrameStore store = new(1);
+        ProtocolFrameSnapshot empty = store.Snapshot();
+        Assert.Null(empty.FirstSequence);
+        Assert.Null(empty.LastSequence);
+        Assert.Empty(empty.Frames);
+        Assert.Equal(0, empty.EvictedCount);
+        Assert.False(empty.CursorReset);
+
+        ProtocolFrameCursor cursor = store.Append(CreateFrame(1));
+        store.Append(CreateFrame(2));
+        store.Clear();
+        ProtocolFrameSnapshot cleared = store.SnapshotAfter(cursor, 1);
+        Assert.Null(cleared.FirstSequence);
+        Assert.Null(cleared.LastSequence);
+        Assert.Empty(cleared.Frames);
+        Assert.Equal(0, cleared.EvictedCount);
+        Assert.True(cleared.CursorReset);
+        Assert.Equal(cursor.StoreGeneration + 1, cleared.StoreGeneration);
+
+        store.Append(CreateFrame(3));
+        ProtocolFrameSnapshot restarted = store.SnapshotAfter(cursor, 1);
+        Assert.Equal(1L, restarted.FirstSequence);
+        Assert.Equal(1L, restarted.LastSequence);
+        Assert.Equal(1L, Assert.Single(restarted.Frames).StoreSequence);
+        Assert.Equal(0, restarted.EvictedCount);
+        Assert.True(restarted.CursorReset);
+    }
+
+    [Theory]
+    [InlineData(0, 2)]
+    [InlineData(1, 2)]
+    [InlineData(2, 3)]
+    [InlineData(4, 0)]
+    [InlineData(100, 0)]
+    public void SnapshotBoundsDescribeWholeStoreRegardlessOfSelectedPage(long after, long expectedSequence)
+    {
+        ProtocolFrameStore store = new(3);
+        ProtocolFrameCursor cursor = default;
+        for (int index = 1; index <= 4; index++) cursor = store.Append(CreateFrame(index));
+
+        ProtocolFrameSnapshot snapshot = store.SnapshotAfter(cursor with { StoreSequence = after }, 1);
+        Assert.Equal(2L, snapshot.FirstSequence);
+        Assert.Equal(4L, snapshot.LastSequence);
+        Assert.Equal(1, snapshot.EvictedCount);
+        Assert.Equal(cursor.StoreGeneration, snapshot.StoreGeneration);
+        Assert.False(snapshot.CursorReset);
+        if (expectedSequence == 0)
+            Assert.Empty(snapshot.Frames);
+        else
+            Assert.Equal(expectedSequence, Assert.Single(snapshot.Frames).StoreSequence);
+    }
+
+    [Fact]
+    public void SnapshotRemainsIndependentAfterEvictionAndClear()
+    {
+        ProtocolFrameStore store = new(1);
+        ProtocolFrame frame = CreateFrame(1);
+        ProtocolFrameCursor cursor = store.Append(frame);
+        ProtocolFrameSnapshot snapshot = store.Snapshot();
+
+        store.Append(CreateFrame(2));
+        ProtocolFrameSnapshot evicted = store.Snapshot();
+        Assert.Equal(2L, evicted.FirstSequence);
+        Assert.Equal(2L, evicted.LastSequence);
+        Assert.Equal(1, evicted.EvictedCount);
+        store.Clear();
+        store.Append(CreateFrame(3));
+
+        Assert.Equal(cursor.StoreGeneration, snapshot.StoreGeneration);
+        Assert.Equal(1L, snapshot.FirstSequence);
+        Assert.Equal(1L, snapshot.LastSequence);
+        Assert.Equal(0, snapshot.EvictedCount);
+        Assert.Same(frame, Assert.Single(snapshot.Frames).Frame);
+        Assert.Throws<NotSupportedException>(() => ((IList<StoredProtocolFrame>)snapshot.Frames).Clear());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SmallSnapshotAllocationDoesNotScaleWithRetainedFrameCount(bool atTail)
+    {
+        ProtocolFrameStore small = new(1);
+        ProtocolFrameStore large = new(32_768);
+        ProtocolFrame frame = CreateFrame(1);
+        ProtocolFrameCursor smallTail = small.Append(frame);
+        ProtocolFrameCursor largeTail = default;
+        for (int index = 0; index < 32_768; index++) largeTail = large.Append(frame);
+        ProtocolFrameCursor? smallCursor = atTail ? smallTail : null;
+        ProtocolFrameCursor? largeCursor = atTail ? largeTail : null;
+
+        for (int index = 0; index < 10; index++)
+        {
+            small.SnapshotAfter(smallCursor, 1);
+            large.SnapshotAfter(largeCursor, 1);
+        }
+
+        // Minimum batch allocations exclude transient JIT/lazy-initialization noise.
+        // A full-queue copy allocates on every call, so it cannot disappear between batches.
+        long smallBytes = long.MaxValue;
+        long largeBytes = long.MaxValue;
+        for (int batch = 0; batch < 10; batch++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int index = 0; index < 10; index++) small.SnapshotAfter(smallCursor, 1);
+            smallBytes = Math.Min(smallBytes, GC.GetAllocatedBytesForCurrentThread() - before);
+            before = GC.GetAllocatedBytesForCurrentThread();
+            for (int index = 0; index < 10; index++) large.SnapshotAfter(largeCursor, 1);
+            largeBytes = Math.Min(largeBytes, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        Assert.True(largeBytes <= smallBytes + 4_096, $"Small store: {smallBytes} bytes; large store: {largeBytes} bytes.");
+    }
+
+    [Fact]
     public async Task StoreSupportsConcurrentAppendAndSnapshot()
     {
         ProtocolFrameStore store = new(500);
@@ -84,6 +200,18 @@ public sealed class ProtocolContractsAndStoreTests
                 ProtocolFrameSnapshot snapshot = store.Snapshot();
                 Assert.True(snapshot.Frames.Count <= 500);
                 Assert.Equal(snapshot.Frames.Select(item => item.StoreSequence).Order(), snapshot.Frames.Select(item => item.StoreSequence));
+                if (snapshot.Frames.Count == 0)
+                {
+                    Assert.Null(snapshot.FirstSequence);
+                    Assert.Null(snapshot.LastSequence);
+                }
+                else
+                {
+                    Assert.Equal(snapshot.Frames[0].StoreSequence, snapshot.FirstSequence);
+                    Assert.Equal(snapshot.Frames[^1].StoreSequence, snapshot.LastSequence);
+                    Assert.Equal(snapshot.EvictedCount + 1, snapshot.FirstSequence);
+                    Assert.Equal(snapshot.EvictedCount + snapshot.Frames.Count, snapshot.LastSequence);
+                }
             }
         });
         Task[] writers = Enumerable.Range(0, 4).Select(worker => Task.Run(() =>

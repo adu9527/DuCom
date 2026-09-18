@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace DuCom.Core.Parsing;
 
 /// <summary>
@@ -210,18 +212,42 @@ public static class StyledTextComposer
 
     private static void MergeAdjacent(List<StyleRun> runs)
     {
-        for (int index = runs.Count - 1; index > 0; index--)
+        if (runs.Count < 2)
         {
-            StyleRun current = runs[index];
-            StyleRun previous = runs[index - 1];
-            if (!StyleEquals(current, previous))
+            return;
+        }
+
+        List<StyleRun> merged = new(runs.Count);
+        int start = 0;
+        while (start < runs.Count)
+        {
+            StyleRun first = runs[start];
+            int end = start + 1;
+            int totalLength = first.Text.Length;
+            while (end < runs.Count && StyleEquals(first, runs[end]))
             {
-                continue;
+                totalLength += runs[end].Text.Length;
+                end++;
             }
 
-            runs[index - 1] = previous with { Text = previous.Text + current.Text };
-            runs.RemoveAt(index);
+            if (end == start + 1)
+            {
+                merged.Add(first);
+            }
+            else
+            {
+                StringBuilder text = new(totalLength);
+                for (int index = start; index < end; index++)
+                {
+                    text.Append(runs[index].Text);
+                }
+                merged.Add(first with { Text = text.ToString() });
+            }
+            start = end;
         }
+
+        runs.Clear();
+        runs.AddRange(merged);
     }
 
     private static bool StyleEquals(in StyleRun left, in StyleRun right) =>

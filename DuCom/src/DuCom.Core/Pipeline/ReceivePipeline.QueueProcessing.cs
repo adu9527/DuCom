@@ -1,31 +1,139 @@
 using System.Diagnostics;
 using DuCom.Core.Parsing;
+using DuCom.Core.Ports;
 
 namespace DuCom.Core.Pipeline;
 
 public sealed partial class ReceivePipeline
 {
-    private void OnDataAvailable(object? sender, EventArgs e)
-    {
-        lock (_readGate)
-        {
-            if (Volatile.Read(ref _stopping) != 0)
-            {
-                return;
-            }
+    private static readonly TimeSpan DedicatedReadCoalescingWindow = TimeSpan.FromMilliseconds(4);
 
-            Interlocked.Increment(ref _activeCallbacks);
-            _callbacksIdle.Reset();
-        }
+    private void RunDedicatedReceivePump(CancellationToken cancellationToken)
+    {
         try
         {
-            ReceiveFormattingProfile formattingProfile = Volatile.Read(ref _formattingProfile);
-            long now = Stopwatch.GetTimestamp();
-            long previous = Interlocked.Exchange(ref _lastDataAvailableTimestamp, now);
-            double callbackGapMilliseconds = previous == 0
-                ? 0
-                : Stopwatch.GetElapsedTime(previous, now).TotalMilliseconds;
-            ReadAvailableIntoChannel(formattingProfile, "DataAvailable", callbackGapMilliseconds);
+            IDedicatedReceiveTransport transport = (IDedicatedReceiveTransport)_transport;
+            transport.WaitUntilOpen(cancellationToken);
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                _capacitySlots.Wait(cancellationToken);
+                byte[] buffer = _bufferPool.Rent(_maximumReadSize);
+                int length;
+                try
+                {
+                    length = transport.Read(buffer, 0, _maximumReadSize);
+                    long coalescingDeadline = Stopwatch.GetTimestamp() +
+                        (long)(DedicatedReadCoalescingWindow.TotalSeconds * Stopwatch.Frequency);
+                    while (length < _maximumReadSize && !cancellationToken.IsCancellationRequested)
+                    {
+                        int available = _transport.BytesAvailable;
+                        if (available <= 0)
+                        {
+                            if (Stopwatch.GetTimestamp() >= coalescingDeadline)
+                            {
+                                break;
+                            }
+                            Thread.Sleep(1);
+                            continue;
+                        }
+
+                        int appended = transport.Read(buffer, length, Math.Min(available, _maximumReadSize - length));
+                        if (appended <= 0)
+                        {
+                            break;
+                        }
+                        length += appended;
+                    }
+                }
+                catch (TimeoutException)
+                {
+                    _bufferPool.Return(buffer);
+                    _capacitySlots.Release();
+                    continue;
+                }
+                catch
+                {
+                    _bufferPool.Return(buffer);
+                    _capacitySlots.Release();
+                    throw;
+                }
+
+                if (length <= 0)
+                {
+                    _bufferPool.Return(buffer);
+                    _capacitySlots.Release();
+                    continue;
+                }
+
+                _metrics.AddProducedBlock(length);
+                ReceiveBlock block = new(
+                    _bufferPool,
+                    buffer,
+                    length,
+                    DateTimeOffset.UtcNow,
+                    Volatile.Read(ref _formattingProfile));
+                if (!_channel.Writer.TryWrite(block))
+                {
+                    block.Dispose();
+                    _capacitySlots.Release();
+                    throw new InvalidOperationException("Reserved receive capacity could not be transferred to the Channel.");
+                }
+
+                int queued = Interlocked.Increment(ref _queuedBlocks);
+                _metrics.ObserveReceiveQueueDepth(queued);
+                _metrics.AddAcceptedBlock(length);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (InvalidOperationException) when (_transport is IDedicatedReceiveTransport)
+        {
+            // Closing or unplugging the port can release a blocking SerialPort.Read by
+            // making the handle unavailable. Lifecycle/disconnect reporting owns that state.
+        }
+        catch (Exception exception)
+        {
+            FaultPipeline(exception);
+        }
+    }
+
+    private void OnDataAvailable(object? sender, EventArgs e)
+    {
+        Interlocked.Exchange(ref _dataAvailableRequested, 1);
+        if (Interlocked.CompareExchange(ref _dataAvailableCallbackActive, 1, 0) != 0)
+        {
+            return;
+        }
+
+        Interlocked.Increment(ref _activeCallbacks);
+        _callbacksIdle.Reset();
+        bool ownsCallback = true;
+        try
+        {
+            while (Volatile.Read(ref _stopping) == 0)
+            {
+                while (Interlocked.Exchange(ref _dataAvailableRequested, 0) != 0)
+                {
+                    ReceiveFormattingProfile formattingProfile = Volatile.Read(ref _formattingProfile);
+                    long now = Stopwatch.GetTimestamp();
+                    long previous = Interlocked.Exchange(ref _lastDataAvailableTimestamp, now);
+                    double callbackGapMilliseconds = previous == 0
+                        ? 0
+                        : Stopwatch.GetElapsedTime(previous, now).TotalMilliseconds;
+                    ReadAvailableIntoChannel(formattingProfile, "DataAvailable", callbackGapMilliseconds);
+                }
+
+                Volatile.Write(ref _dataAvailableCallbackActive, 0);
+                ownsCallback = false;
+                if (Volatile.Read(ref _dataAvailableRequested) == 0 ||
+                    Interlocked.CompareExchange(ref _dataAvailableCallbackActive, 1, 0) != 0)
+                {
+                    break;
+                }
+                ownsCallback = true;
+            }
         }
         catch (Exception exception)
         {
@@ -33,6 +141,10 @@ public sealed partial class ReceivePipeline
         }
         finally
         {
+            if (ownsCallback)
+            {
+                Volatile.Write(ref _dataAvailableCallbackActive, 0);
+            }
             lock (_readGate)
             {
                 if (Interlocked.Decrement(ref _activeCallbacks) == 0)
@@ -137,7 +249,8 @@ public sealed partial class ReceivePipeline
                     {
                         Interlocked.Decrement(ref _queuedBlocks);
                         _capacitySlots.Release();
-                        if (Volatile.Read(ref _stopping) == 0 && _transport.BytesAvailable > 0)
+                        if (_transport is not IDedicatedReceiveTransport &&
+                            Volatile.Read(ref _stopping) == 0 && _transport.BytesAvailable > 0)
                         {
                             ReadAvailableIntoChannel();
                         }

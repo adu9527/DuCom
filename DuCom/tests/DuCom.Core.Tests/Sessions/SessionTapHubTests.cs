@@ -243,4 +243,32 @@ public sealed class SessionTapHubTests
         Assert.Contains("first", string.Concat(healthyPublished), StringComparison.Ordinal);
         Assert.Contains("second", string.Concat(healthyPublished), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task BoundedAsyncTapDoesNotBlockPublisher()
+    {
+        SessionTapHub hub = new();
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        hub.Register(new SessionDisplayTap
+        {
+            Id = "slow",
+            FormatSelector = () => SessionTapDisplayFormat.Str,
+            Publish = _ =>
+            {
+                entered.TrySetResult();
+                release.Task.GetAwaiter().GetResult();
+            },
+            BoundedAsyncDelivery = true,
+            MaximumPendingPublications = 2,
+            MaximumPendingCharacters = 64,
+        });
+
+        hub.PublishReceive("first\n"u8, FirstReceivedAt, CreateProfile(ReceiveDisplayMode.Str));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Task publish = Task.Run(() => hub.PublishReceive("second\n"u8, SecondReceivedAt, CreateProfile(ReceiveDisplayMode.Str)));
+        await publish.WaitAsync(TimeSpan.FromSeconds(1));
+
+        release.TrySetResult();
+    }
 }

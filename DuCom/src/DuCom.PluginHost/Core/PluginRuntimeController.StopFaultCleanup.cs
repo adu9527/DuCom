@@ -48,7 +48,13 @@ public sealed partial class PluginRuntimeController
 
         Transition(PluginRuntimeState.Stopping, "budget protection");
         RevokeImmediately("budget");
-        await TerminateWorkerAsync().ConfigureAwait(false);
+        bool exited = await TerminateWorkerAsync().ConfigureAwait(false);
+        if (!exited)
+        {
+            await FaultAsync("内存保护停止后未确认 worker 退出 / worker exit was not confirmed after budget stop", exitConfirmed: false).ConfigureAwait(false);
+            return;
+        }
+        MarkAttemptEnded(clean: true);
         Transition(PluginRuntimeState.StoppedByBudget, "total budget protection");
         _diagnostics.Write(PluginLogLevel.Warning, $"Stopped to protect the tool-wide memory budget. Host={sample.HostPrivateBytes} Total={sample.TotalPrivateBytes}");
         FaultNotice?.Invoke(new HostFaultNotice
@@ -58,7 +64,7 @@ public sealed partial class PluginRuntimeController
             Version = _manifest.Version,
             Reason = "total-budget-protection",
             ActivationId = _activationId,
-            ExitConfirmed = true,
+            ExitConfirmed = exited,
             BudgetProtective = true,
         });
     }

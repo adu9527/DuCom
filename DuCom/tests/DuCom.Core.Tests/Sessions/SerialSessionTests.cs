@@ -54,7 +54,7 @@ public sealed class SerialSessionTests
     }
 
     [Fact]
-    public async Task LongUnterminatedReceiveIsSoftWrappedButLogRemainsContinuous()
+    public async Task LongUnterminatedReceiveIsHardWrappedIntoBoundedLogicalLines()
     {
         using TemporaryDirectory directory = new();
         FakeSerialTransport transport = new("COM-LONG");
@@ -68,9 +68,30 @@ public sealed class SerialSessionTests
 
         SerialSessionSnapshot snapshot = session.Snapshot();
         Assert.True(snapshot.Lines.Lines.Count >= 3);
-        Assert.Single(snapshot.Lines.Lines.Select(line => line.LogicalId).Distinct());
-        Assert.Equal(payload + "\r\n", ReadLogs(directory.Path));
+        Assert.True(snapshot.Lines.Lines.Select(line => line.LogicalId).Distinct().Count() >= 3);
+        string expectedLog = string.Concat(
+            Enumerable.Range(0, payload.Length / 512)
+                .Select(_ => new string('x', 512) + "\r\n")) +
+            new string('x', payload.Length % 512) + "\r\n";
+        Assert.Equal(expectedLog, ReadLogs(directory.Path));
         Assert.True(snapshot.Metrics.IsLogFormattingCoverageComplete);
+    }
+
+    [Fact]
+    public async Task ReceiveLogStripsAnsiWhileDisplayRetainsOriginalText()
+    {
+        using TemporaryDirectory directory = new();
+        FakeSerialTransport transport = new("COM-ANSI");
+        await using SerialSession session = CreateSession(transport, directory.Path);
+        await session.OpenAsync();
+
+        transport.Receive("[DTIOT][\u001B[1;31mERR\u001B[m] failed\r\n"u8.ToArray());
+        await WaitUntilAsync(() => session.Snapshot().Metrics.AcceptedBlocks == 1);
+        await session.CloseAsync();
+
+        Assert.Contains("\u001B[1;31mERR\u001B[m", session.Snapshot().Lines.Lines.Single().Text, StringComparison.Ordinal);
+        Assert.Contains("[DTIOT][ERR] failed", ReadLogs(directory.Path), StringComparison.Ordinal);
+        Assert.DoesNotContain('\u001B', ReadLogs(directory.Path));
     }
 
     [Fact]

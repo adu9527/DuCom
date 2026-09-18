@@ -47,6 +47,32 @@ public sealed class SessionLogWriterTests
     }
 
     [Fact]
+    public async Task BatchPreservesSubrecordRotationBytesAndMetrics()
+    {
+        using TemporaryDirectory directory = new();
+        LoadMetrics metrics = new();
+        await using SessionLogWriter writer = new(
+            new SessionLogWriterOptions(directory.Path, "COM3", 12, FileNameFormat: "batch-{Segment}"),
+            metrics);
+        await writer.StartAsync();
+
+        FormattedLogRecord[] records =
+        [
+            new("12345678\r\n"),
+            new("abcdefgh\r\n"),
+            new("中文\r\n"),
+        ];
+        Assert.True(await writer.WriteBatchAsync(records));
+        await writer.StopAsync();
+
+        string[] files = Directory.GetFiles(directory.Path, "*.txt").Order().ToArray();
+        Assert.Equal(3, files.Length);
+        Assert.Equal(string.Concat(records.Select(record => record.Text)), string.Concat(files.Select(File.ReadAllText)));
+        Assert.Equal(records.Length, metrics.Snapshot().WrittenLogRecords);
+        Assert.Equal(records.Sum(record => Encoding.UTF8.GetByteCount(record.Text)), metrics.Snapshot().WrittenLogBytes);
+    }
+
+    [Fact]
     public async Task RotationCanBeDisabledAndFileNameFormatIsApplied()
     {
         using TemporaryDirectory directory = new();

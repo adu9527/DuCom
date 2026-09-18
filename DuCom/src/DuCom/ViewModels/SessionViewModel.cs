@@ -58,7 +58,6 @@ public partial class SessionViewModel : ObservableObject, IAsyncDisposable, ISer
         _session.Warning += OnSessionWarning;
         RefreshCommandGroups();
         RefreshState();
-        Search.AttachSnapshotProvider(GetVisibleSearchSnapshot);
         _timedSendTimer.Tick += OnTimedSendTick;
     }
 

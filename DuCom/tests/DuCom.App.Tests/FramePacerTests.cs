@@ -81,4 +81,13 @@ public sealed class FramePacerTests
         Assert.True(atBoundary.ShouldRefreshStatus);
         Assert.Equal(FramePacer.StatusRefreshInterval, atBoundary.State.LastStatusRefreshTime);
     }
+
+    [Fact]
+    public void ProjectionBudgetsPreserveEightyFiveHertzPolicy()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(1d / 85d), FramePacer.MinimumRenderInterval);
+        Assert.Equal(TimeSpan.Zero, FramePacer.GetProjectionBudget(0));
+        Assert.Equal(TimeSpan.FromMilliseconds(8), FramePacer.GetProjectionBudget(1));
+        Assert.Equal(TimeSpan.FromMilliseconds(4), FramePacer.GetProjectionBudget(2));
+    }
 }

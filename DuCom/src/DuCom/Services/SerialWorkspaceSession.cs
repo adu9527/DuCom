@@ -98,7 +98,15 @@ internal sealed class SerialWorkspaceSession : IWorkspaceSession
     public LineStoreSnapshot GetDisplaySnapshot(LineCursor? cursor, int maximumSegments) =>
         _session.GetLinesAfter(cursor, maximumSegments);
 
+    public bool HasPendingDisplayDataOverLimit(LineCursor? cursor, int maximumSegments, int maximumCharacters) =>
+        _session.HasPendingLinesOverLimit(cursor, maximumSegments, maximumCharacters);
+
+    public LineStoreSnapshot GetLatestDisplaySnapshot(int maximumSegments, int maximumCharacters) =>
+        _session.GetLatestLines(maximumSegments, maximumCharacters);
+
     public void ClearDisplay() => _session.ClearDisplay();
+
+    public void SetMemoryPressure(bool active) => _session.SetMemoryPressure(active);
 
     public SessionTapHub DisplayTaps => _session.DisplayTaps;
 

@@ -36,6 +36,7 @@ public sealed partial class SerialSession : IAsyncDisposable
     private readonly SessionRawTapHub _rawTaps = new();
     private readonly Action<ReceiveDiagnosticSnapshot>? _receiveDiagnosticObserver;
     private SessionRuntime? _runtime;
+    private string? _lastLogFilePath;
     private SessionFaultSnapshot? _fault;
     private Task? _disposeTask;
     private int _disposed;
@@ -100,7 +101,8 @@ public sealed partial class SerialSession : IAsyncDisposable
     public string LogDirectory => Volatile.Read(ref _runtime)?.LogWriter.OutputDirectory
         ?? _logOptions.GetOutputDirectory(DateTimeOffset.Now);
 
-    public string? CurrentLogFilePath => Volatile.Read(ref _runtime)?.LogWriter.CurrentFilePath;
+    public string? CurrentLogFilePath => Volatile.Read(ref _runtime)?.LogWriter.CurrentFilePath
+        ?? Volatile.Read(ref _lastLogFilePath);
 
     public Task<IReadOnlyList<SessionLogFileSnapshot>> CreateLogSnapshotAsync(CancellationToken cancellationToken = default) =>
         Volatile.Read(ref _runtime)?.LogWriter.CreateSnapshotAsync(cancellationToken)

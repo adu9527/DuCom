@@ -222,6 +222,17 @@ public sealed class ShortcutManagerTests : IDisposable
     }
 
     [Fact]
+    public void OpenSearchDefaultsToCtrlFAndHonorsDisabledState()
+    {
+        ShortcutManager manager = CreateManagerWithDefaults();
+        ShortcutKeyGesture gesture = ShortcutKeyGesture.Parse("Ctrl+F")!;
+
+        Assert.Equal("OpenSearch", manager.FindActionId(gesture));
+        manager.SetEnabled("OpenSearch", false);
+        Assert.Null(manager.FindActionId(gesture));
+    }
+
+    [Fact]
     public void FindActionId_WithConflict_ReturnsNull()
     {
         string path = Path.Combine(_tempDirectory, "conflict.json");

@@ -41,5 +41,41 @@ public sealed class AnalysisConfigurationTests
         Assert.Equal(1, loaded.VisibleWindowSeconds);
     }
 
+    [Fact]
+    public void LogAnalyzerPreferencesRoundTripSourceSelections()
+    {
+        string path = TempPath();
+        LogAnalyzerPreferencesService service = new(path);
+        LogAnalyzerPreferences expected = new(
+            Width: 1280,
+            Height: 760,
+            RealtimeMode: true,
+            NavigationMode: "Time",
+            FollowLatest: false,
+            SourceCalibrationExpanded: true,
+            Sources: new Dictionary<string, LogAnalyzerSourcePreference>
+            {
+                ["COM42"] = new(false, "左", 12.5),
+            },
+            Columns: new LogAnalyzerColumnVisibility(Source: true, Time: false, Message: true, Role: false,
+                Level: false, Module: true, Keywords: false, Comment: true));
+
+        service.Save(expected);
+        LogAnalyzerPreferences actual = service.Load();
+
+        Assert.True(actual.RealtimeMode);
+        Assert.Equal("Time", actual.NavigationMode);
+        Assert.False(actual.FollowLatest);
+        Assert.True(actual.SourceCalibrationExpanded);
+        Assert.False(actual.Sources!["COM42"].IsSelected);
+        Assert.Equal("左", actual.Sources["COM42"].Role);
+        Assert.Equal(12.5, actual.Sources["COM42"].OffsetMilliseconds);
+        Assert.False(actual.Columns!.Time);
+        Assert.False(actual.Columns.Role);
+        Assert.False(actual.Columns.Level);
+        Assert.False(actual.Columns.Keywords);
+        Assert.True(actual.Columns.Message);
+    }
+
     private static string TempPath() => Path.Combine(Path.GetTempPath(), $"ducom-analysis-{Guid.NewGuid():N}.json");
 }

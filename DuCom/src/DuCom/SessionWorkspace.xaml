@@ -12,10 +12,6 @@
         <converters:EqualityConverter x:Key="EqualityConverter" />
     </UserControl.Resources>
 
-    <UserControl.InputBindings>
-        <KeyBinding Key="F" Modifiers="Control" Command="{Binding Search.OpenCommand}" />
-    </UserControl.InputBindings>
-
     <Border Background="{DynamicResource Brush.PanelSurface}"
              BorderBrush="{DynamicResource Brush.PanelBorder}"
              BorderThickness="1"
@@ -47,6 +43,7 @@
                                            Background="Transparent"
                                            BorderThickness="0"
                                            CurrentMatch="{Binding Search.CurrentMatch}"
+                                           SearchMatches="{Binding Search.Matches}"
                                             FontFamily="{Binding DataContext.LogFontFamily, RelativeSource={RelativeSource AncestorType=Window}}"
                                             FontSize="{Binding DataContext.LogFontSize, RelativeSource={RelativeSource AncestorType=Window}}"
                                            FollowEnd="{Binding FollowEnd}"
@@ -464,6 +461,9 @@
                         <ui:SymbolIcon FontSize="14" Symbol="ChevronDown24" />
                     </Button>
                     <TextBlock Margin="8,0" VerticalAlignment="Center" Text="{Binding Search.CurrentMatchDisplay}" />
+                    <TextBlock Margin="0,0,8,0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource Brush.TextSecondary}"
+                               Text="{Binding Search.StatusText}" />
                     <Button Width="30"
                             Padding="0"
                             Command="{Binding Search.CloseCommand}"

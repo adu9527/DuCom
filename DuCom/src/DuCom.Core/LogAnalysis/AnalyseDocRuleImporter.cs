@@ -37,16 +37,18 @@ public static class AnalyseDocRuleImporter
         string comment = CommentFor(pattern, (string?)element.Attribute("comment"));
         string foregroundName = (string?)element.Attribute("color") ?? string.Empty;
         string backgroundName = (string?)element.Attribute("bgColor") ?? string.Empty;
+        bool includeInAnalysis = !string.Equals((string?)element.Attribute("doSearch"), "false", StringComparison.OrdinalIgnoreCase);
         (byte R, byte G, byte B)? foreground = Colors.TryGetValue(foregroundName, out var fg) ? fg : null;
         (byte R, byte G, byte B)? background = Colors.TryGetValue(backgroundName, out var bg) ? bg : null;
 
-        return new LogAnalyzerRule(Guid.NewGuid(), name, comment, CategoryFor(pattern, backgroundName), pattern,
+        return new LogAnalyzerRule(Guid.NewGuid(), name, comment, CategoryFor(pattern, backgroundName, name), pattern,
             IsCaseSensitive: false, IsEnabled: true,
             foreground?.R, foreground?.G, foreground?.B,
-            background?.R, background?.G, background?.B);
+            background?.R, background?.G, background?.B,
+            IncludeInAnalysis: includeInAnalysis);
     }
 
-    private static string CategoryFor(string pattern, string background) => pattern switch
+    private static string CategoryFor(string pattern, string background, string sourceComment = "") => pattern switch
     {
         var value when value.Contains("ASSERT", StringComparison.OrdinalIgnoreCase) ||
                        value.Contains("EXCEPTION", StringComparison.OrdinalIgnoreCase) ||
@@ -61,7 +63,11 @@ public static class AnalyseDocRuleImporter
         var value when value.Contains("CONNECT", StringComparison.OrdinalIgnoreCase) ||
                        value.Contains("DISCONNECT", StringComparison.OrdinalIgnoreCase) ||
                        value.Contains("ibrt", StringComparison.OrdinalIgnoreCase) ||
-                       value.Contains("avrcp", StringComparison.OrdinalIgnoreCase) => "连接与 IBRT",
+                       value.Contains("avrcp", StringComparison.OrdinalIgnoreCase) ||
+                       sourceComment.Contains("Connection", StringComparison.OrdinalIgnoreCase) ||
+                       sourceComment.Contains("accessible", StringComparison.OrdinalIgnoreCase) ||
+                       value.StartsWith("01 ", StringComparison.OrdinalIgnoreCase) ||
+                       value.StartsWith("04 ", StringComparison.OrdinalIgnoreCase) => "蓝牙连接",
         _ when string.Equals(background, "cyan", StringComparison.OrdinalIgnoreCase) => "流程",
         _ => "其他",
     };
@@ -76,7 +82,7 @@ public static class AnalyseDocRuleImporter
                 "Connection Request event" => "连接请求事件",
                 "Disconnection Complete event" => "断开连接完成事件",
                 "Create Connection command" => "创建连接命令",
-                "accessible_change" => "可连接/可发现状态变化",
+                "accessible_change" => "设置蓝牙可连接/可发现状态",
                 "set addr" => "设置蓝牙地址",
                 _ => sourceComment,
             };

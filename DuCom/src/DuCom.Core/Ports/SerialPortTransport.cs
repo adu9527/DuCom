@@ -12,6 +12,14 @@ public interface IReceiveTransport
     int Read(Span<byte> destination);
 }
 
+/// <summary>Marks a transport that must be consumed by one dedicated blocking receive pump.</summary>
+public interface IDedicatedReceiveTransport
+{
+    void WaitUntilOpen(CancellationToken cancellationToken);
+
+    int Read(byte[] destination, int offset, int count);
+}
+
 public interface ISerialTransport : IPortLifecycleTransport, IReceiveTransport
 {
     SerialPortSettings Settings { get; }
@@ -37,10 +45,12 @@ public sealed class SerialTransportWarningEventArgs(string warning) : EventArgs
     public string Warning { get; } = warning;
 }
 
-public sealed class SerialPortTransport : ISerialTransport, ISerialSettingsTransport
+public sealed class SerialPortTransport : ISerialTransport, ISerialSettingsTransport, IDedicatedReceiveTransport
 {
     private readonly SerialPort _serialPort;
     private readonly SerialDisconnectSignal _disconnectSignal = new();
+    private readonly object _openSignalGate = new();
+    private TaskCompletionSource _openSignal = NewOpenSignal();
     private int _closing;
     private int _disposed;
 
@@ -61,7 +71,7 @@ public sealed class SerialPortTransport : ISerialTransport, ISerialSettingsTrans
             Encoding = Encoding.GetEncoding(settings.EncodingName),
             ReadBufferSize = settings.ReadBufferSize,
             WriteBufferSize = settings.WriteBufferSize,
-            ReadTimeout = SerialPort.InfiniteTimeout,
+            ReadTimeout = 250,
             WriteTimeout = 1_000,
         };
         if (settings.Handshake is not Handshake.RequestToSend and not Handshake.RequestToSendXOnXOff)
@@ -69,11 +79,14 @@ public sealed class SerialPortTransport : ISerialTransport, ISerialSettingsTrans
             _serialPort.RtsEnable = settings.RtsEnable;
         }
 
-        _serialPort.DataReceived += OnDataReceived;
         _serialPort.ErrorReceived += OnErrorReceived;
     }
 
-    public event EventHandler? DataAvailable;
+    public event EventHandler? DataAvailable
+    {
+        add { }
+        remove { }
+    }
 
     public event EventHandler<TransportDisconnectedEventArgs>? Disconnected;
 
@@ -126,6 +139,13 @@ public sealed class SerialPortTransport : ISerialTransport, ISerialSettingsTrans
                     _serialPort.Close();
                 }
             }, cancellationToken).ConfigureAwait(false);
+            lock (_openSignalGate)
+            {
+                if (_openSignal.Task.IsCompleted)
+                {
+                    _openSignal = NewOpenSignal();
+                }
+            }
         }
         finally
         {
@@ -139,6 +159,35 @@ public sealed class SerialPortTransport : ISerialTransport, ISerialSettingsTrans
         try
         {
             return _serialPort.BaseStream.Read(destination);
+        }
+        catch (Exception exception) when (ReportOperationFailure(exception))
+        {
+            throw;
+        }
+    }
+
+    public void WaitUntilOpen(CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        Task openSignal;
+        lock (_openSignalGate)
+        {
+            openSignal = _openSignal.Task;
+        }
+
+        openSignal.Wait(cancellationToken);
+    }
+
+    public int Read(byte[] destination, int offset, int count)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        try
+        {
+            return _serialPort.Read(destination, offset, count);
+        }
+        catch (TimeoutException)
+        {
+            throw;
         }
         catch (Exception exception) when (ReportOperationFailure(exception))
         {
@@ -219,16 +268,16 @@ public sealed class SerialPortTransport : ISerialTransport, ISerialSettingsTrans
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {
             Interlocked.Exchange(ref _closing, 1);
-            _serialPort.DataReceived -= OnDataReceived;
             _serialPort.ErrorReceived -= OnErrorReceived;
+            lock (_openSignalGate)
+            {
+                _openSignal.TrySetCanceled();
+            }
             _serialPort.Dispose();
         }
 
         return ValueTask.CompletedTask;
     }
-
-    private void OnDataReceived(object sender, SerialDataReceivedEventArgs e) =>
-        DataAvailable?.Invoke(this, EventArgs.Empty);
 
     private void OnErrorReceived(object sender, SerialErrorReceivedEventArgs e) =>
         Warning?.Invoke(this, new SerialTransportWarningEventArgs($"SerialWarning.{e.EventType}"));
@@ -237,7 +286,14 @@ public sealed class SerialPortTransport : ISerialTransport, ISerialSettingsTrans
     {
         await Task.Run(_serialPort.Open, cancellationToken).ConfigureAwait(false);
         _disconnectSignal.MarkOpened();
+        lock (_openSignalGate)
+        {
+            _openSignal.TrySetResult();
+        }
     }
+
+    private static TaskCompletionSource NewOpenSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private async Task WriteCoreAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
     {

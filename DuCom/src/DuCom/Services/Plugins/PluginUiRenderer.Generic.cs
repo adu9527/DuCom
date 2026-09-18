@@ -12,6 +12,7 @@ public static partial class PluginUiRenderer
         {
             string brush = "Brush.TextPrimary";
             if (text.Tag is UiTextStyle.Success) brush = "Brush.Success";
+            else if (text.Tag is UiTextStyle.Running) brush = "Brush.Warning";
             else if (text.Style is { } style)
             {
                 if (style == Application.Current.TryFindResource("Style.MutedText") || style == Application.Current.TryFindResource("PluginUi.Caption")) brush = "Brush.TextSecondary";
@@ -141,6 +142,7 @@ public static partial class PluginUiRenderer
                         UiTextStyle.Heading => (Style)Application.Current.TryFindResource("PluginUi.Heading") ?? new Style(typeof(TextBlock)),
                         UiTextStyle.Caption => (Style)Application.Current.TryFindResource("PluginUi.Caption") ?? new Style(typeof(TextBlock)),
                         UiTextStyle.Accent => (Style)Application.Current.TryFindResource("PluginUi.Accent") ?? new Style(typeof(TextBlock)),
+                        UiTextStyle.Running => RunningTextStyle(),
                         UiTextStyle.Success => SuccessTextStyle(),
                         UiTextStyle.Warning => (Style)Application.Current.TryFindResource("PluginUi.Warning") ?? new Style(typeof(TextBlock)),
                         _ => (Style)Application.Current.TryFindResource("PluginUi.Normal") ?? new Style(typeof(TextBlock)),
@@ -390,6 +392,13 @@ public static partial class PluginUiRenderer
         Style fallback = new(typeof(TextBlock));
         fallback.Setters.Add(new Setter(TextBlock.ForegroundProperty, Application.Current.TryFindResource("Brush.Success")));
         return fallback;
+    }
+
+    private static Style RunningTextStyle()
+    {
+        Style style = new(typeof(TextBlock));
+        style.Setters.Add(new Setter(TextBlock.ForegroundProperty, Application.Current.TryFindResource("Brush.Warning")));
+        return style;
     }
 
     public static IReadOnlyDictionary<string, string> CollectFormValues(DependencyObject root)

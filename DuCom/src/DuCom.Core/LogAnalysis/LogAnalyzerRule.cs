@@ -13,4 +13,5 @@ public sealed record LogAnalyzerRule(
     byte? ForegroundB,
     byte? BackgroundR,
     byte? BackgroundG,
-    byte? BackgroundB);
+    byte? BackgroundB,
+    bool IncludeInAnalysis = true);

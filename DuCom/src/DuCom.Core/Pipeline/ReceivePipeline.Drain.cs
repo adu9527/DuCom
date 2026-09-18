@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using DuCom.Core.Ports;
 
 namespace DuCom.Core.Pipeline;
 
@@ -17,6 +18,11 @@ public sealed partial class ReceivePipeline
     /// </summary>
     private async Task DrainTransportBufferAsync(long deadlineTicks, CancellationToken budget)
     {
+        if (_transport is IDedicatedReceiveTransport && _receivePumpTask is { IsCompleted: false })
+        {
+            return;
+        }
+
         long drainedBytes = 0;
         while (_transport.BytesAvailable > 0)
         {

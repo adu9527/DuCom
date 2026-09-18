@@ -376,9 +376,17 @@
                             <Grid Margin="0,0,0,12">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Menu.Tools.Plugins}" />
-                                <ui:Button Grid.Column="1" Appearance="Primary" Padding="16,7"
-                                           Command="{Binding PluginManager.InstallPluginCommand}"
-                                           Content="{DynamicResource Plugins.Install}" />
+                                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <ui:Button Appearance="Primary" Padding="16,7"
+                                               Command="{Binding PluginManager.EnableAllPluginsCommand}"
+                                               Content="{DynamicResource Plugins.EnableAll}" />
+                                    <ui:Button Margin="8,0,0,0" Appearance="Primary" Padding="16,7"
+                                               Command="{Binding PluginManager.DisableAllPluginsCommand}"
+                                               Content="{DynamicResource Plugins.DisableAll}" />
+                                    <ui:Button Margin="8,0,0,0" Appearance="Primary" Padding="16,7"
+                                               Command="{Binding PluginManager.InstallPluginCommand}"
+                                               Content="{DynamicResource Plugins.Install}" />
+                                </StackPanel>
                             </Grid>
                             <local:PluginManagerControl Grid.Row="1"
                                                         HorizontalAlignment="Stretch"

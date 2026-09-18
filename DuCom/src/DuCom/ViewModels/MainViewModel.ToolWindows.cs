@@ -116,7 +116,8 @@ public partial class MainViewModel
             return;
         }
 
-        _logAnalyzerWindow = new LogAnalyzerWindow(Workspace, LogAnalyzerRulesFilePath)
+        _logAnalyzerWindow = new LogAnalyzerWindow(Workspace, LogAnalyzerRulesFilePath,
+            () => IsHostMemoryPressureActive || IsPrivateMemoryThresholdReached)
         {
             Owner = Application.Current.MainWindow,
         };

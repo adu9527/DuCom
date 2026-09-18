@@ -149,6 +149,10 @@ public sealed partial class PluginSystemService
         _lifecycleGate.Wait();
         try
         {
+            if (!enabled)
+            {
+                _budgetRecoveryPending.Remove(pluginId);
+            }
             _registry.Mutate(data =>
             {
                 if (data.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? entry))

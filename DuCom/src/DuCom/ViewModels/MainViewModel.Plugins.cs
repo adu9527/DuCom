@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using DuCom.PluginHost;
 using DuCom.PluginHost.Core;
 using DuCom.Services.Plugins;
+using System.Runtime;
 
 namespace DuCom.ViewModels;
 
@@ -17,10 +18,14 @@ public partial class MainViewModel
     public bool IsLogPackagePluginActive => PluginSystem?.Service.BuildManagerRows().Any(row =>
         row.Id == "com.ducom.log-package" && row.State == PluginRuntimeState.Active) == true;
 
+    internal bool IsHostMemoryPressureActive { get; private set; }
+
     internal void AttachPluginSystem(Services.Plugins.PluginSystemHost pluginSystem)
     {
         ArgumentNullException.ThrowIfNull(pluginSystem);
         PluginSystem = pluginSystem;
+        pluginSystem.MemoryPressureChanged += OnMemoryPressureChanged;
+        pluginSystem.MemoryPressureMaintenanceRequested += OnMemoryPressureMaintenanceRequested;
         OnPropertyChanged(nameof(PluginSystem));
         PluginManager.AttachPluginSystem(pluginSystem);
         pluginSystem.Ui.Changed += (_, _) =>
@@ -32,6 +37,51 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(IsLogPackagePluginActive)));
         PluginMenuChanged?.Invoke();
     }
+
+    private void OnMemoryPressureChanged(bool active, long totalPrivateBytes) =>
+        Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            IsHostMemoryPressureActive = active;
+            foreach (SessionViewModel session in Workspace.Sessions.Concat(Workspace.RightSessions).Distinct())
+            {
+                session.SetMemoryPressure(active);
+            }
+            Program.DiagnosticLog?.Warning(
+                $"Memory pressure display limits {(active ? "enabled" : "disabled")}. TotalPrivateMiB={totalPrivateBytes / 1024d / 1024d:0.0}; EnterMiB=800; ExitMiB=550");
+            if (active)
+            {
+                _ = Task.Run(CompactReleasedDisplayMemory);
+            }
+        });
+
+    private static void CompactReleasedDisplayMemory()
+    {
+        // Pressure transition has just evicted large bounded histories. One compacting
+        // collection returns those released pages; this is transition-only, never periodic.
+        GCLargeObjectHeapCompactionMode previous = GCSettings.LargeObjectHeapCompactionMode;
+        try
+        {
+            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            Program.DiagnosticLog?.Information("Memory pressure compaction completed after display-history eviction.");
+        }
+        finally
+        {
+            GCSettings.LargeObjectHeapCompactionMode = previous;
+        }
+    }
+
+    private void OnMemoryPressureMaintenanceRequested(PluginBudgetSample sample) =>
+        Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            foreach (SessionViewModel session in Workspace.Sessions.Concat(Workspace.RightSessions).Distinct())
+            {
+                session.SetMemoryPressure(active: true);
+            }
+            Program.DiagnosticLog?.Warning(
+                $"Memory pressure maintenance requested. TotalPrivateMiB={sample.TotalPrivateBytes / 1024d / 1024d:0.0}; TargetExitMiB=550");
+            _ = Task.Run(CompactReleasedDisplayMemory);
+        });
 
     public IReadOnlyList<Services.Plugins.PluginMenuEntry> BuildPluginMenuEntries() =>
         PluginSystem?.Ui.BuildMenuEntries() ?? [];

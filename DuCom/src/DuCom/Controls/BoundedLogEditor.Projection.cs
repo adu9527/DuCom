@@ -53,6 +53,7 @@ public sealed partial class BoundedLogEditor
         Document.UndoStack.ClearAll();
 
         _colorizer.SetSpans(_spans, _documentOriginOffset);
+        UpdateSearchHighlights();
         RestoreSelection(oldSelectionStart, oldSelectionLength, removeCharacters);
         if (follow && SelectionLength == 0)
         {
@@ -64,6 +65,7 @@ public sealed partial class BoundedLogEditor
             ScheduleViewportRestore(viewportAnchor);
         }
         ApplyCurrentMatch();
+        NotifySearchSnapshotChanged();
     }
 
     private void RebuildDocument(List<LogLineViewModel> target, ViewportAnchor? viewportAnchor)
@@ -98,6 +100,7 @@ public sealed partial class BoundedLogEditor
         Document.Text = text.ToString();
         Document.UndoStack.ClearAll();
         _colorizer.SetSpans(_spans, _documentOriginOffset);
+        UpdateSearchHighlights();
         TextArea.TextView.InvalidateMeasure();
         if (FollowEnd && !_followSuppressed)
         {
@@ -108,6 +111,7 @@ public sealed partial class BoundedLogEditor
             ScheduleViewportRestore(viewportAnchor);
         }
         ApplyCurrentMatch();
+        NotifySearchSnapshotChanged();
     }
 
     private List<LogLineViewModel> BuildBoundedTarget()
@@ -253,8 +257,10 @@ public sealed partial class BoundedLogEditor
         _searchSelectionStart = -1;
         _searchSelectionLength = 0;
         _colorizer.SetSpans([]);
+        _colorizer.SetSearchSpans([]);
         Document.Text = string.Empty;
         Document.UndoStack.ClearAll();
         _memoryWarningDismissed = false;
+        NotifySearchSnapshotChanged();
     }
 }

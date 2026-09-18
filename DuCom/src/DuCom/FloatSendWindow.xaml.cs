@@ -78,6 +78,7 @@ public partial class FloatSendWindow : FluentWindow
             Id = TapId,
             FormatSelector = SelectFormat,
             Publish = EnqueueText,
+            BoundedAsyncDelivery = true,
         });
         _session.PropertyChanged += OnSessionPropertyChanged;
     }

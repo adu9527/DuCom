@@ -90,7 +90,7 @@
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource PluginStateSegment}">
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedPlugin.IsActive}" Value="True">
+                                            <DataTrigger Binding="{Binding SelectedPlugin.Enabled}" Value="True">
                                                 <Setter Property="Background" Value="{DynamicResource Brush.SuccessSoft}" />
                                                 <Setter Property="BorderBrush" Value="{DynamicResource Brush.Success}" />
                                                 <Setter Property="Foreground" Value="{DynamicResource Brush.Success}" />
@@ -105,7 +105,7 @@
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource PluginStateSegment}">
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedPlugin.IsInactive}" Value="True">
+                                            <DataTrigger Binding="{Binding SelectedPlugin.IsDisabled}" Value="True">
                                                 <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
                                                 <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
                                                 <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />

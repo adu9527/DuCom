@@ -22,12 +22,16 @@ public sealed partial class BoundedLogEditor : TextEditor
     private INotifyCollectionChanged? _observedCollection;
     private DispatcherOperation? _pendingSync;
     private DispatcherOperation? _pendingFollowRender;
+    private DispatcherTimer? _deferredSyncTimer;
     private bool _followSuppressed;
     private bool _documentFrozen;
     private bool _forcePendingSync;
     private bool _memoryWarningDismissed;
     private long _nextMemoryCheckTimestamp;
     private long _nextSlowSyncLogTimestamp;
+    private long _nextHighLoadSyncTimestamp;
+    private const int HighLoadLineThreshold = 8_000;
+    private static readonly TimeSpan HighLoadSyncInterval = TimeSpan.FromMilliseconds(50);
 
     public static readonly DependencyProperty LinesProperty = DependencyProperty.Register(
         nameof(Lines),
@@ -46,6 +50,12 @@ public sealed partial class BoundedLogEditor : TextEditor
         typeof(SearchMatch?),
         typeof(BoundedLogEditor),
         new PropertyMetadata(null, OnCurrentMatchChanged));
+
+    public static readonly DependencyProperty SearchMatchesProperty = DependencyProperty.Register(
+        nameof(SearchMatches),
+        typeof(IReadOnlyList<SearchMatch>),
+        typeof(BoundedLogEditor),
+        new PropertyMetadata(Array.Empty<SearchMatch>(), OnSearchMatchesChanged));
 
     public static readonly DependencyProperty ShowControlCharactersProperty = DependencyProperty.Register(
         nameof(ShowControlCharacters),
@@ -113,13 +123,25 @@ public sealed partial class BoundedLogEditor : TextEditor
         _followSuppressed = false;
         _documentFrozen = false;
         CancelViewportRestore();
+        _appliedMatch = null;
+        _searchSelectionStart = -1;
+        _searchSelectionLength = 0;
+        Select(Document.TextLength, 0);
+        TextArea.Caret.Offset = Document.TextLength;
         ScheduleSync(force: true);
+        ScheduleFollowRender();
     }
 
     public SearchMatch? CurrentMatch
     {
         get => (SearchMatch?)GetValue(CurrentMatchProperty);
         set => SetValue(CurrentMatchProperty, value);
+    }
+
+    public IReadOnlyList<SearchMatch> SearchMatches
+    {
+        get => (IReadOnlyList<SearchMatch>)GetValue(SearchMatchesProperty);
+        set => SetValue(SearchMatchesProperty, value);
     }
 
     public bool ShowControlCharacters
@@ -198,6 +220,8 @@ public sealed partial class BoundedLogEditor : TextEditor
         _pendingFollowRender = null;
         _pendingViewportRestore?.Abort();
         _pendingViewportRestore = null;
+        _deferredSyncTimer?.Stop();
+        _deferredSyncTimer = null;
     }
 
     private void Subscribe()
@@ -245,9 +269,41 @@ public sealed partial class BoundedLogEditor : TextEditor
             return;
         }
 
+        if (!force && Lines is ICollection<LogLineViewModel> { Count: >= HighLoadLineThreshold })
+        {
+            long now = Stopwatch.GetTimestamp();
+            if (now < _nextHighLoadSyncTimestamp)
+            {
+                ScheduleDeferredSync(Stopwatch.GetElapsedTime(now, _nextHighLoadSyncTimestamp));
+                return;
+            }
+            _nextHighLoadSyncTimestamp = now +
+                (long)(HighLoadSyncInterval.TotalSeconds * Stopwatch.Frequency);
+        }
+
         // Project before rendering. Running both the producer and AvalonEdit mutation at
         // Render priority can consume consecutive paint opportunities during receive bursts.
         _pendingSync = Dispatcher.BeginInvoke(SynchronizeDocumentSafe, DispatcherPriority.DataBind);
+    }
+
+    private void ScheduleDeferredSync(TimeSpan delay)
+    {
+        if (_deferredSyncTimer is not null)
+        {
+            return;
+        }
+
+        _deferredSyncTimer = new DispatcherTimer(DispatcherPriority.DataBind, Dispatcher)
+        {
+            Interval = delay > TimeSpan.Zero ? delay : TimeSpan.FromMilliseconds(1),
+        };
+        _deferredSyncTimer.Tick += (_, _) =>
+        {
+            _deferredSyncTimer!.Stop();
+            _deferredSyncTimer = null;
+            ScheduleSync(force: true);
+        };
+        _deferredSyncTimer.Start();
     }
 
     private void SynchronizeDocumentSafe()

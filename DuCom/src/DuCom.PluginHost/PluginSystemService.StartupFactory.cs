@@ -38,7 +38,16 @@ public sealed partial class PluginSystemService
                 continue;
             }
 
-            await StartRegisteredAsync(entry.Id).ConfigureAwait(false);
+            try
+            {
+                await StartRegisteredAsync(entry.Id).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                string reason = $"Plugin '{entry.Id}' could not be restored after startup: {exception.Message}";
+                _startupRejections[entry.Id] = reason;
+                ProgramLog?.Invoke(reason);
+            }
         }
 
         await ConsumePendingNoticesAsync().ConfigureAwait(false);
@@ -93,39 +102,24 @@ public sealed partial class PluginSystemService
                 {
                     if (data.Plugins.TryGetValue(id, out PluginRegistryEntry? current) && current.LastAttempt == attempt)
                     {
-                        FaultDisableRecord fault = current.FaultDisabled?.ActivationId == attempt.ActivationId
-                            ? current.FaultDisabled
-                            : new FaultDisableRecord
-                            {
-                                Version = attempt.Version,
-                                Digest = attempt.Digest,
-                                ActivationId = attempt.ActivationId,
-                                Reason = "Previous run did not confirm a clean stop; explicit retry required.",
-                                FaultAtUtc = DateTime.UtcNow,
-                                ExitConfirmed = false,
-                            };
-                        if (!current.BuiltIn && !attempt.RecoveryNotified && !fault.Notified
-                            && !data.PendingNotices.Any(notice => notice.PluginId == id && notice.ActivationId == attempt.ActivationId))
-                        {
-                            data.PendingNotices.Add(new PendingNoticeRecord
-                            {
-                                PluginId = id,
-                                Version = attempt.Version,
-                                Reason = fault.Reason,
-                                ActivationId = attempt.ActivationId,
-                                ExitConfirmed = fault.ExitConfirmed,
-                                Kind = NoticeKinds.Recovery,
-                            });
-                        }
+                        data.PendingNotices.RemoveAll(notice => notice.PluginId == id);
                         data.Plugins[id] = current with
                         {
-                            FaultDisabled = current.BuiltIn ? fault with { Notified = true } : fault,
-                            LastAttempt = attempt with { EndedCleanly = false, EndedUtc = attempt.EndedUtc ?? DateTime.UtcNow, RecoveryNotified = current.BuiltIn || attempt.RecoveryNotified },
+                            // An unfinished attempt from an older host proves only that DuCom
+                            // did not shut down cleanly. Preserve any real plugin fault, but do
+                            // not fault-disable an otherwise enabled plugin because the host died.
+                            LastAttempt = attempt with
+                            {
+                                EndedCleanly = false,
+                                EndedUtc = attempt.EndedUtc ?? DateTime.UtcNow,
+                                RecoveryNotified = true,
+                            },
                         };
                     }
 
                     return data;
                 });
+                ProgramLog?.Invoke($"Recovered stale activation for '{id}'; persisted enabled state will be restored.");
             }
         }
     }
@@ -147,7 +141,9 @@ public sealed partial class PluginSystemService
                 }
 
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                File.WriteAllBytes(destination, file.Content());
+                using Stream source = file.OpenRead();
+                using FileStream output = File.Create(destination);
+                source.CopyTo(output);
             }
 
             PluginPackageInstaller.ValidateExtractedPackage(staging, _isOfficialNamespace, out PackageValidationResult result);

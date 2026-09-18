@@ -12,6 +12,7 @@ public partial class SessionWorkspace : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnWorkspaceDataContextChanged;
+        LogEditor.SearchSnapshotChanged += OnEditorSearchSnapshotChanged;
     }
 
     private void OnWorkspaceDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -19,11 +20,32 @@ public partial class SessionWorkspace : UserControl
         if (e.OldValue is SessionViewModel oldSession)
         {
             oldSession.Search.FocusRequested -= OnSearchFocusRequested;
+            oldSession.Search.NavigationRequested -= OnSearchNavigationRequested;
         }
 
         if (e.NewValue is SessionViewModel newSession)
         {
             newSession.Search.FocusRequested += OnSearchFocusRequested;
+            newSession.Search.NavigationRequested += OnSearchNavigationRequested;
+            newSession.Search.AttachSnapshotProvider(LogEditor.CreateSearchSnapshot);
+            newSession.Search.AttachNavigationAnchorProvider(LogEditor.GetSearchNavigationAnchor);
+        }
+    }
+
+    private void OnEditorSearchSnapshotChanged(object? sender, EventArgs e)
+    {
+        if (DataContext is SessionViewModel session)
+        {
+            session.Search.NotifySnapshotChanged();
+        }
+    }
+
+    private void OnSearchNavigationRequested(object? sender, EventArgs e)
+    {
+        if (DataContext is SessionViewModel session)
+        {
+            LogEditor.PauseFollow();
+            session.FollowEnd = false;
         }
     }
 

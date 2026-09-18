@@ -40,7 +40,13 @@ public interface IWorkspaceSession : IAsyncDisposable
 
     LineStoreSnapshot GetDisplaySnapshot(LineCursor? cursor, int maximumSegments);
 
+    bool HasPendingDisplayDataOverLimit(LineCursor? cursor, int maximumSegments, int maximumCharacters);
+
+    LineStoreSnapshot GetLatestDisplaySnapshot(int maximumSegments, int maximumCharacters);
+
     void ClearDisplay();
+
+    void SetMemoryPressure(bool active);
 
     /// <summary>Display tap fan-out for auxiliary surfaces (float send window, log filter).</summary>
     SessionTapHub DisplayTaps { get; }
