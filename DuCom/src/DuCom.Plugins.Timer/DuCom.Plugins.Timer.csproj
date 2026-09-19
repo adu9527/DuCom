@@ -13,6 +13,9 @@
     <ProjectReference Include="..\DuCom.Plugin.Sdk\DuCom.Plugin.Sdk.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="DuCom.Plugins.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="plugin.manifest.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

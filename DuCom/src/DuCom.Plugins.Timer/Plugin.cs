@@ -82,6 +82,16 @@ public sealed class Plugin : DuComPlugin
         });
     }
 
+    public override async Task DeactivateAsync(CancellationToken cancellationToken)
+    {
+        await PauseIfRunningAsync(cancellationToken);
+    }
+
+    public override void OnSessionClosed(string sessionId)
+    {
+        _ = PauseIfRunningAsync(CancellationToken.None);
+    }
+
     public override async Task<CommandInvokeOutcome> OnCommandAsync(string commandId, string? arg, IReadOnlyDictionary<string, string> formValues, CancellationToken cancellationToken)
     {
         switch (commandId)
@@ -91,6 +101,9 @@ public sealed class Plugin : DuComPlugin
                 return CommandInvokeOutcome.Complete();
             case "toggle-run":
                 await ToggleRunAsync();
+                return CommandInvokeOutcome.Complete();
+            case "pause":
+                await PauseIfRunningAsync(cancellationToken);
                 return CommandInvokeOutcome.Complete();
             case "lap":
                 return await RecordLapAsync();
@@ -242,16 +255,27 @@ public sealed class Plugin : DuComPlugin
         }
     }
 
-    private static byte[] BuildCsv(TimerSession session, DateTimeOffset exportedAt, bool chinese)
+    internal static byte[] BuildCsv(TimerSession session, DateTimeOffset exportedAt, bool chinese)
     {
         StringBuilder builder = new();
         builder.AppendLine(chinese ? "序号,单次时间,累计时间,记录时刻" : "Index,Lap,Total,Wall clock");
         foreach (LapRecord lap in session.Laps)
         {
             builder.Append(lap.Index).Append(',')
-                .Append(FormatMs(lap.LapMs)).Append(',')
-                .Append(FormatMs(lap.TotalMs)).Append(',')
+                .Append(TimerEngine.FormatPreciseElapsed(lap.LapMs)).Append(',')
+                .Append(TimerEngine.FormatPreciseElapsed(lap.TotalMs)).Append(',')
                 .AppendFormat("{0:yyyy-MM-dd HH:mm:ss.fff}", DateTimeOffset.FromUnixTimeMilliseconds(lap.WallClockUnixMs).ToLocalTime())
+                .AppendLine();
+        }
+
+        if (TimerEngine.ComputeStats(session.Laps) is { } stats)
+        {
+            builder.AppendLine();
+            builder.AppendLine(chinese ? "统计,平均值,最大值,最小值" : "Statistics,Average,Maximum,Minimum");
+            builder.Append(',')
+                .Append(TimerEngine.FormatPreciseElapsed(stats.AverageMs)).Append(',')
+                .Append(TimerEngine.FormatPreciseElapsed(stats.SlowestMs)).Append(',')
+                .Append(TimerEngine.FormatPreciseElapsed(stats.FastestMs))
                 .AppendLine();
         }
 
@@ -260,9 +284,6 @@ public sealed class Plugin : DuComPlugin
         // UTF-8 BOM so Excel opens Chinese content without garbling.
         return [0xEF, 0xBB, 0xBF, .. Encoding.UTF8.GetBytes(builder.ToString())];
     }
-
-    private static string FormatMs(long milliseconds) =>
-        TimeSpan.FromMilliseconds(Math.Max(0, milliseconds)).ToString(@"hh\:mm\:ss\.fff", System.Globalization.CultureInfo.InvariantCulture);
 
     private async Task PersistAndPushAsync()
     {
@@ -279,6 +300,32 @@ public sealed class Plugin : DuComPlugin
         catch (Exception exception) when (exception is PluginHostException or InvalidOperationException)
         {
             Api.Diagnostics.Warning($"Stopwatch state persistence failed: {exception.Message}");
+        }
+
+        await PushToolPageAsync();
+    }
+
+    private async Task PauseIfRunningAsync(CancellationToken cancellationToken)
+    {
+        TimerPluginState? state = null;
+        lock (_gate)
+        {
+            if (_session.Mode != StopwatchMode.Running)
+            {
+                return;
+            }
+
+            _session = TimerEngine.Pause(_session, NowUnixMs());
+            state = new TimerPluginState(_session, _previous);
+        }
+
+        try
+        {
+            await Api.Storage.WriteAsync(JsonSerializer.Serialize(state, TimerEngine.JsonOptions), cancellationToken);
+        }
+        catch (Exception exception) when (exception is PluginHostException or InvalidOperationException or OperationCanceledException)
+        {
+            Api.Diagnostics.Warning($"Stopwatch pause persistence failed: {exception.Message}");
         }
 
         await PushToolPageAsync();
@@ -333,6 +380,17 @@ public sealed class Plugin : DuComPlugin
             _ => Zh("开始", "Start"),
         };
 
+        TimerSession statsSession = session.Laps.Count > 0 ? session : previous ?? session;
+        LapStats? stats = TimerEngine.ComputeStats(statsSession.Laps);
+        string statisticsText = stats is null
+            ? string.Empty
+            : string.Format(
+                Zh("平均值 {0}    最大值 {1}    最小值 {2}", "Average {0}    Maximum {1}    Minimum {2}"),
+                TimerEngine.FormatPreciseElapsed(stats.AverageMs),
+                TimerEngine.FormatPreciseElapsed(stats.SlowestMs),
+                TimerEngine.FormatPreciseElapsed(stats.FastestMs));
+        string footerText = string.Join('\n', new[] { statusText, status, statisticsText }.Where(text => text.Length > 0));
+
         List<UiListItem> lapItems = [];
         for (int index = session.Laps.Count - 1; index >= 0; index--)
         {
@@ -353,7 +411,7 @@ public sealed class Plugin : DuComPlugin
                 [
                     new UiTextNode { FieldId = "stopwatchState", Text = state, ReadOnly = true },
                     new UiListNode { Id = "stopwatchLaps", Items = lapItems },
-                    new UiTextNode { FieldId = "stopwatchStatus", Text = status.Length > 0 ? $"{statusText}\n{status}" : statusText, ReadOnly = true, Multiline = true },
+                    new UiTextNode { FieldId = "stopwatchStatus", Text = footerText, ReadOnly = true, Multiline = true },
                     new UiPanelNode
                     {
                         Direction = UiDirection.Horizontal,

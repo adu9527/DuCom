@@ -17,6 +17,10 @@ public static class MinimalXlsx
         string totalHeader = chinese ? "累计时间" : "Total";
         string clockHeader = chinese ? "记录时刻" : "Wall clock";
         string exportedLabel = chinese ? "导出时间" : "Exported";
+        string statisticsLabel = chinese ? "统计" : "Statistics";
+        string averageLabel = chinese ? "平均值" : "Average";
+        string maximumLabel = chinese ? "最大值" : "Maximum";
+        string minimumLabel = chinese ? "最小值" : "Minimum";
 
         StringBuilder sheet = new();
         sheet.Append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="1" width="8" customWidth="1"/><col min="2" max="3" width="15" customWidth="1"/><col min="4" max="4" width="22" customWidth="1"/></cols><sheetData>""");
@@ -26,9 +30,21 @@ public static class MinimalXlsx
         {
             AppendRow(sheet, row++, [
                 lap.Index.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                Format(lap.LapMs),
-                Format(lap.TotalMs),
+                TimerEngine.FormatPreciseElapsed(lap.LapMs),
+                TimerEngine.FormatPreciseElapsed(lap.TotalMs),
                 $"{DateTimeOffset.FromUnixTimeMilliseconds(lap.WallClockUnixMs).ToLocalTime():yyyy-MM-dd HH:mm:ss.fff}",
+            ]);
+        }
+
+        if (TimerEngine.ComputeStats(session.Laps) is { } stats)
+        {
+            AppendRow(sheet, row++, ["", "", "", ""]);
+            AppendRow(sheet, row++, [statisticsLabel, averageLabel, maximumLabel, minimumLabel]);
+            AppendRow(sheet, row++, [
+                "",
+                TimerEngine.FormatPreciseElapsed(stats.AverageMs),
+                TimerEngine.FormatPreciseElapsed(stats.SlowestMs),
+                TimerEngine.FormatPreciseElapsed(stats.FastestMs),
             ]);
         }
 
@@ -86,9 +102,6 @@ public static class MinimalXlsx
         .Replace("<", "&lt;", StringComparison.Ordinal)
         .Replace(">", "&gt;", StringComparison.Ordinal)
         .Replace("\"", "&quot;", StringComparison.Ordinal);
-
-    private static string Format(long milliseconds) =>
-        TimeSpan.FromMilliseconds(Math.Max(0, milliseconds)).ToString(@"hh\:mm\:ss\.fff", System.Globalization.CultureInfo.InvariantCulture);
 
     private static void AddEntry(ZipArchive archive, string path, string content)
     {

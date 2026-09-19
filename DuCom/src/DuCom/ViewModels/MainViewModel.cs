@@ -76,6 +76,7 @@ public partial class MainViewModel : ApplicationSettingsViewModel, IAsyncDisposa
             text => _sendHistory.Record(text),
             PersistSendHistory,
             portName => { CloseFloatSendFor(portName); CloseLogFilterFor(portName); },
+            sessionId => PluginSystem?.Environment.NotifySessionClosed(sessionId),
             message => StatusMessage = message,
             GetResourceString,
             () => ReceiveMode = ReceiveMode == ReceiveDisplayMode.Str ? ReceiveDisplayMode.Hex : ReceiveDisplayMode.Str,
@@ -220,6 +221,10 @@ public partial class MainViewModel : ApplicationSettingsViewModel, IAsyncDisposa
         CompositionTarget.Rendering -= OnCompositionRendering;
         _settingsSaveTimer.Stop();
         _settingsSaveTimer.Tick -= OnSettingsSaveTick;
+        if (PluginSystem is { } pluginSystem)
+        {
+            await pluginSystem.Service.StopAllAsync();
+        }
         if (!await SerialParameters.FlushAsync())
         {
             Program.DiagnosticLog?.Warning("Pending serial settings could not be flushed during shutdown.");

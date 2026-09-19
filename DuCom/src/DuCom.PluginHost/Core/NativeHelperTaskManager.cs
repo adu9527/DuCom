@@ -16,6 +16,7 @@ internal sealed class NativeHelperTaskManager : IDisposable
     private readonly PluginManifest _manifest;
     private readonly string _packageDirectory;
     private readonly string _taskRoot;
+    private readonly BudgetGovernor? _memoryMonitor;
     private readonly object _gate = new();
     private readonly Dictionary<string, RunningHelperTask> _tasks = new(StringComparer.Ordinal);
     private bool _disposed;
@@ -28,11 +29,12 @@ internal sealed class NativeHelperTaskManager : IDisposable
         }
     }
 
-    public NativeHelperTaskManager(PluginManifest manifest, string packageDirectory, string taskRoot)
+    public NativeHelperTaskManager(PluginManifest manifest, string packageDirectory, string taskRoot, BudgetGovernor? memoryMonitor = null)
     {
         _manifest = manifest;
         _packageDirectory = Path.GetFullPath(packageDirectory);
         _taskRoot = Path.GetFullPath(taskRoot);
+        _memoryMonitor = memoryMonitor;
         Directory.CreateDirectory(_taskRoot);
     }
 
@@ -192,7 +194,7 @@ internal sealed class NativeHelperTaskManager : IDisposable
         task.CleanupFiles();
     }
 
-    private static RunningHelperTask Launch(string taskId, string executable, string requestPath, string resultPath, string cancelPath, string progressPath, int timeoutMs)
+    private RunningHelperTask Launch(string taskId, string executable, string requestPath, string resultPath, string cancelPath, string progressPath, int timeoutMs)
     {
         IntPtr job = WindowsInterop.CreateJobObjectW(IntPtr.Zero, null);
         if (job == IntPtr.Zero) throw new InvalidOperationException($"Helper Job creation failed ({Marshal.GetLastWin32Error()}).");
@@ -228,9 +230,10 @@ internal sealed class NativeHelperTaskManager : IDisposable
                 WindowsInterop.CloseHandle(process.hThread);
                 throw new InvalidOperationException($"Helper Job assignment failed ({Marshal.GetLastWin32Error()}).");
             }
+            _memoryMonitor?.RegisterMemoryMonitorHelper(process.dwProcessId);
             WindowsInterop.ResumeThread(process.hThread);
             WindowsInterop.CloseHandle(process.hThread);
-            return new RunningHelperTask(taskId, process.hProcess, job, process.dwProcessId, resultPath, cancelPath, progressPath, timeoutMs);
+            return new RunningHelperTask(taskId, process.hProcess, job, process.dwProcessId, resultPath, cancelPath, progressPath, timeoutMs, _memoryMonitor);
         }
         catch
         {
@@ -285,8 +288,9 @@ internal sealed class NativeHelperTaskManager : IDisposable
         private int _handlesDisposed;
         private bool _exitConfirmed;
         private readonly TaskCompletionSource _terminal = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public RunningHelperTask(string id, IntPtr process, IntPtr job, uint pid, string resultPath, string cancelPath, string progressPath, int timeoutMs)
-        { Id = id; Process = process; Job = job; ProcessId = pid; ResultPath = resultPath; CancelPath = cancelPath; ProgressPath = progressPath; TimeoutMs = timeoutMs; Started = DateTimeOffset.UtcNow; }
+        private readonly BudgetGovernor? _memoryMonitor;
+        public RunningHelperTask(string id, IntPtr process, IntPtr job, uint pid, string resultPath, string cancelPath, string progressPath, int timeoutMs, BudgetGovernor? memoryMonitor = null)
+        { Id = id; Process = process; Job = job; ProcessId = pid; ResultPath = resultPath; CancelPath = cancelPath; ProgressPath = progressPath; TimeoutMs = timeoutMs; Started = DateTimeOffset.UtcNow; _memoryMonitor = memoryMonitor; }
         public static RunningHelperTask Reserved(string id) => new(id, IntPtr.Zero, IntPtr.Zero, 0, string.Empty, string.Empty, string.Empty, 0) { _state = "starting" };
         public string Id { get; } public IntPtr Process { get; } public IntPtr Job { get; } public uint ProcessId { get; }
         public string ResultPath { get; } public string CancelPath { get; } public string ProgressPath { get; } public int TimeoutMs { get; } public DateTimeOffset Started { get; }
@@ -338,7 +342,28 @@ internal sealed class NativeHelperTaskManager : IDisposable
                 PluginHostTrace.Warning($"Helper task result cleanup failed for '{Id}' at '{ResultPath}'.", exception);
             }
         }
-        public void DisposeHandles() { if (Interlocked.Exchange(ref _handlesDisposed, 1) != 0) return; if (Process != IntPtr.Zero) WindowsInterop.CloseHandle(Process); if (Job != IntPtr.Zero) WindowsInterop.CloseHandle(Job); }
+        public void DisposeHandles()
+        {
+            if (Interlocked.Exchange(ref _handlesDisposed, 1) != 0) return;
+            // Closing the job also terminates a helper whose exit was not confirmed.
+            if (Job != IntPtr.Zero) WindowsInterop.CloseHandle(Job);
+            if (Process == IntPtr.Zero) return;
+            if (WindowsInterop.WaitForSingleObject(Process, 0) == 0)
+            {
+                _memoryMonitor?.UnregisterMemoryMonitorHelper(ProcessId);
+                WindowsInterop.CloseHandle(Process);
+            }
+            else
+            {
+                // Retain the handle and membership until actual exit, also preventing PID reuse.
+                _ = Task.Run(() =>
+                {
+                    if (WindowsInterop.WaitForSingleObject(Process, -1) == 0)
+                        _memoryMonitor?.UnregisterMemoryMonitorHelper(ProcessId);
+                    WindowsInterop.CloseHandle(Process);
+                });
+            }
+        }
     }
     private sealed record ProgressDocument(int Percent, string? Message);
 }

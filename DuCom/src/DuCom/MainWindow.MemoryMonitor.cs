@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using DuCom.PluginHost.Core;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
@@ -46,22 +46,23 @@ public partial class MainWindow
     {
         try
         {
-            using Process process = Process.GetCurrentProcess();
-            process.Refresh();
-            long privateMiB = (long)Math.Round(process.PrivateMemorySize64 / 1024d / 1024d);
-            long workingSetMiB = (long)Math.Round(process.WorkingSet64 / 1024d / 1024d);
-            long gcMiB = (long)Math.Round(GC.GetTotalMemory(false) / 1024d / 1024d);
-            ProcessMemoryText.Text = $"{privateMiB} MB";
-            ProcessMemoryTooltip.Text = FormatResource(
-                "MemoryMonitor.ProcessTooltip",
-                workingSetMiB.ToString(CultureInfo.CurrentCulture),
-                privateMiB.ToString(CultureInfo.CurrentCulture),
-                gcMiB.ToString(CultureInfo.CurrentCulture));
+            uint[] pids = (DataContext as MainViewModel)?.PluginSystem?.Service.Budget.GetMemoryMonitorProcessIds() ?? [];
+            var sample = PrivateWorkingSetMonitor.SampleBreakdown((uint)Environment.ProcessId, pids);
+            ProcessMemoryText.Text = FormatMemory(sample.TotalBytes);
+            ProcessMemoryTooltip.Text = FormatResource("MemoryMonitor.ProcessTooltip",
+                FormatMemory(sample.HostBytes), FormatMemory(sample.PluginBytes));
         }
         catch (Exception exception)
         {
+            ProcessMemoryText.Text = FormatResource("MemoryMonitor.Unavailable");
+            ProcessMemoryTooltip.Text = FormatResource("MemoryMonitor.ProcessTooltip",
+                FormatMemory(null), FormatMemory(null));
             Program.DiagnosticLog?.Warning("Failed to sample title-bar process memory.", exception);
         }
+
+        static string FormatMemory(ulong? bytes) => bytes is { } value
+            ? $"{Math.Round(value / 1024d / 1024d)} MB"
+            : FormatResource("MemoryMonitor.Unavailable");
     }
 
     private void UpdateSystemMemory()

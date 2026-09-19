@@ -100,6 +100,16 @@ public sealed class TimerEngineTests
     }
 
     [Theory]
+    [InlineData(0, "00.000")]
+    [InlineData(1_222, "01.222")]
+    [InlineData(64_222, "01:04.222")]
+    [InlineData(3_664_222, "01:01:04.222")]
+    public void FormatPreciseElapsed_Hides_Empty_Leading_Units(long milliseconds, string expected)
+    {
+        Assert.Equal(expected, TimerEngine.FormatPreciseElapsed(milliseconds));
+    }
+
+    [Theory]
     [InlineData(0, "-")]
     [InlineData(520, "+0.5s")]
     [InlineData(1_540, "+1.5s")]

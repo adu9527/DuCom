@@ -111,6 +111,20 @@ public static class TimerEngine
             : $"{minutes:D2}:{seconds:D2}.{tenth}";
     }
 
+    public static string FormatPreciseElapsed(long milliseconds)
+    {
+        long clamped = Math.Max(0, milliseconds);
+        long hours = clamped / 3_600_000;
+        long minutes = clamped / 60_000 % 60;
+        long seconds = clamped / 1_000 % 60;
+        long remainder = clamped % 1_000;
+        return hours > 0
+            ? $"{hours:D2}:{minutes:D2}:{seconds:D2}.{remainder:D3}"
+            : minutes > 0
+                ? $"{minutes:D2}:{seconds:D2}.{remainder:D3}"
+                : $"{seconds:D2}.{remainder:D3}";
+    }
+
     public static string FormatDelta(long deltaMs)
     {
         if (deltaMs == 0)

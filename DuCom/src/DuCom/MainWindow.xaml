@@ -224,6 +224,9 @@
                         <StackPanel Orientation="Horizontal">
                             <StackPanel Orientation="Horizontal" ToolTip="{Binding ElementName=ProcessMemoryTooltip, Path=Text}">
                                 <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="#1D9E75" />
+                                <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12"
+                                           Foreground="{DynamicResource Brush.TextPrimary}"
+                                           Text="{DynamicResource MemoryMonitor.TotalLabel}" />
                                 <TextBlock x:Name="ProcessMemoryText"
                                            Margin="6,0,0,0"
                                            VerticalAlignment="Center"

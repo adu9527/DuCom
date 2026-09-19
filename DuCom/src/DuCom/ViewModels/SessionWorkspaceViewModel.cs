@@ -30,6 +30,7 @@ internal sealed record SessionWorkspaceCallbacks(
     Func<string, bool> RecordSendHistory,
     Action PersistSendHistory,
     Action<string> CloseToolWindows,
+    Action<string> NotifySessionClosed,
     Action<string> SetStatus,
     Func<string, string> Localize,
     Action ToggleDefaultReceiveMode,
@@ -307,11 +308,11 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
         bool selected = ReferenceEquals(SelectedSession, session);
         int index = Sessions.IndexOf(session);
         ThemedMessageDialog.CloseOpenFailureFor(session);
-        if (session.IsOpen) await session.CloseAsync();
         RememberPortOverride(session.PortName);
         _callbacks.CloseToolWindows(session.PortName);
         if (RightSessions.Contains(session)) RemoveRightSession(session);
         Sessions.Remove(session);
+        _callbacks.NotifySessionClosed(session.WorkspaceSession.RuntimeId);
         await session.DisposeAsync();
         if (selected || SelectedSession is null || !Sessions.Contains(SelectedSession))
         {
@@ -332,6 +333,7 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
         _callbacks.CloseToolWindows(session.PortName);
         RemoveRightSession(session);
         Sessions.Remove(session);
+        _callbacks.NotifySessionClosed(session.WorkspaceSession.RuntimeId);
         await session.DisposeAsync();
         NotifyCommandStates();
     }
@@ -573,6 +575,7 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
         _callbacks.CloseToolWindows(session.PortName);
         if (rightIndex >= 0) RightSessions.RemoveAt(rightIndex);
         Sessions.RemoveAt(index);
+        _callbacks.NotifySessionClosed(session.WorkspaceSession.RuntimeId);
         await session.DisposeAsync();
         SessionViewModel replacement = CreateSession(settings, ResolvePreferences(settings.PortName));
         replacement.AutoReconnect = autoReconnect;

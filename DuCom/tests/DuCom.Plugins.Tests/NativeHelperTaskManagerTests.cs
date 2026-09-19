@@ -46,7 +46,21 @@ public sealed class NativeHelperTaskManagerTests : IDisposable
         Assert.Equal(PluginErrorCode.InvalidArgument, error.Code);
     }
 
-    private NativeHelperTaskManager CreateManager()
+    [Fact]
+    public async Task LiveHelperIsIncludedInMemoryMonitorAndRemovedAfterExit()
+    {
+        using BudgetGovernor budget = new(new());
+        using NativeHelperTaskManager manager = CreateManager(budget);
+        string id = "task-" + Guid.NewGuid().ToString("N");
+        manager.Start(Start(id, "hang"));
+        uint pid = Assert.Single(budget.GetMemoryMonitorProcessIds());
+        Assert.True(PrivateWorkingSetMonitor.ReadProcess(pid).Bytes > 0);
+        await manager.CancelAsync(id);
+        manager.Dispose();
+        Assert.Empty(budget.GetMemoryMonitorProcessIds());
+    }
+
+    private NativeHelperTaskManager CreateManager(BudgetGovernor? memoryMonitor = null)
     {
         string source = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "DuCom.NativeHelperTestBed", "bin", "Debug", "net10.0", "win-x86", "DuCom.NativeHelperTestBed.exe");
         source = Path.GetFullPath(source);
@@ -60,7 +74,7 @@ public sealed class NativeHelperTaskManagerTests : IDisposable
         {
             NativeHelpers = [new PluginNativeHelper { Id = "fake", EntryPoint = "helpers/win-x86/DuCom.NativeHelperTestBed.exe", Rid = "win-x86", ProtocolVersion = "1.0" }],
         };
-        return new NativeHelperTaskManager(manifest, package, Path.Combine(_root, "tasks"));
+        return new NativeHelperTaskManager(manifest, package, Path.Combine(_root, "tasks"), memoryMonitor);
     }
 
     private static HelperStartRequest Start(string id, string mode) => new()

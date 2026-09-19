@@ -20,5 +20,6 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/DuCom.LoadGenerator/DuCom.LoadGenerator.csproj" />
+    <Project Path="tools/DuCom.SetupWizard/DuCom.SetupWizard.csproj" />
   </Folder>
 </Solution>

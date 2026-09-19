@@ -457,7 +457,9 @@
     <system:String x:Key="Tools.TitleBarMemoryMonitor.Show">在标题栏显示内存监视</system:String>
     <system:String x:Key="Tools.TitleBarMemoryMonitor.ProcessInterval">进程内存刷新间隔</system:String>
     <system:String x:Key="Tools.TitleBarMemoryMonitor.SystemInterval">系统内存刷新间隔</system:String>
-    <system:String x:Key="MemoryMonitor.ProcessTooltip">工作集：{0} MB · 私有：{1} MB · GC：{2} MB</system:String>
+    <system:String x:Key="MemoryMonitor.TotalLabel">总内存</system:String>
+    <system:String x:Key="MemoryMonitor.Unavailable">不可用</system:String>
+    <system:String x:Key="MemoryMonitor.ProcessTooltip">主进程：{0}&#10;插件：{1}</system:String>
     <system:String x:Key="MemoryMonitor.SystemTooltip">已用 {0} GB / 总计 {1} GB · 可用 {2} GB</system:String>
     <system:String x:Key="Common.Seconds">秒</system:String>
     <system:String x:Key="Tools.ReferenceTitle">DuCom 参考资料</system:String>

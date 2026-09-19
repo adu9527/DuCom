@@ -42,7 +42,8 @@ public sealed partial class PluginBroker : IDisposable
         IPluginHostEnvironment environment,
         PluginDiagnosticsLog diagnostics,
         string? packageDirectory,
-        Action<string, string>? fileIoCheckpoint)
+        Action<string, string>? fileIoCheckpoint,
+        BudgetGovernor? memoryMonitor = null)
     {
         _scope = scope ?? throw new ArgumentNullException(nameof(scope));
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
@@ -52,7 +53,7 @@ public sealed partial class PluginBroker : IDisposable
         _storageRevisionPath = Path.Combine(scope.StorageDirectory, "config.revision");
         _storageMutexName = "Local\\DuCom.PluginStorage." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(_storageFilePath).ToUpperInvariant())));
         _diagAllowancePerMinute = Math.Max(scope.Limits.DiagMessagesPerMinute, 1);
-        _helperTasks = new NativeHelperTaskManager(scope.Manifest, packageDirectory ?? scope.TempDirectory, Path.Combine(scope.TempDirectory, "HelperTasks"));
+        _helperTasks = new NativeHelperTaskManager(scope.Manifest, packageDirectory ?? scope.TempDirectory, Path.Combine(scope.TempDirectory, "HelperTasks"), memoryMonitor);
     }
 
     public event Action<string, string>? SerialSubscriptionAdded;

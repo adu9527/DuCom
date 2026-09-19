@@ -40,11 +40,35 @@ public sealed class MinimalXlsxTests
         string xml = reader.ReadToEnd();
         Assert.Contains("序号", xml);
         Assert.Contains("单次时间", xml);
-        Assert.Contains("00:00:12.345", xml);
-        Assert.Contains("00:00:08.888", xml);
-        Assert.Contains("00:00:21.233", xml);
+        Assert.Contains("12.345", xml);
+        Assert.Contains("08.888", xml);
+        Assert.Contains("21.233", xml);
+        Assert.Contains("平均值", xml);
+        Assert.Contains("最大值", xml);
+        Assert.Contains("最小值", xml);
+        Assert.Contains("10.617", xml);
         // Every row element must be well-formed and referenced (r="n" on row and cells).
-        Assert.Equal(4, Regex.Count(xml, "<row r=\"\\d+\">"));
+        Assert.Equal(7, Regex.Count(xml, "<row r=\"\\d+\">"));
         Assert.DoesNotContain("&amp;#", xml);
+    }
+
+    [Fact]
+    public void CsvContainsLapRowsAndStatistics()
+    {
+        TimerSession session = new()
+        {
+            Mode = StopwatchMode.Paused,
+            AccumulatedMs = 4_000,
+            Laps =
+            [
+                new LapRecord(1, 1_000, 1_000, 1_700_000_000_000),
+                new LapRecord(2, 3_000, 4_000, 1_700_000_004_000),
+            ],
+        };
+
+        string csv = System.Text.Encoding.UTF8.GetString(DuCom.Plugins.Timer.Plugin.BuildCsv(session, DateTimeOffset.Now, chinese: true));
+
+        Assert.Contains("统计,平均值,最大值,最小值", csv);
+        Assert.Contains(",02.000,03.000,01.000", csv);
     }
 }

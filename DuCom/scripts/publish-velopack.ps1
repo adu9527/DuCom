@@ -1,7 +1,7 @@
 # Publishes DuCom and packs it with Velopack (installer + portable zip + update packages).
 # Usage:  .\publish-velopack.ps1 [-Configuration Release]
 # Upload EVERYTHING from artifacts\velopack-releases to the SAME GitHub release (tag V<Version>):
-#   - DuCom-win-Setup.exe          installer for new users
+#   - DuCom-win-Setup.exe          guided installer for new users
 #   - DuCom-win-portable.zip       portable archive for new users
 #   - DuCom-win-full-<v>.nupkg     REQUIRED - the in-app Velopack updater downloads this
 #   - (optional) DuCom-win-delta-<v>.nupkg, assets.{channel}.json
@@ -17,6 +17,8 @@ $solutionRoot = Resolve-Path (Join-Path $scriptDirectory "..")
 $csproj = Join-Path $solutionRoot "src\DuCom\DuCom.csproj"
 $publishDirectory = Join-Path $solutionRoot "artifacts\velopack-publish"
 $outputDirectory = Join-Path $solutionRoot "artifacts\velopack-releases"
+$setupWizardProject = Join-Path $solutionRoot "tools\DuCom.SetupWizard\DuCom.SetupWizard.csproj"
+$iconPath = Join-Path $solutionRoot "..\Image\DuCom_256x256.ico"
 
 [xml]$project = Get-Content -LiteralPath $csproj
 $version = @($project.Project.PropertyGroup | Where-Object { $_.Version })[0].Version
@@ -75,12 +77,44 @@ Write-Host "Packing with Velopack..."
     --packId DuCom `
     --packVersion $packVersion `
     --packTitle DuCom `
+    --packAuthors "DuCom" `
     --packDir $publishDirectory `
     --mainExe DuCom.exe `
+    --icon $iconPath `
     --outputDir $outputDirectory
 
 if ($LASTEXITCODE -ne 0) {
     throw "vpk pack failed with exit code $LASTEXITCODE"
+}
+
+$velopackSetup = Join-Path $outputDirectory "DuCom-win-Setup.exe"
+if (-not (Test-Path -LiteralPath $velopackSetup)) {
+    throw "Velopack setup engine was not created at $velopackSetup"
+}
+$setupEngine = Join-Path $outputDirectory "DuCom-win-Setup.engine.exe"
+Move-Item -LiteralPath $velopackSetup -Destination $setupEngine -Force
+
+Write-Host "Building guided Setup.exe..."
+dotnet publish $setupWizardProject `
+    -c $Configuration `
+    -r win-x64 `
+    --self-contained true `
+    -p:PublishSingleFile=true `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:EnableCompressionInSingleFile=true `
+    -p:DebugType=none `
+    -p:Version=$version `
+    -p:InstallerEnginePath=$setupEngine `
+    -o $outputDirectory
+
+if ($LASTEXITCODE -ne 0) {
+    throw "guided setup publish failed with exit code $LASTEXITCODE"
+}
+Remove-Item -LiteralPath $setupEngine -Force
+
+$verification = Start-Process -FilePath $velopackSetup -ArgumentList "--verify-package" -Wait -PassThru
+if ($verification.ExitCode -ne 0) {
+    throw "guided setup package verification failed with exit code $($verification.ExitCode)"
 }
 
 Write-Host ""

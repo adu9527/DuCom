@@ -115,7 +115,7 @@ public sealed class PluginUiDispatcher
             foreach (PluginToolWindow window in Application.Current?.Windows.OfType<PluginToolWindow>()
                          .Where(window => string.Equals(window.PluginId, pluginId, StringComparison.Ordinal)).ToList() ?? [])
             {
-                window.Close();
+                window.CloseFromHost();
             }
 
             Changed?.Invoke(this, EventArgs.Empty);

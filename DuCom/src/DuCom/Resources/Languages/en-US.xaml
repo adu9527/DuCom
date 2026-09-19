@@ -457,7 +457,9 @@
     <system:String x:Key="Tools.TitleBarMemoryMonitor.Show">Show memory monitor in the title bar</system:String>
     <system:String x:Key="Tools.TitleBarMemoryMonitor.ProcessInterval">Process memory refresh interval</system:String>
     <system:String x:Key="Tools.TitleBarMemoryMonitor.SystemInterval">System memory refresh interval</system:String>
-    <system:String x:Key="MemoryMonitor.ProcessTooltip">Working set: {0} MB · Private: {1} MB · GC: {2} MB</system:String>
+    <system:String x:Key="MemoryMonitor.TotalLabel">Total memory</system:String>
+    <system:String x:Key="MemoryMonitor.Unavailable">Unavailable</system:String>
+    <system:String x:Key="MemoryMonitor.ProcessTooltip">Main process: {0}&#10;Plugins: {1}</system:String>
     <system:String x:Key="MemoryMonitor.SystemTooltip">Used {0} GB / Total {1} GB · Available {2} GB</system:String>
     <system:String x:Key="Common.Seconds">seconds</system:String>
     <system:String x:Key="Tools.ReferenceTitle">DuCom references</system:String>

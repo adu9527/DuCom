@@ -44,6 +44,7 @@ public sealed class BudgetGovernor : IDisposable
     private readonly BudgetGovernorConfig _config;
     private readonly object _gate = new();
     private readonly Dictionary<uint, string> _workers = new();
+    private readonly HashSet<uint> _memoryMonitorHelpers = [];
     private readonly Dictionary<uint, long> _lastBytes = new();
     private Timer? _timer;
     private bool _warningActive;
@@ -95,6 +96,24 @@ public sealed class BudgetGovernor : IDisposable
             _workers.Remove(pid);
             _lastBytes.Remove(pid);
         }
+    }
+
+    // Both sandbox workers and broker-launched helpers use single-process jobs with
+    // no breakaway. Helpers are siblings of workers, not discoverable as worker children.
+    // Keep this UI membership separate from private-commit budget governance.
+    public uint[] GetMemoryMonitorProcessIds()
+    {
+        lock (_gate) return [.. _workers.Keys.Concat(_memoryMonitorHelpers).Distinct()];
+    }
+
+    internal void RegisterMemoryMonitorHelper(uint pid)
+    {
+        lock (_gate) _memoryMonitorHelpers.Add(pid);
+    }
+
+    internal void UnregisterMemoryMonitorHelper(uint pid)
+    {
+        lock (_gate) _memoryMonitorHelpers.Remove(pid);
     }
 
     public bool CanActivatePlugins()

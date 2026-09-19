@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using DuCom.Controls;
@@ -12,6 +13,8 @@ public partial class PluginToolWindow : FluentWindow
 {
     private readonly Func<string, IReadOnlyDictionary<string, string>, Task<bool>> _commandInvoker;
     private PluginCommandRouter? _router;
+    private bool _closeApproved;
+    private bool _closeInProgress;
 
     public PluginToolWindow(string pluginId, ToolPageContribution page, string title, Func<string, IReadOnlyDictionary<string, string>, Task<bool>> commandInvoker)
     {
@@ -116,6 +119,43 @@ public partial class PluginToolWindow : FluentWindow
     public string PluginId { get; }
 
     public string ContributionId { get; }
+
+    public void CloseFromHost()
+    {
+        _closeApproved = true;
+        Close();
+    }
+
+    protected override async void OnClosing(CancelEventArgs e)
+    {
+        if (!string.Equals(PluginId, "com.ducom.timer", StringComparison.Ordinal) || _closeApproved)
+        {
+            base.OnClosing(e);
+            return;
+        }
+
+        e.Cancel = true;
+        if (_closeInProgress)
+        {
+            return;
+        }
+
+        _closeInProgress = true;
+        try
+        {
+            await _commandInvoker("pause", new Dictionary<string, string>());
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Warning($"Stopwatch pause on window close failed: {exception.Message}");
+        }
+        finally
+        {
+            _closeApproved = true;
+            _closeInProgress = false;
+            Close();
+        }
+    }
 
     public void SetContent(IReadOnlyList<UiNode>? nodes)
     {

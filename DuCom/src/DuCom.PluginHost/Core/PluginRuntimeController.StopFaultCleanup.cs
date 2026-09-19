@@ -16,8 +16,6 @@ public sealed partial class PluginRuntimeController
         }
 
         Transition(PluginRuntimeState.Stopping, "user stop");
-        RevokeImmediately("stop");
-
         try
         {
             await SendRequestAsync(PluginOps.PluginDeactivate, null, TimeSpan.FromMilliseconds(_limits.StopGraceMs)).ConfigureAwait(false);
@@ -26,6 +24,10 @@ public sealed partial class PluginRuntimeController
         {
             // Deactivation is best effort on stop; the worker is terminated regardless.
             PluginHostTrace.Info($"Deactivate request to '{_manifest.Id}' failed during stop: {exception.Message}");
+        }
+        finally
+        {
+            RevokeImmediately("stop");
         }
 
         bool exited = await TerminateWorkerAsync().ConfigureAwait(false);
@@ -198,9 +200,24 @@ public sealed partial class PluginRuntimeController
 
             int waitResult = WindowsInterop.WaitForSingleObject(worker.ProcessHandle, 5000);
             exited = waitResult == 0;
+            // A failed exit confirmation must not remove a live process from the UI total.
+            // Preserve the existing budget cleanup while retaining monitoring membership.
+            if (!exited) _budget.RegisterMemoryMonitorHelper(worker.ProcessId);
             _budget.UnregisterWorker(worker.ProcessId);
-            WindowsInterop.CloseHandle(worker.ProcessHandle);
             WindowsInterop.CloseHandle(worker.JobHandle);
+            if (exited)
+            {
+                WindowsInterop.CloseHandle(worker.ProcessHandle);
+            }
+            else
+            {
+                _ = Task.Run(() =>
+                {
+                    if (WindowsInterop.WaitForSingleObject(worker.ProcessHandle, -1) == 0)
+                        _budget.UnregisterMemoryMonitorHelper(worker.ProcessId);
+                    WindowsInterop.CloseHandle(worker.ProcessHandle);
+                });
+            }
             _worker = null;
         }
 

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>..\..\..\Image\DuCom_256x256.ico</ApplicationIcon>
+    <AssemblyName>DuCom-win-Setup</AssemblyName>
+    <RootNamespace>DuCom.SetupWizard</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="InstallerAgreement.txt" LogicalName="DuCom.SetupWizard.InstallerAgreement.txt" />
+    <EmbeddedResource Include="$(InstallerEnginePath)" LogicalName="DuCom.SetupWizard.VelopackSetup.exe" Condition="'$(InstallerEnginePath)' != ''" />
+  </ItemGroup>
+</Project>

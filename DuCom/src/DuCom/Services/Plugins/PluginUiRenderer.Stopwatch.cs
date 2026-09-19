@@ -68,7 +68,7 @@ public static partial class PluginUiRenderer
                     clockCaption.Text = Application.Current.TryFindResource("Plugins.Stopwatch.Paused") as string ?? "已暂停";
                     break;
                 default:
-                    clock.Text = "00:00:00.000";
+                    clock.Text = FormatStopwatchSpan(0);
                     clockCaption.Text = Application.Current.TryFindResource("Plugins.Stopwatch.Idle") as string ?? "待机";
                     break;
             }
@@ -297,8 +297,19 @@ public static partial class PluginUiRenderer
         return root;
     }
 
-    private static string FormatStopwatchSpan(long milliseconds) =>
-        TimeSpan.FromMilliseconds(Math.Max(0, milliseconds)).ToString(@"hh\:mm\:ss\.fff", System.Globalization.CultureInfo.InvariantCulture);
+    private static string FormatStopwatchSpan(long milliseconds)
+    {
+        long clamped = Math.Max(0, milliseconds);
+        long hours = clamped / 3_600_000;
+        long minutes = clamped / 60_000 % 60;
+        long seconds = clamped / 1_000 % 60;
+        long remainder = clamped % 1_000;
+        return hours > 0
+            ? $"{hours:D2}:{minutes:D2}:{seconds:D2}.{remainder:D3}"
+            : minutes > 0
+                ? $"{minutes:D2}:{seconds:D2}.{remainder:D3}"
+                : $"{seconds:D2}.{remainder:D3}";
+    }
 
     /// <summary>A three-column row (index / lap / total) styled like online stopwatches.</summary>
     private static Grid NewLapGrid(bool isHeader)

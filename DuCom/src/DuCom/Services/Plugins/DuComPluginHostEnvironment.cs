@@ -60,6 +60,19 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
 
     public event EventHandler<string>? SessionClosed;
 
+    public void NotifySessionClosed(string sessionId)
+    {
+        RawBridge? registration = null;
+        lock (_gate)
+        {
+            _knownSessions.Remove(sessionId);
+            _rawTapRegistrations.Remove(sessionId, out registration);
+        }
+
+        registration?.Dispose();
+        SessionClosed?.Invoke(this, sessionId);
+    }
+
     public async Task<HostSerialLeaseResult> AcquireSerialLeaseAsync(HostSerialLeaseRequest request, CancellationToken cancellationToken)
     {
         return await _serialLeases.RunPortOperationAsync(request.Port, async () =>

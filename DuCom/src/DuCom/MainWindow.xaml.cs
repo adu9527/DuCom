@@ -197,6 +197,7 @@ public partial class MainWindow : FluentWindow
 
         _shutdownStarted = true;
         IsEnabled = false;
+        Hide();
         try
         {
             if (DataContext is IAsyncDisposable disposable)
