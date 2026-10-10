@@ -44,6 +44,8 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
     private static readonly TimeSpan SlowOperationThreshold = TimeSpan.FromMilliseconds(50);
     private readonly SessionWorkspaceCallbacks _callbacks;
     private readonly PortOverrideStore _overrides = new();
+    private readonly HashSet<string> _reconnectingPorts = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _discoveredPorts = new(StringComparer.OrdinalIgnoreCase);
     private List<string> _persistedRightPanePorts = [];
     private List<string> _persistedSessionOrder = [];
     private List<string> _persistedOpenSessionPorts = [];
@@ -281,9 +283,10 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
     [RelayCommand]
     private async Task ToggleSessionConnectionAsync(SessionViewModel session)
     {
+        if (session.IsBusy || !Sessions.Contains(session)) return;
         try
         {
-            if (session.IsOpen) await session.CloseAsync(); else await session.OpenAsync();
+            if (session.IsOpen) await session.CloseAsync(); else await OpenPortAsync(session.PortName, true);
         }
         catch (Exception exception) when (exception is IOException or InvalidOperationException or TimeoutException or OperationCanceledException)
         {
@@ -398,39 +401,45 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
 
     internal void HandleDiscoveredPorts(IReadOnlyCollection<string> portNames)
     {
-        HashSet<string> discovered = new(portNames, StringComparer.OrdinalIgnoreCase);
-        foreach (SessionViewModel session in Sessions.Where(item => item.IsOpen && !discovered.Contains(item.PortName)).ToArray())
+        _discoveredPorts = new(portNames, StringComparer.OrdinalIgnoreCase);
+        foreach (SessionViewModel session in Sessions.Where(item => item.ShouldHandleDeviceRemoval && !_discoveredPorts.Contains(item.PortName)).ToArray())
         {
             session.MarkDeviceRemoved();
+            Program.DiagnosticLog?.Information($"Serial-port removal detected. Port={session.PortName}; AutoReconnect={session.AutoReconnect}; Waiting={session.IsWaitingForReconnect}");
             _ = CloseRemovedPortSessionAsync(session);
         }
-        foreach (SessionViewModel session in Sessions.Where(item => item.IsWaitingForReconnect && discovered.Contains(item.PortName)).ToArray())
+        foreach (SessionViewModel session in Sessions.Where(item => item.IsWaitingForReconnect && _discoveredPorts.Contains(item.PortName)).ToArray())
             _ = ReconnectReturnedPortAsync(session);
     }
 
     private async Task ReconnectReturnedPortAsync(SessionViewModel session)
     {
-        if (!session.IsWaitingForReconnect || session.IsBusy || session.IsOpen) return;
-        session.ClearReconnectWait();
+        if (!Sessions.Contains(session) || !session.IsWaitingForReconnect || session.IsBusy || session.IsOpen ||
+            !_discoveredPorts.Contains(session.PortName) ||
+            !_reconnectingPorts.Add(session.PortName)) return;
         try
         {
             SessionViewModel? replacement = await RebuildClosedSessionAsync(session);
             if (replacement is null) return;
             replacement.AutoReconnect = true;
+            replacement.RestoreReconnectWait();
             PortCommandResult result = await replacement.OpenAsync();
-            Program.DiagnosticLog?.Information($"Automatic reconnect completed. Port={replacement.PortName}; Result={result}");
+            Program.DiagnosticLog?.Information($"Automatic reconnect completed. Port={replacement.PortName}; Result={result}; IsOpen={replacement.IsOpen}; Fault={replacement.FaultMessage}");
         }
         catch (Exception exception) { Program.DiagnosticLog?.Warning($"Automatic reconnect failed. Port={session.PortName}.", exception); }
+        finally { _reconnectingPorts.Remove(session.PortName); }
     }
 
-    private static async Task CloseRemovedPortSessionAsync(SessionViewModel session)
+    private async Task CloseRemovedPortSessionAsync(SessionViewModel session)
     {
         try
         {
             Program.DiagnosticLog?.Warning($"Connected serial port disappeared from discovery; closing its session. Port={session.PortName}");
-            await session.CloseAsync();
+            await session.CloseRemovedDeviceAsync();
         }
         catch (Exception exception) { Program.DiagnosticLog?.Error($"Failed to close removed serial-port session. Port={session.PortName}", exception); }
+        if (Sessions.Contains(session) && session.IsWaitingForReconnect && _discoveredPorts.Contains(session.PortName))
+            await ReconnectReturnedPortAsync(session);
     }
 
     internal void SetPersistedState(
@@ -558,9 +567,11 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
             preferences.LoggingEnabled, preferences.LogDirectory, preferences.LogRotationBytes,
             preferences.LogRotationEnabled, preferences.DisplayBudgetBytes, preferences.LogFileNameFormat,
             preferences.SendPrefixEnabled, preferences.SendPrefix, preferences.TimestampFormat);
-        return new SessionViewModel(_callbacks.CreateWorkspaceSession(options), preferences.ReceiveMode,
+        SessionViewModel session = new(_callbacks.CreateWorkspaceSession(options), preferences.ReceiveMode,
             preferences.TimestampEnabled, preferences.LoggingEnabled, preferences.SendMode, preferences.Newline,
             preferences.FollowEnd, preferences.FilterEnabled, _callbacks.GetHighlightProjects(), preferences.HighlightRuleProjectId);
+        session.ReopenRequested = async item => await OpenPortAsync(item.PortName, true);
+        return session;
     }
 
     private async Task<SessionViewModel?> RebuildClosedSessionAsync(SessionViewModel session)

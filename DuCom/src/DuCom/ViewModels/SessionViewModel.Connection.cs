@@ -8,6 +8,7 @@ namespace DuCom.ViewModels;
 
 public partial class SessionViewModel
 {
+    private readonly SerialReconnectIntent _reconnectIntent = new();
     [ObservableProperty]
     public partial PortLifecycleState State { get; private set; }
 
@@ -35,6 +36,8 @@ public partial class SessionViewModel
     [ObservableProperty]
     public partial bool LoggingEnabled { get; set; }
 
+    internal Func<SessionViewModel, Task>? ReopenRequested { get; set; }
+
     public async Task<PortCommandResult> OpenAsync(CancellationToken cancellationToken = default)
     {
         IsBusy = true;
@@ -43,6 +46,8 @@ public partial class SessionViewModel
             PortCommandResult result = await _session.OpenAsync(cancellationToken);
             if (result == PortCommandResult.Succeeded)
             {
+                _reconnectIntent.Opened();
+                IsWaitingForReconnect = false;
                 FollowEnd = true;
             }
             return result;
@@ -55,8 +60,18 @@ public partial class SessionViewModel
         }
     }
 
-    public async Task CloseAsync(CancellationToken cancellationToken = default)
+    public async Task CloseAsync(CancellationToken cancellationToken = default) =>
+        await CloseCoreAsync(deviceRemoved: false, cancellationToken);
+
+    internal Task CloseRemovedDeviceAsync() => CloseCoreAsync(deviceRemoved: true, CancellationToken.None);
+
+    private async Task CloseCoreAsync(bool deviceRemoved, CancellationToken cancellationToken)
     {
+        if (!deviceRemoved)
+        {
+            _reconnectIntent.Cancel();
+            IsWaitingForReconnect = false;
+        }
         IsBusy = true;
         try
         {
@@ -73,15 +88,20 @@ public partial class SessionViewModel
     [RelayCommand]
     private async Task ToggleConnectionAsync()
     {
-        IsWaitingForReconnect = false;
         if (IsBusy)
         {
             return;
         }
 
+        _reconnectIntent.Cancel();
+        IsWaitingForReconnect = false;
         if (IsOpen)
         {
             await CloseAsync();
+        }
+        else if (ReopenRequested is not null)
+        {
+            await ReopenRequested(this);
         }
         else
         {
@@ -89,9 +109,19 @@ public partial class SessionViewModel
         }
     }
 
-    internal void MarkDeviceRemoved() => IsWaitingForReconnect = AutoReconnect;
+    internal bool ShouldHandleDeviceRemoval => _reconnectIntent.ShouldHandleRemoval(IsOpen);
 
-    internal void ClearReconnectWait() => IsWaitingForReconnect = false;
+    internal void MarkDeviceRemoved()
+    {
+        _reconnectIntent.Removed(AutoReconnect);
+        IsWaitingForReconnect = _reconnectIntent.Waiting;
+    }
+
+    internal void RestoreReconnectWait()
+    {
+        _reconnectIntent.RetryPending();
+        IsWaitingForReconnect = true;
+    }
 
     public async Task ApplySettingsAsync(SerialPortSettings settings, CancellationToken cancellationToken = default)
     {

@@ -71,25 +71,45 @@ public static class Program
     /// </summary>
     private static bool TryAcquireSingleInstanceLock()
     {
+        if (TryAcquireSingleInstanceLock(SingleInstanceMutexName, out _singleInstanceMutex))
+        {
+            return true;
+        }
+
+        System.Windows.MessageBox.Show(
+            "DuCom 已在运行。\nDuCom is already running.",
+            "DuCom",
+            System.Windows.MessageBoxButton.OK,
+            System.Windows.MessageBoxImage.Information);
+        return false;
+    }
+
+    internal static bool TryAcquireSingleInstanceLock(string mutexName, out Mutex? ownedMutex)
+    {
+        ownedMutex = null;
+        Mutex? mutex = null;
         try
         {
-            _singleInstanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out bool createdNew);
-            if (createdNew)
+            mutex = new Mutex(initiallyOwned: false, mutexName);
+            try
             {
-                return true;
+                if (!mutex.WaitOne(0))
+                {
+                    mutex.Dispose();
+                    return false;
+                }
+            }
+            catch (AbandonedMutexException)
+            {
+                // The previous owner exited without releasing the mutex; we now own it.
             }
 
-            _singleInstanceMutex.Dispose();
-            _singleInstanceMutex = null;
-            System.Windows.MessageBox.Show(
-                "DuCom 已在运行。\nDuCom is already running.",
-                "DuCom",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Information);
-            return false;
+            ownedMutex = mutex;
+            return true;
         }
         catch
         {
+            mutex?.Dispose();
             return true;
         }
     }

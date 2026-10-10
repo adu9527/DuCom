@@ -161,7 +161,10 @@ public sealed class PortLifecycle : IAsyncDisposable
 
     private async Task<PortCommandResult> CloseCoreAsync(CancellationToken cancellationToken)
     {
-        if (Snapshot.State is PortLifecycleState.Closed or PortLifecycleState.Closing)
+        // A disconnect publishes Closed before the old transport handle has been closed.
+        // Still close that handle so the next Open does not reuse a stale serial port.
+        if (Snapshot.State == PortLifecycleState.Closing ||
+            Snapshot.State == PortLifecycleState.Closed && Snapshot.FaultMessage is null)
         {
             return PortCommandResult.AlreadyClosed;
         }

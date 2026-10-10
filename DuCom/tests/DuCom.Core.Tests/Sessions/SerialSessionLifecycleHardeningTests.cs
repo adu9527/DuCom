@@ -56,6 +56,7 @@ public sealed class SerialSessionLifecycleHardeningTests
         Assert.Equal(PortCommandResult.Succeeded, await session.OpenAsync());
 
         Assert.Equal(2, transport.OpenCount);
+        Assert.Equal(1, transport.CloseCount);
         Assert.Equal(1, transport.DataAvailableSubscriberCount);
         Assert.Equal(PortCommandResult.Succeeded, await session.CloseAsync());
     }
