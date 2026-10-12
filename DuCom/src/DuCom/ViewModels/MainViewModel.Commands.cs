@@ -10,7 +10,8 @@ namespace DuCom.ViewModels;
 public partial class MainViewModel
 {
     [RelayCommand(CanExecute = nameof(CanOpen))] private Task OpenAsync() => Workspace.OpenPortAsync(SelectedPort!, true);
-    private bool CanOpen() => !string.IsNullOrWhiteSpace(SelectedPort);
+    private bool CanOpen() => SelectedPort is { } port &&
+        _discoveredPortNames.Contains(port, StringComparer.OrdinalIgnoreCase);
 
     [RelayCommand] private void ClearDisplay() => Workspace.ClearActiveDisplay();
 

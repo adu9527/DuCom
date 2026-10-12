@@ -757,6 +757,9 @@
                                   <Style TargetType="ListBoxItem" BasedOn="{StaticResource Style.SessionTabListItem}">
                                      <Setter Property="Visibility" Value="Visible" />
                                      <Style.Triggers>
+                                         <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                                             <Setter Property="Visibility" Value="Collapsed" />
+                                         </DataTrigger>
                                          <DataTrigger Binding="{Binding IsInRightPane}" Value="True">
                                              <Setter Property="Visibility" Value="Collapsed" />
                                          </DataTrigger>
@@ -824,7 +827,13 @@
                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                  Visibility="{Binding Workspace.IsSplitView, Converter={StaticResource BooleanToVisibilityConverter}}">
                              <ListBox.ItemContainerStyle>
-                                 <Style TargetType="ListBoxItem" BasedOn="{StaticResource Style.SessionTabListItem}" />
+                                  <Style TargetType="ListBoxItem" BasedOn="{StaticResource Style.SessionTabListItem}">
+                                      <Style.Triggers>
+                                          <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                                              <Setter Property="Visibility" Value="Collapsed" />
+                                          </DataTrigger>
+                                      </Style.Triggers>
+                                  </Style>
                              </ListBox.ItemContainerStyle>
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>

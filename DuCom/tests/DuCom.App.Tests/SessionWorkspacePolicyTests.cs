@@ -42,4 +42,25 @@ public sealed class SessionWorkspacePolicyTests
         Assert.Same(selected, active);
         Assert.Null(SessionWorkspacePolicy.ResolveActive(removed, removed, null, Array.Empty<object>()));
     }
+
+    [Fact]
+    public void ActivePanePromotesRightOnlyWhenNoActiveLeftRemains()
+    {
+        PaneSession closedLeft = new(false, true);
+        PaneSession disconnectedLeft = new(true, false);
+        PaneSession activeLeft = new(true, true);
+        PaneSession activeRight = new(true, true);
+
+        (PaneSession? left, PaneSession? promoted) = SessionWorkspacePolicy.ResolveActivePane(
+            [closedLeft, disconnectedLeft, activeLeft], [activeRight], item => item.Open && item.Available);
+        Assert.Same(activeLeft, left);
+        Assert.Null(promoted);
+
+        (left, promoted) = SessionWorkspacePolicy.ResolveActivePane(
+            [closedLeft, disconnectedLeft], [activeRight], item => item.Open && item.Available);
+        Assert.Null(left);
+        Assert.Same(activeRight, promoted);
+    }
+
+    private sealed record PaneSession(bool Open, bool Available);
 }

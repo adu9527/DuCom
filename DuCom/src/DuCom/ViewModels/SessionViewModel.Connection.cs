@@ -22,6 +22,9 @@ public partial class SessionViewModel
     public partial bool IsInRightPane { get; set; }
 
     [ObservableProperty]
+    public partial bool IsAvailable { get; internal set; } = true;
+
+    [ObservableProperty]
     public partial bool AutoReconnect { get; set; }
 
     [ObservableProperty]
@@ -37,6 +40,8 @@ public partial class SessionViewModel
     public partial bool LoggingEnabled { get; set; }
 
     internal Func<SessionViewModel, Task>? ReopenRequested { get; set; }
+    internal Action<SessionViewModel>? ConnectionClosed { get; set; }
+    internal Action<SessionViewModel>? ConnectionFaulted { get; set; }
 
     public async Task<PortCommandResult> OpenAsync(CancellationToken cancellationToken = default)
     {
@@ -82,13 +87,14 @@ public partial class SessionViewModel
             IsBusy = false;
             RefreshState();
             OnPropertyChanged(nameof(BaudRate));
+            if (!deviceRemoved && !IsOpen) ConnectionClosed?.Invoke(this);
         }
     }
 
     [RelayCommand]
     private async Task ToggleConnectionAsync()
     {
-        if (IsBusy)
+        if (IsBusy || !IsAvailable)
         {
             return;
         }

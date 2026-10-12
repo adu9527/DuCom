@@ -65,7 +65,7 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
 
     public ObservableCollection<SessionViewModel> Sessions { get; } = [];
     public ObservableCollection<SessionViewModel> RightSessions { get; } = [];
-    public bool HasSessions => Sessions.Count > 0;
+    public bool HasSessions => Sessions.Any(item => item.IsAvailable);
     public bool IsSplitView => RightSessions.Count > 0;
     public SessionViewModel? ActiveSession => SessionWorkspacePolicy.ResolveActive(
         _activeSession, SelectedSession, SelectedRightSession, Sessions);
@@ -153,6 +153,11 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
 
     internal async Task<SessionViewModel?> OpenPortAsync(string portName, bool showFailureDialog)
     {
+        if (!_discoveredPorts.Contains(portName))
+        {
+            Program.DiagnosticLog?.Information($"Ignored open request for a serial port absent from discovery. Port={portName}");
+            return null;
+        }
         Stopwatch stopwatch = Stopwatch.StartNew();
         SessionViewModel? previous = SelectedSession;
         SessionViewModel? session = FindSession(portName);
@@ -181,6 +186,14 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
 
         bool rightPane = RightSessions.Contains(session);
         if (rightPane) SelectedRightSession = session;
+        if (!_discoveredPorts.Contains(portName))
+        {
+            session.IsAvailable = false;
+            OnPropertyChanged(nameof(HasSessions));
+            SelectAvailableSession();
+            Program.DiagnosticLog?.Information($"Ignored open request after serial port disappeared during session rebuild. Port={portName}");
+            return null;
+        }
         PortCommandResult result = await session.OpenAsync();
         if (!Sessions.Contains(session))
         {
@@ -191,6 +204,11 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
 
         if (result != PortCommandResult.Succeeded)
         {
+            if (!_discoveredPorts.Contains(portName))
+            {
+                Program.DiagnosticLog?.Information($"Open failed after serial port disappeared; suppressing failure dialog. Port={portName}; Result={result}");
+                return null;
+            }
             if (!rightPane && previous is not null && !ReferenceEquals(previous, session) && Sessions.Contains(previous)) SelectedSession = previous;
             else if (!rightPane) SelectedSession = session;
             string message = _callbacks.Localize("Status.OpenFailed").Replace("{0}", session.FaultMessage, StringComparison.Ordinal);
@@ -219,6 +237,7 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
 
     internal async Task TogglePortAsync(string portName)
     {
+        if (!_discoveredPorts.Contains(portName)) return;
         _callbacks.SelectPort(portName);
         SessionViewModel? session = FindSession(portName);
         if (session?.IsOpen == true)
@@ -283,7 +302,7 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
     [RelayCommand]
     private async Task ToggleSessionConnectionAsync(SessionViewModel session)
     {
-        if (session.IsBusy || !Sessions.Contains(session)) return;
+        if (session.IsBusy || !Sessions.Contains(session) || !_discoveredPorts.Contains(session.PortName)) return;
         try
         {
             if (session.IsOpen) await session.CloseAsync(); else await OpenPortAsync(session.PortName, true);
@@ -307,6 +326,7 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
 
     private async Task<bool> TryCloseSessionAsync(SessionViewModel session)
     {
+        if (!Sessions.Contains(session)) return false;
         if (!await _callbacks.PrepareSessionClose(session)) return false;
         bool selected = ReferenceEquals(SelectedSession, session);
         int index = Sessions.IndexOf(session);
@@ -316,13 +336,14 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
         if (RightSessions.Contains(session)) RemoveRightSession(session);
         Sessions.Remove(session);
         _callbacks.NotifySessionClosed(session.WorkspaceSession.RuntimeId);
-        await session.DisposeAsync();
         if (selected || SelectedSession is null || !Sessions.Contains(SelectedSession))
         {
             List<SessionViewModel> left = [.. Sessions.Where(candidate => !RightSessions.Contains(candidate))];
             SelectedSession = left.Count == 0 ? null : left[Math.Clamp(index, 0, left.Count - 1)];
         }
+        SelectAvailableSession();
         _callbacks.SelectPort(SelectedSession?.PortName);
+        await session.DisposeAsync();
         return true;
     }
 
@@ -402,14 +423,76 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
     internal void HandleDiscoveredPorts(IReadOnlyCollection<string> portNames)
     {
         _discoveredPorts = new(portNames, StringComparer.OrdinalIgnoreCase);
+        bool availabilityChanged = false;
         foreach (SessionViewModel session in Sessions.Where(item => item.ShouldHandleDeviceRemoval && !_discoveredPorts.Contains(item.PortName)).ToArray())
         {
             session.MarkDeviceRemoved();
+            session.IsAvailable = false;
+            availabilityChanged = true;
             Program.DiagnosticLog?.Information($"Serial-port removal detected. Port={session.PortName}; AutoReconnect={session.AutoReconnect}; Waiting={session.IsWaitingForReconnect}");
             _ = CloseRemovedPortSessionAsync(session);
         }
+        foreach (SessionViewModel session in Sessions.Where(item => !item.IsAvailable && _discoveredPorts.Contains(item.PortName)))
+        {
+            session.IsAvailable = true;
+            availabilityChanged = true;
+        }
+        if (availabilityChanged) OnPropertyChanged(nameof(HasSessions));
+        SelectAvailableSession();
         foreach (SessionViewModel session in Sessions.Where(item => item.IsWaitingForReconnect && _discoveredPorts.Contains(item.PortName)).ToArray())
             _ = ReconnectReturnedPortAsync(session);
+    }
+
+    private void SelectAvailableSession()
+    {
+        if (Sessions.Count == 0) return;
+        bool selectionChanged = false;
+        (SessionViewModel? activeLeft, SessionViewModel? activeRight) = SessionWorkspacePolicy.ResolveActivePane(
+            Sessions.Where(item => !RightSessions.Contains(item)), RightSessions,
+            item => item.IsOpen && item.IsAvailable);
+        if (activeRight is not null)
+        {
+            foreach (SessionViewModel right in RightSessions.ToArray())
+            {
+                right.IsInRightPane = false;
+                RightSessions.Remove(right);
+            }
+            SelectedRightSession = null;
+            SelectedSession = activeRight;
+            selectionChanged = true;
+            Program.DiagnosticLog?.Information($"Split pane collapsed; remaining active port promoted. Port={activeRight.PortName}");
+        }
+        else if (SelectedSession is null || !SelectedSession.IsAvailable ||
+                 !SelectedSession.IsOpen && activeLeft is not null ||
+                 SelectedSession.IsInRightPane)
+        {
+            SelectedSession = activeLeft ?? Sessions.FirstOrDefault(item => item.IsAvailable && !RightSessions.Contains(item));
+            selectionChanged = true;
+            Program.DiagnosticLog?.Information($"Workspace selected available port. Port={SelectedSession?.PortName ?? "(none)"}");
+        }
+        // A removed right-side session must not leave an empty split pane behind.
+        if (RightSessions.Count > 0 && !RightSessions.Any(item => item.IsOpen && item.IsAvailable))
+        {
+            foreach (SessionViewModel right in RightSessions.ToArray())
+            {
+                right.IsInRightPane = false;
+                RightSessions.Remove(right);
+            }
+            SelectedRightSession = null;
+            selectionChanged = true;
+        }
+        if (RightSessions.Count > 0 && (SelectedRightSession is null || !SelectedRightSession.IsAvailable ||
+                                        !SelectedRightSession.IsOpen && RightSessions.Any(item => item.IsOpen && item.IsAvailable)))
+        {
+            SelectedRightSession = RightSessions.FirstOrDefault(item => item.IsOpen && item.IsAvailable)
+                ?? RightSessions.FirstOrDefault(item => item.IsAvailable);
+            selectionChanged = true;
+        }
+        if (selectionChanged)
+        {
+            _callbacks.SelectPort(SelectedSession?.PortName);
+            NotifyCommandStates();
+        }
     }
 
     private async Task ReconnectReturnedPortAsync(SessionViewModel session)
@@ -571,6 +654,13 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
             preferences.TimestampEnabled, preferences.LoggingEnabled, preferences.SendMode, preferences.Newline,
             preferences.FollowEnd, preferences.FilterEnabled, _callbacks.GetHighlightProjects(), preferences.HighlightRuleProjectId);
         session.ReopenRequested = async item => await OpenPortAsync(item.PortName, true);
+        session.ConnectionClosed = item => { if (Sessions.Contains(item)) SelectAvailableSession(); };
+        session.ConnectionFaulted = item =>
+        {
+            if (!Sessions.Contains(item)) return;
+            Program.DiagnosticLog?.Information($"Switching away from faulted serial session before port discovery. Port={item.PortName}");
+            SelectAvailableSession();
+        };
         return session;
     }
 

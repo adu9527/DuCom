@@ -69,6 +69,8 @@ public partial class SessionViewModel
             _lastLoggedFault = FaultMessage;
             Program.DiagnosticLog?.Error($"Session fault. Port={PortName}; Source={snapshot.Fault?.Source}; Message={diagnosticFault}");
         }
+        if (previousIsOpen && !IsOpen && HasFault)
+            ConnectionFaulted?.Invoke(this);
         return previousState != State ||
             previousIsOpen != IsOpen ||
             previousHasFault != HasFault ||
