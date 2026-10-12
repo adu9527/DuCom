@@ -573,8 +573,9 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         PluginRegistryEntry refreshed = restarted.Registry.Current.Plugins[Id];
         Assert.Equal(DuCom.PluginHost.Packages.PluginPackageInstaller.ComputeDirectoryDigest(stage), refreshed.InstalledVersions.Single().Digest);
         Assert.Equal(File.ReadAllText(Path.Combine(stage, "Test.dll")), File.ReadAllText(Path.Combine(target, "Test.dll")));
-        string backup = Assert.Single(Directory.GetDirectories(Path.Combine(restarted.Paths.InstalledRoot, "Backups")));
-        Assert.Equal(originalContent, File.ReadAllText(Path.Combine(backup, "Test.dll")));
+        // Successful re-materialization must not leave the swapped-out directory behind:
+        // factory backups have no reader and used to accumulate unbounded across runs.
+        Assert.False(Directory.Exists(Path.Combine(restarted.Paths.InstalledRoot, "Backups")));
         Assert.Equal("user configuration", File.ReadAllText(config));
         Assert.Empty(refreshed.ApprovedPermissions);
         Assert.Equal(grant, Assert.Single(refreshed.RememberedGrants));
@@ -586,7 +587,7 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
 
         PluginSystemService next = Create();
         await next.InitializeAsync([factory]);
-        Assert.Single(Directory.GetDirectories(Path.Combine(next.Paths.InstalledRoot, "Backups")));
+        Assert.False(Directory.Exists(Path.Combine(next.Paths.InstalledRoot, "Backups")));
         next.ClearFaultDisable(Id);
         Assert.Null(next.GetOrCreateController(Id));
         Assert.Contains("not been approved", Assert.Single(next.BuildManagerRows()).FaultReason);
@@ -695,7 +696,7 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         PluginSystemService next = Create();
         await next.InitializeAsync([factory]);
         Assert.Equal(repaired, next.Registry.Current.Plugins[Id].InstalledVersions.Single());
-        Assert.Single(Directory.GetDirectories(Path.Combine(next.Paths.InstalledRoot, "Backups")));
+        Assert.False(Directory.Exists(Path.Combine(next.Paths.InstalledRoot, "Backups")));
     }
 
     [Theory]

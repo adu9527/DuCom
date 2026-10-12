@@ -97,13 +97,22 @@ internal sealed class SetupForm : Form
         ClientSize = new Size(720, 500);
         Font = new Font("Microsoft YaHei UI", 9F);
 
-        Panel header = new() { Dock = DockStyle.Top, Height = 92, BackColor = Color.FromArgb(28, 35, 48) };
-        _title.SetBounds(34, 20, 640, 30);
+        Panel header = new() { Dock = DockStyle.Top, BackColor = Color.FromArgb(28, 35, 48) };
+        _title.AutoSize = true;
+        _title.Location = new Point(34, 16);
         _title.Font = new Font(Font.FontFamily, 17F, FontStyle.Bold);
         _title.ForeColor = Color.White;
-        _subtitle.SetBounds(36, 56, 640, 22);
+        _subtitle.AutoSize = true;
+        _subtitle.Location = new Point(36, 0);
         _subtitle.ForeColor = Color.FromArgb(190, 201, 216);
         header.Controls.AddRange([_title, _subtitle]);
+        header.Resize += (_, _) =>
+        {
+            // Derived from measured text so high-DPI font scaling never stacks the two lines.
+            _subtitle.Top = _title.Bottom + 6;
+            if (header.Height < _subtitle.Bottom + 16) header.Height = _subtitle.Bottom + 16;
+        };
+        header.Height = 0;
 
         _content.Dock = DockStyle.Fill;
         _content.Padding = new Padding(38, 28, 38, 20);
@@ -146,31 +155,54 @@ internal sealed class SetupForm : Form
             case Page.License:
                 _title.Text = "软件许可协议";
                 _subtitle.Text = "请阅读并确认许可条款";
-                RichTextBox license = new() { Dock = DockStyle.Top, Height = 300, ReadOnly = true, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Text = ReadAgreement() };
+                RichTextBox license = new() { Dock = DockStyle.Fill, ReadOnly = true, BackColor = Color.White, BorderStyle = BorderStyle.FixedSingle, Text = ReadAgreement() };
                 _accept.Text = "我已阅读并同意许可协议";
-                _accept.SetBounds(0, 315, 360, 28);
+                _accept.AutoSize = true;
+                _accept.Dock = DockStyle.Bottom;
+                _accept.Height = 40;
+                _accept.Margin = new Padding(0, 0, 0, 10);
                 _accept.CheckedChanged += (_, _) => _next.Enabled = _accept.Checked;
+                // Fill is added first and docks last; the checkbox stays inside the content
+                // area above the footer at any DPI instead of overflowing under it.
                 _content.Controls.AddRange([license, _accept]);
                 _next.Enabled = _accept.Checked;
                 break;
             case Page.Location:
+            {
                 _title.Text = "选择安装位置";
                 _subtitle.Text = "DuCom 将安装到以下目录";
-                Label prompt = new() { Text = "安装目录：", AutoSize = true, Location = new Point(0, 20) };
-                _path.SetBounds(0, 50, 545, 30);
                 if (string.IsNullOrWhiteSpace(_path.Text)) _path.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DuCom");
-                Button browse = new() { Text = "浏览..." };
-                browse.SetBounds(555, 48, 90, 32);
+                TableLayoutPanel layout = new()
+                {
+                    Dock = DockStyle.Top,
+                    AutoSize = true,
+                    ColumnCount = 3,
+                    Padding = new Padding(0, 12, 0, 0),
+                };
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                Label prompt = new() { Text = "安装目录：", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 8, 12, 8) };
+                _path.Dock = DockStyle.Fill;
+                _path.Margin = new Padding(0, 4, 10, 4);
+                Button browse = new() { Text = "浏览...", AutoSize = true, Margin = new Padding(0) };
                 browse.Click += (_, _) => BrowseLocation();
-                Label hint = new() { Text = "建议安装到当前用户目录，无需管理员权限。您也可以选择其他有写入权限的位置。", AutoSize = true, ForeColor = Color.DimGray, Location = new Point(0, 95) };
-                _content.Controls.AddRange([prompt, _path, browse, hint]);
+                Label hint = new() { Text = "建议安装到当前用户目录，无需管理员权限。您也可以选择其他有写入权限的位置。", AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(0, 12, 0, 0) };
+                layout.Controls.Add(prompt, 0, 0);
+                layout.Controls.Add(_path, 1, 0);
+                layout.Controls.Add(browse, 2, 0);
+                layout.Controls.Add(hint, 0, 1);
+                layout.SetColumnSpan(hint, 3);
+                _content.Controls.Add(layout);
                 break;
+            }
             case Page.Installing:
                 _title.Text = "正在安装 DuCom";
                 _subtitle.Text = "请稍候，不要关闭安装程序";
                 _progress.SetBounds(0, 70, 644, 28);
                 _progress.Style = ProgressBarStyle.Continuous;
-                _progressText.SetBounds(0, 115, 644, 28);
+                _progressText.AutoSize = true;
+                _progressText.SetBounds(0, 115, 644, 0);
                 _progressText.Text = "正在准备安装...";
                 _content.Controls.AddRange([_progress, _progressText]);
                 _back.Enabled = false;
@@ -179,11 +211,13 @@ internal sealed class SetupForm : Form
             case Page.Complete:
                 _title.Text = "DuCom 安装完成";
                 _subtitle.Text = "安装向导已完成";
-                AddText("DuCom 已成功安装到：\r\n" + _path.Text + "\r\n\r\n点击“完成”退出安装向导。", 13F);
+                Label summary = new() { Text = "DuCom 已成功安装到：\r\n" + _path.Text + "\r\n\r\n点击“完成”退出安装向导。", AutoSize = false, Dock = DockStyle.Fill, Font = new Font(Font.FontFamily, 13F), ForeColor = Color.FromArgb(48, 55, 66) };
                 _launch.Text = "完成后启动 DuCom";
                 _launch.Checked = true;
-                _launch.SetBounds(38, 275, 300, 28);
-                _content.Controls.Add(_launch);
+                _launch.AutoSize = true;
+                _launch.Dock = DockStyle.Bottom;
+                _launch.Height = 40;
+                _content.Controls.AddRange([summary, _launch]);
                 _back.Enabled = false;
                 _cancel.Enabled = false;
                 break;

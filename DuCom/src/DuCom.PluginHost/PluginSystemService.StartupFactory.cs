@@ -15,6 +15,7 @@ public sealed partial class PluginSystemService
         _initialized = true;
         _registry.Load();
         _budget.Start();
+        PruneLegacyFactoryBackups();
 
         foreach (FactoryPackDefinition pack in factoryPacks)
         {
@@ -124,6 +125,27 @@ public sealed partial class PluginSystemService
         }
     }
 
+    /// <summary>
+    /// Factory backups only exist as a crash window while swapping the installed directory;
+    /// nothing ever reads them afterwards, so any leftovers from older host versions are
+    /// unbounded garbage and are removed on startup.
+    /// </summary>
+    private void PruneLegacyFactoryBackups()
+    {
+        string backups = Path.Combine(_paths.InstalledRoot, "Backups");
+        try
+        {
+            if (Directory.Exists(backups))
+            {
+                Directory.Delete(backups, recursive: true);
+            }
+        }
+        catch (Exception exception)
+        {
+            ProgramLog?.Invoke($"Legacy factory backups could not be pruned: {exception.Message}");
+        }
+    }
+
     private void MaterializeFactoryPack(FactoryPackDefinition pack)
     {
         ArgumentNullException.ThrowIfNull(pack);
@@ -213,7 +235,20 @@ public sealed partial class PluginSystemService
                     ApprovedPermissions = entry.InstalledVersions.Count == 0 ? [.. result.Manifest.Permissions] : entry.ApprovedPermissions,
                 };
             });
-            ProgramLog?.Invoke($"Factory pack '{pack.PluginId}' {pack.Version} materialized from embedded content; digest={digest}; backup={backup ?? "none"}.");
+            ProgramLog?.Invoke($"Factory pack '{pack.PluginId}' {pack.Version} materialized from embedded content; digest={digest}; staleBackupRemoved={backup is not null}.");
+            // The backup only guards the directory swap above; once the new content and the
+            // registry record are in place it has no reader and must not accumulate.
+            if (backup is not null)
+            {
+                try
+                {
+                    Directory.Delete(backup, recursive: true);
+                    // Remove the now-empty parent so no empty Backups shell is left behind;
+                    // while other packs are mid-swap this throws and is safely ignored.
+                    Directory.Delete(Path.GetDirectoryName(backup)!);
+                }
+                catch (Exception) { /* startup pruning retries later */ }
+            }
         }
         finally
         {
