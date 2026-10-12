@@ -1,11 +1,95 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using DuCom.Plugin;
 
 namespace DuCom.Services.Plugins;
 
 public static partial class PluginUiRenderer
 {
+    private static Style? _pluginExpanderStyle;
+
+    /// <summary>
+    /// Animation-free expander style for plugin pages: progress-driven page refreshes rebuild
+    /// the whole control tree, and a themed expand/collapse storyboard would replay on every
+    /// rebuild like a permanent flicker loop. Show/hide here is a plain visibility switch.
+    /// </summary>
+    private static Style PluginExpanderStyle()
+    {
+        if (_pluginExpanderStyle is not null) return _pluginExpanderStyle;
+
+        FrameworkElementFactory chevron = new(typeof(System.Windows.Controls.TextBlock), "Chevron");
+        chevron.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new Binding("IsExpanded")
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
+            Converter = new ExpandedGlyphConverter(),
+        });
+        chevron.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 28d);
+        chevron.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 0, 8, 0));
+        chevron.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+
+        FrameworkElementFactory headerContent = new(typeof(ContentPresenter));
+        headerContent.SetBinding(ContentPresenter.ContentProperty, new Binding("Header")
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
+        });
+        headerContent.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
+
+        FrameworkElementFactory headerPanel = new(typeof(StackPanel));
+        headerPanel.SetValue(StackPanel.OrientationProperty, Orientation.Horizontal);
+        headerPanel.AppendChild(chevron);
+        headerPanel.AppendChild(headerContent);
+
+        FrameworkElementFactory headerToggle = new(typeof(System.Windows.Controls.Primitives.ToggleButton), "HeaderToggle");
+        headerToggle.SetBinding(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, new Binding("IsExpanded")
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
+            Mode = BindingMode.TwoWay,
+        });
+        headerToggle.SetValue(Control.BackgroundProperty, System.Windows.Media.Brushes.Transparent);
+        headerToggle.SetValue(Control.BorderThicknessProperty, new Thickness(0));
+        headerToggle.SetValue(Control.PaddingProperty, new Thickness(6, 4, 6, 4));
+        headerToggle.SetValue(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Left);
+        headerToggle.SetValue(FrameworkElement.CursorProperty, System.Windows.Input.Cursors.Hand);
+        headerToggle.AppendChild(headerPanel);
+
+        FrameworkElementFactory expandSite = new(typeof(ContentPresenter), "ExpandSite");
+        expandSite.SetBinding(ContentPresenter.ContentProperty, new Binding("Content")
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
+        });
+        expandSite.SetBinding(UIElement.VisibilityProperty, new Binding("IsExpanded")
+        {
+            RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
+            Converter = new System.Windows.Controls.BooleanToVisibilityConverter(),
+        });
+        expandSite.SetValue(FrameworkElement.MarginProperty, new Thickness(2, 4, 2, 0));
+
+        FrameworkElementFactory root = new(typeof(StackPanel));
+        root.AppendChild(headerToggle);
+        root.AppendChild(expandSite);
+
+        ControlTemplate template = new(typeof(Expander))
+        {
+            VisualTree = root,
+        };
+
+        Style style = new(typeof(Expander));
+        style.Setters.Add(new Setter(Control.TemplateProperty, template));
+        style.Seal();
+        _pluginExpanderStyle = style;
+        return style;
+    }
+
+    private sealed class ExpandedGlyphConverter : System.Windows.Data.IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+            value is true ? "\u25BE" : "\u25B8";
+
+        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+            throw new NotSupportedException();
+    }
+
     internal static void ApplyTheme(FrameworkElement root)
     {
         if (root is TextBlock text)
@@ -24,7 +108,9 @@ public static partial class PluginUiRenderer
         }
         if (root is Control control)
         {
-            control.SetResourceReference(Control.ForegroundProperty, "Brush.TextPrimary");
+            // ProgressBar foreground is its fill color, set by the progress state below.
+            if (control is not ProgressBar)
+                control.SetResourceReference(Control.ForegroundProperty, "Brush.TextPrimary");
             if (control is TextBox or ComboBox or ComboBoxItem or ListBox or ListBoxItem or Button)
             {
                 control.SetResourceReference(Control.BackgroundProperty, "Brush.PanelRaised");
@@ -130,6 +216,11 @@ public static partial class PluginUiRenderer
                     IsExpanded = expander.IsExpanded,
                     Content = expanderContent,
                     Margin = new Thickness(0, 3, 0, 8),
+                    // Stable identity so page refreshes can restore the user's expand state.
+                    Tag = expander.Title,
+                    // The themed expander animates expand/collapse; page refreshes recreate the
+                    // control every update and the animation would replay like a flicker loop.
+                    Style = PluginExpanderStyle(),
                 };
             case UiLabelNode label:
                 TextBlock labelControl = new()
@@ -258,10 +349,12 @@ public static partial class PluginUiRenderer
             case UiSelectNode select:
                 ComboBox combo = new()
                 {
-                    MinWidth = 140,
+                    MinWidth = select.Width ?? 140,
                     Tag = select.FieldId,
                     IsEnabled = select.IsEnabled,
                 };
+                if (select.Width is { } selectWidth) combo.Width = selectWidth;
+                if (select.Height is { } selectHeight) combo.Height = selectHeight;
                 foreach (UiSelectOption option in select.Options)
                 {
                     ComboBoxItem item = new() { Content = option.Label, Tag = option.Value };
@@ -332,9 +425,9 @@ public static partial class PluginUiRenderer
                 bar.SetResourceReference(Control.ForegroundProperty, progress.State switch
                 {
                     "running" => "Brush.Warning",
-                    "calibrating" or "calibrated" => "Brush.Accent",
+                    "calibrating" or "calibrated" or "powering-off" => "Brush.Accent",
                     "succeeded" => "Brush.Success",
-                    "failed" or "cancelled" => "Brush.Danger",
+                    "failed" or "cancelled" or "interrupted" => "Brush.Danger",
                     _ => "Brush.TextMuted",
                 });
                 if (progress.Percent.HasValue)

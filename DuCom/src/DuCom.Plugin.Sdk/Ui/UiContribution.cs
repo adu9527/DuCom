@@ -118,6 +118,8 @@ public sealed record UiSelectNode : UiNode
     [JsonPropertyName("options")] public IReadOnlyList<UiSelectOption> Options { get; init; } = [];
     [JsonPropertyName("selected")] public string? Selected { get; init; }
     [JsonPropertyName("enabled")] public bool IsEnabled { get; init; } = true;
+    [JsonPropertyName("width")] public double? Width { get; init; }
+    [JsonPropertyName("height")] public double? Height { get; init; }
 }
 
 public sealed record UiSliderNode : UiNode

@@ -12,6 +12,7 @@
                   MinHeight="300"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
+                 ShowInTaskbar="False"
                  WindowStartupLocation="Manual">
     <Grid Background="{DynamicResource Brush.LogSurface}">
         <Grid.RowDefinitions>

@@ -171,6 +171,13 @@ public partial class PluginToolWindow : FluentWindow
         IReadOnlyDictionary<string, string> pendingValues = viewer.Content is DependencyObject existing
             ? PluginUiRenderer.CollectFormValues(existing)
             : new Dictionary<string, string>();
+        // The whole tree is rebuilt on refresh; remember which expanders the user opened so
+        // sections like plugin settings do not snap shut on every form-changed update.
+        Dictionary<string, bool> expanderStates = [];
+        if (viewer.Content is DependencyObject previousTree)
+        {
+            CollectExpanderStates(previousTree, expanderStates);
+        }
         // Background settings are auto-saved; plugin-published nodes are authoritative. Keeping
         // old visual values here reintroduced stale enabled/opacity state after reopening.
         IReadOnlyList<UiNode>? displayNodes = nodes is null
@@ -178,6 +185,13 @@ public partial class PluginToolWindow : FluentWindow
             : string.Equals(PluginId, "com.ducom.background-image", StringComparison.Ordinal)
                 ? nodes
                 : PreserveFormValues(nodes, pendingValues);
+        if (displayNodes is not null && expanderStates.Count > 0)
+        {
+            // Bake the user's expand state into the nodes BEFORE rendering: an Expander created
+            // already-expanded never raises an IsExpanded change, so themed expand animations
+            // cannot replay on every progress-driven page refresh.
+            displayNodes = ApplyExpanderNodeStates(displayNodes, expanderStates);
+        }
         try
         {
             viewer.Content = nodes is null || nodes.Count == 0
@@ -203,12 +217,16 @@ public partial class PluginToolWindow : FluentWindow
                 int restoredIndex = 0;
                 RestoreScrollableViewerOffsets(freshContent, innerScrollOffsets, ref restoredIndex);
             }
+            // Force synchronous measure/arrange so extent heights are final BEFORE the scroll
+            // offset is restored; a deferred restore would let one frame render at a coerced
+            // offset and long pages would visibly bounce on every progress-driven refresh.
+            viewer.UpdateLayout();
         }
 
         // Refreshed pages rebuild the whole tree; keep the reader's scroll position.
         if (scrollOffset > 0)
         {
-            viewer.ScrollToVerticalOffset(scrollOffset);
+            viewer.ScrollToVerticalOffset(Math.Min(scrollOffset, viewer.ScrollableHeight));
         }
     }
 
@@ -269,6 +287,30 @@ public partial class PluginToolWindow : FluentWindow
             }
         }
     }
+
+    private static void CollectExpanderStates(DependencyObject root, Dictionary<string, bool> states)
+    {
+        if (root is Expander { Tag: string title } collector)
+        {
+            states[title] = collector.IsExpanded;
+        }
+
+        foreach (object child in LogicalTreeHelper.GetChildren(root))
+        {
+            if (child is DependencyObject childElement)
+            {
+                CollectExpanderStates(childElement, states);
+            }
+        }
+    }
+
+    private static IReadOnlyList<UiNode> ApplyExpanderNodeStates(IReadOnlyList<UiNode> nodes, IReadOnlyDictionary<string, bool> states) =>
+        [.. nodes.Select(node => node switch
+        {
+            UiPanelNode panel => panel with { Children = ApplyExpanderNodeStates(panel.Children, states) },
+            UiExpanderNode expander when states.TryGetValue(expander.Title, out bool expanded) => expander with { IsExpanded = expanded },
+            _ => node,
+        })];
 
     private static IReadOnlyList<UiNode> PreserveFormValues(IReadOnlyList<UiNode> nodes, IReadOnlyDictionary<string, string> values) =>
         [.. nodes.Select(node => node switch

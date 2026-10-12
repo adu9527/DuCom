@@ -98,6 +98,24 @@ public sealed class BrokerOutputSecurityTests : IDisposable
         Assert.Equal("new", File.ReadAllText(result.FinalPath));
     }
 
+    [Fact]
+    public async Task RepeatedReplacementRequiresApprovedTokenAndReusesOnlyThatExactPath()
+    {
+        var (scope, broker) = Create();
+        string destination = Path.Combine(_root, "destination.bin");
+        File.WriteAllText(destination, "old");
+        string token = scope.CreateFileGrant(destination, false, true, replacePathApproved: true, repeatedReplace: true);
+        foreach (string value in new[] { "pending", "1" })
+        {
+            OutputBeginResult output = await Begin(broker);
+            await Write(broker, output.Token, 0, value);
+            FilesCommitResult result = (await Call(broker, PluginOps.OutputCommit, Commit(output.Token, token)))!.Value.Deserialize<FilesCommitResult>(DtoJson.Options)!;
+            Assert.Equal(destination, result.FinalPath);
+            Assert.Equal(value, File.ReadAllText(destination));
+            Assert.NotNull(scope.ResolveToken(token, write: true));
+        }
+    }
+
     private static async Task Denied(PluginBroker broker, string op, object? payload, string code = PluginErrorCode.SessionExpired)
     {
         PluginScopeException error = await Assert.ThrowsAsync<PluginScopeException>(() => Call(broker, op, payload));

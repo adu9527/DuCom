@@ -31,6 +31,7 @@ public sealed record FilePickWriteOptions(string Mode = "saveFile", string Sugge
 {
     public static FilePickWriteOptions SaveFile(string suggestName) => new("saveFile", suggestName);
     public static FilePickWriteOptions Directory() => new("directory");
+    public static FilePickWriteOptions RepeatedReplace(string fileName, params string[] extensions) => new("repeatedReplace", fileName, "MAC address file", extensions);
 }
 
 public sealed record FileReadChunk(byte[] Data, long TotalLength)

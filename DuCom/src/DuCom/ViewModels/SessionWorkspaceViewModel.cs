@@ -447,45 +447,34 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
     {
         if (Sessions.Count == 0) return;
         bool selectionChanged = false;
-        (SessionViewModel? activeLeft, SessionViewModel? activeRight) = SessionWorkspacePolicy.ResolveActivePane(
-            Sessions.Where(item => !RightSessions.Contains(item)), RightSessions,
-            item => item.IsOpen && item.IsAvailable);
-        if (activeRight is not null)
+        // Pane membership is exclusively user-controlled: disconnects, faults, and device
+        // removal change a session's state but never move sessions between panes or
+        // collapse the split. Closing tabs (the X button) is the only path that adjusts
+        // the layout.
+        List<SessionViewModel> leftSessions = [.. Sessions.Where(item => !RightSessions.Contains(item))];
+        if (leftSessions.Count == 0 && RightSessions.Count > 0)
         {
+            // The user closed the last left tab; promote the right pane so no empty pane remains.
             foreach (SessionViewModel right in RightSessions.ToArray())
             {
                 right.IsInRightPane = false;
                 RightSessions.Remove(right);
+                leftSessions.Add(right);
             }
             SelectedRightSession = null;
-            SelectedSession = activeRight;
+            SelectedSession = leftSessions[0];
             selectionChanged = true;
-            Program.DiagnosticLog?.Information($"Split pane collapsed; remaining active port promoted. Port={activeRight.PortName}");
+            Program.DiagnosticLog?.Information($"Last left tab closed by the user; right pane promoted. Port={SelectedSession.PortName}");
         }
-        else if (SelectedSession is null || !SelectedSession.IsAvailable ||
-                 !SelectedSession.IsOpen && activeLeft is not null ||
-                 SelectedSession.IsInRightPane)
+        else if (SelectedSession is null || !Sessions.Contains(SelectedSession) || SelectedSession.IsInRightPane)
         {
-            SelectedSession = activeLeft ?? Sessions.FirstOrDefault(item => item.IsAvailable && !RightSessions.Contains(item));
+            SelectedSession = leftSessions.FirstOrDefault() ?? Sessions.FirstOrDefault();
             selectionChanged = true;
-            Program.DiagnosticLog?.Information($"Workspace selected available port. Port={SelectedSession?.PortName ?? "(none)"}");
+            Program.DiagnosticLog?.Information($"Workspace selected left port. Port={SelectedSession?.PortName ?? "(none)"}");
         }
-        // A removed right-side session must not leave an empty split pane behind.
-        if (RightSessions.Count > 0 && !RightSessions.Any(item => item.IsOpen && item.IsAvailable))
+        if (RightSessions.Count > 0 && (SelectedRightSession is null || !RightSessions.Contains(SelectedRightSession)))
         {
-            foreach (SessionViewModel right in RightSessions.ToArray())
-            {
-                right.IsInRightPane = false;
-                RightSessions.Remove(right);
-            }
-            SelectedRightSession = null;
-            selectionChanged = true;
-        }
-        if (RightSessions.Count > 0 && (SelectedRightSession is null || !SelectedRightSession.IsAvailable ||
-                                        !SelectedRightSession.IsOpen && RightSessions.Any(item => item.IsOpen && item.IsAvailable)))
-        {
-            SelectedRightSession = RightSessions.FirstOrDefault(item => item.IsOpen && item.IsAvailable)
-                ?? RightSessions.FirstOrDefault(item => item.IsAvailable);
+            SelectedRightSession = RightSessions.LastOrDefault();
             selectionChanged = true;
         }
         if (selectionChanged)
@@ -658,8 +647,8 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
         session.ConnectionFaulted = item =>
         {
             if (!Sessions.Contains(item)) return;
-            Program.DiagnosticLog?.Information($"Switching away from faulted serial session before port discovery. Port={item.PortName}");
-            SelectAvailableSession();
+            // The faulted session stays selected in its pane; only the user closes tabs.
+            Program.DiagnosticLog?.Information($"Serial session faulted; pane layout unchanged until the user acts. Port={item.PortName}");
         };
         return session;
     }

@@ -13,6 +13,7 @@ public sealed class FileGrant
     public required string TempPath { get; init; }
     public required DateTimeOffset ExpiresAtUtc { get; init; }
     public bool ReplacePathApproved { get; init; }
+    public bool RepeatedReplace { get; init; }
     public bool Committed { get; internal set; }
 }
 
@@ -241,8 +242,10 @@ public sealed class ActivationScope : IDisposable
         }
     }
 
-    public string CreateFileGrant(string path, bool isDirectory, bool write, bool replacePathApproved = false)
+    public string CreateFileGrant(string path, bool isDirectory, bool write, bool replacePathApproved = false, bool repeatedReplace = false)
     {
+        if (repeatedReplace && (!write || isDirectory || !replacePathApproved))
+            throw new ArgumentException("Repeated replacement requires an approved file write grant.");
         string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
         lock (_gate)
         {
@@ -256,6 +259,7 @@ public sealed class ActivationScope : IDisposable
                 TempPath = write ? Path.Combine(TempDirectory, $"pick-{token}.tmp") : string.Empty,
                 ExpiresAtUtc = DateTimeOffset.UtcNow.AddHours(write ? 24 : 8),
                 ReplacePathApproved = replacePathApproved,
+                RepeatedReplace = repeatedReplace,
             };
         }
 

@@ -28,6 +28,7 @@ public sealed partial class PluginBroker : IDisposable
     private readonly Queue<long> _diagWindow = new();
     private readonly Queue<long> _uiWindow = new();
     private readonly object _commitGate = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Threading.Channels.Channel<bool>> _repeatedOutputGates = new(StringComparer.Ordinal);
     private readonly Dictionary<string, OutputCommitStatusResult> _commitResults = new(StringComparer.Ordinal);
     private readonly NativeHelperTaskManager _helperTasks;
     private readonly Action<string, string>? _fileIoCheckpoint;
@@ -284,9 +285,11 @@ public sealed partial class PluginBroker : IDisposable
     {
         RequirePermission(Permission.FilesUserSelectedWrite);
         bool directory = string.Equals(request.Mode, "directory", StringComparison.Ordinal);
+        if (request.Mode is not ("directory" or "saveFile" or "repeatedReplace"))
+            throw new PluginScopeException(PluginErrorCode.InvalidArgument, "Unknown write picker mode.");
         HostPickResult? picked = await _environment.PickWriteAsync(_scope.Manifest.Id, new HostPickRequest
         {
-            Mode = directory ? "directory" : "saveFile",
+            Mode = directory ? "directory" : request.Mode == "repeatedReplace" ? "repeatedReplace" : "saveFile",
             FilterName = request.FilterName,
             Extensions = request.Extensions,
             SuggestName = request.SuggestName,
@@ -296,7 +299,13 @@ public sealed partial class PluginBroker : IDisposable
             throw new PluginScopeException(PluginErrorCode.Cancelled, "The user cancelled the picker.");
         }
 
-        string token = _scope.CreateFileGrant(picked.DisplayPath, picked.IsDirectory, write: true, picked.ReplacePathApproved);
+        bool repeated = request.Mode == "repeatedReplace" && picked.RepeatedReplace && picked.ReplacePathApproved && !picked.IsDirectory;
+        if (request.Mode == "repeatedReplace" && !repeated)
+            throw new PluginScopeException(PermissionDeniedCode, "Repeated replacement was not explicitly approved.");
+        if (repeated && (string.IsNullOrWhiteSpace(request.SuggestName)
+            || !string.Equals(Path.GetFullPath(picked.DisplayPath), Path.GetFullPath(request.SuggestName), StringComparison.OrdinalIgnoreCase)))
+            throw new PluginScopeException(PermissionDeniedCode, "The write authorization must target the requested source file.");
+        string token = _scope.CreateFileGrant(picked.DisplayPath, picked.IsDirectory, write: true, picked.ReplacePathApproved, repeated);
         return new FilesPickResult
         {
             Token = token,

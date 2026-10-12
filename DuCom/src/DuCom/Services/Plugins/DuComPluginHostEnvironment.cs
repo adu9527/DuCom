@@ -414,11 +414,22 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
 
             string? path = PickSaveFile(request);
             if (path is null) return null;
+            bool repeatedReplace = string.Equals(request.Mode, "repeatedReplace", StringComparison.Ordinal);
+            if (repeatedReplace && !File.Exists(path))
+                throw new InvalidOperationException("持续回写的 MAC 文件必须已经存在，请选择原始导入文件。");
+            if (repeatedReplace && (request.Extensions is not { Count: > 0 }
+                || !request.Extensions.Any(extension => string.Equals(Path.GetExtension(path), "." + extension.TrimStart('.'), StringComparison.OrdinalIgnoreCase))))
+                throw new InvalidOperationException("MAC 文件必须是 CSV 或 XLSX。");
+            if (repeatedReplace && (string.IsNullOrWhiteSpace(request.SuggestName)
+                || !string.Equals(Path.GetFullPath(path), Path.GetFullPath(request.SuggestName), StringComparison.OrdinalIgnoreCase)))
+                throw new InvalidOperationException("请在保存对话框中选择导入的同一个 MAC 文件。");
             bool replacePathApproved = false;
             if (File.Exists(path))
             {
                 MessageBoxResult confirmation = MessageBox.Show(
-                    $"The file '{Path.GetFileName(path)}' already exists. Replace it?",
+                    repeatedReplace
+                        ? $"允许本次生产运行持续更新文件 '{Path.GetFileName(path)}' 的结果列吗？请确认文件未在 Excel 中打开。"
+                        : $"The file '{Path.GetFileName(path)}' already exists. Replace it?",
                     "Confirm file replacement",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Warning);
@@ -432,6 +443,7 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
                 Remembered = false,
                 Entries = [],
                 ReplacePathApproved = replacePathApproved,
+                RepeatedReplace = repeatedReplace && replacePathApproved,
             };
         }).ContinueWith(task =>
         {

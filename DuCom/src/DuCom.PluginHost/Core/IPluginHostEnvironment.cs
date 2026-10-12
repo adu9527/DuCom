@@ -21,6 +21,7 @@ public sealed record HostPickResult
     public IReadOnlyList<HostPickEntry> Entries { get; init; } = [];
     /// <summary>True only when the user explicitly approved replacing this path.</summary>
     public bool ReplacePathApproved { get; init; }
+    public bool RepeatedReplace { get; init; }
 }
 
 public sealed record HostPickRequest

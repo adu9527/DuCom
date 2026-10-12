@@ -2,13 +2,6 @@ namespace DuCom.ViewModels;
 
 internal static class SessionWorkspacePolicy
 {
-    internal static (T? Left, T? PromoteRight) ResolveActivePane<T>(
-        IEnumerable<T> leftSessions, IEnumerable<T> rightSessions, Func<T, bool> isActive) where T : class
-    {
-        T? left = leftSessions.FirstOrDefault(isActive);
-        return (left, left is null ? rightSessions.FirstOrDefault(isActive) : null);
-    }
-
     internal static T? ResolveActive<T>(T? active, T? selected, T? selectedRight, IReadOnlyCollection<T> sessions)
         where T : class => sessions.Contains(active!) ? active
             : sessions.Contains(selected!) ? selected

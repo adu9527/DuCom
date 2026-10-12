@@ -112,20 +112,34 @@ public sealed partial class PluginBroker
                 return (output, target);
             });
 
-            if (preparing.Output.Stream.CanWrite)
-            {
-                await Task.Run(() =>
+            // A repeated grant is scoped to one explicitly approved path. Serialize
+            // publications to it; the worker must also re-read before each update.
+            System.Threading.Channels.Channel<bool>? repeatedGate = preparing.Target.RepeatedReplace
+                ? _repeatedOutputGates.GetOrAdd(preparing.Target.Token, _ =>
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    preparing.Output.Stream.Flush(flushToDisk: true);
-                    preparing.Output.Stream.Dispose();
-                }, CancellationToken.None).ConfigureAwait(false);
+                    System.Threading.Channels.Channel<bool> gate = System.Threading.Channels.Channel.CreateBounded<bool>(1);
+                    gate.Writer.TryWrite(true);
+                    return gate;
+                }) : null;
+            if (repeatedGate is not null) await repeatedGate.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (preparing.Output.Stream.CanWrite)
+                {
+                    await Task.Run(() =>
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        preparing.Output.Stream.Flush(flushToDisk: true);
+                        preparing.Output.Stream.Dispose();
+                    }, CancellationToken.None).ConfigureAwait(false);
+                }
+                FilesCommitResult result = await PublishFileAsync(preparing.Output, preparing.Target, request.CommitId, cancellationToken).ConfigureAwait(false);
+                if (!_scope.CleanupOutput(preparing.Output))
+                    _diagnostics.Write(PluginLogLevel.Warning, $"Committed output cleanup is pending for token {request.Token}; disk reservation retained.");
+                else _scope.RemoveOutput(request.Token);
+                return Json(result);
             }
-            FilesCommitResult result = await PublishFileAsync(preparing.Output, preparing.Target, request.CommitId, cancellationToken).ConfigureAwait(false);
-            if (!_scope.CleanupOutput(preparing.Output))
-                _diagnostics.Write(PluginLogLevel.Warning, $"Committed output cleanup is pending for token {request.Token}; disk reservation retained.");
-            else _scope.RemoveOutput(request.Token);
-            return Json(result);
+            finally { repeatedGate?.Writer.TryWrite(true); }
         }
         catch (Exception exception)
         {
@@ -230,8 +244,11 @@ public sealed partial class PluginBroker
                 RenameByHandle(staged.SafeFileHandle, target.Path, target.ReplacePathApproved);
                 // No cleanup or other fallible I/O may precede the irreversible success record.
                 output.State = OutputState.Committed;
-                target.Committed = true;
-                _scope.RemoveToken(target.Token);
+                if (!target.RepeatedReplace)
+                {
+                    target.Committed = true;
+                    _scope.RemoveToken(target.Token);
+                }
                 RecordCommit(commitId, new OutputCommitStatusResult { State = "committed", FinalPath = target.Path, Bytes = bytes });
                 return true;
             });

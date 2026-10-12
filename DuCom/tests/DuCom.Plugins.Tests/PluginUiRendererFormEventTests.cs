@@ -103,8 +103,14 @@ public sealed class PluginUiRendererFormEventTests
         if (failure is not null) throw failure;
     }
 
-    [Fact]
-    public void CalibrationProgressUsesAccentBrush()
+    [Theory]
+    [InlineData("running", "Brush.Warning")]
+    [InlineData("calibrating", "Brush.Accent")]
+    [InlineData("powering-off", "Brush.Accent")]
+    [InlineData("succeeded", "Brush.Success")]
+    [InlineData("failed", "Brush.Danger")]
+    [InlineData("interrupted", "Brush.Danger")]
+    public void ProgressFillRetainsStateColorAfterThemeApplication(string state, string brushKey)
     {
         Exception? failure = null;
         Thread thread = new(() =>
@@ -112,14 +118,14 @@ public sealed class PluginUiRendererFormEventTests
             try
             {
                 Application app = Application.Current ?? new Application();
-                app.Resources["Brush.Accent"] = Brushes.DodgerBlue;
+                app.Resources[brushKey] = Brushes.DodgerBlue;
                 app.Resources["Brush.PanelRaised"] = Brushes.Transparent;
                 app.Resources["Brush.PanelBorder"] = Brushes.Transparent;
                 FrameworkElement root = PluginUiRenderer.Render(
-                    [new UiProgressNode { Percent = 80, State = "calibrating" }],
+                    [new UiProgressNode { Percent = 80, State = state }],
                     new PluginCommandRouter((_, _) => Task.FromResult(true)));
                 ProgressBar progress = Find<ProgressBar>(root);
-                Assert.NotEqual(DependencyProperty.UnsetValue, progress.ReadLocalValue(Control.ForegroundProperty));
+                Assert.Same(Brushes.DodgerBlue, progress.Foreground);
             }
             catch (Exception exception) { failure = exception; }
         });
@@ -223,6 +229,61 @@ public sealed class PluginUiRendererFormEventTests
         thread.Start();
         thread.Join();
         if (failure is not null) throw failure;
+    }
+
+    [Fact]
+    public void PageRefreshKeepsUserExpandedExpanderState()
+    {
+        Exception? failure = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                Application app = Application.Current ?? new Application();
+                app.Resources["Brush.PanelRaised"] = Brushes.Transparent;
+                app.Resources["Brush.PanelBorder"] = Brushes.Transparent;
+                app.Resources["LogPackage.Cancel"] = "Close";
+                app.Resources["Style.FloatToolbarToggle"] = new Style(typeof(System.Windows.Controls.Primitives.ToggleButton));
+                ToolPageContribution page = new()
+                {
+                    ContributionId = "expand-test",
+                    Title = "Expand",
+                    Nodes = [new UiExpanderNode { Title = "烧录设置", IsExpanded = false, Children = [new UiCheckBoxNode { FieldId = "k", Label = "L" }] }],
+                };
+                PluginToolWindow window = new("plugin.test", page, "Test", (_, _) => Task.FromResult(true));
+                // Surface the raw render exception (SetContent swallows it into an error text).
+                FrameworkElement probe = PluginUiRenderer.Render(page.Nodes, new PluginCommandRouter((_, _) => Task.FromResult(true)));
+                Assert.NotNull(FindLogical<Expander>(probe));
+                window.SetContent(page.Nodes);
+                Expander initial = FindLogical<Expander>(window);
+                Assert.False(initial.IsExpanded);
+                initial.IsExpanded = true;
+                window.SetContent(page.Nodes);
+                Assert.True(FindLogical<Expander>(window).IsExpanded);
+                window.Close();
+            }
+            catch (Exception exception) { failure = exception; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if (failure is not null) throw failure;
+    }
+
+    private static T? FindLogical<T>(DependencyObject root) where T : DependencyObject
+    {
+        System.Collections.IEnumerable Collect(DependencyObject node)
+        {
+            if (node is T match) yield return match;
+            foreach (object child in LogicalTreeHelper.GetChildren(node))
+            {
+                if (child is DependencyObject childElement)
+                {
+                    foreach (object found in Collect(childElement)) yield return found;
+                }
+            }
+        }
+        return Collect(root).Cast<T>().FirstOrDefault();
     }
 
     private static T Find<T>(DependencyObject root) where T : DependencyObject
