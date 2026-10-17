@@ -22,6 +22,8 @@ public sealed class PluginUiDispatcher
     private readonly Dictionary<string, List<ToolPageContribution>> _toolPagesByPlugin = new(StringComparer.Ordinal);
     private readonly ObservableCollection<HostFaultNotice> _faultNotices = [];
     private PluginFaultNoticeWindow? _faultWindow;
+    internal Action<string, string>? StageReadSelection { get; set; }
+    internal Action<string>? ClearReadSelection { get; set; }
 
     public event EventHandler? Changed;
 
@@ -88,6 +90,8 @@ public sealed class PluginUiDispatcher
 
         RunOnUi(() =>
         {
+            foreach (ChecksumWindow window in Application.Current?.Windows.OfType<ChecksumWindow>().ToList() ?? [])
+                if (pluginId == "com.ducom.checksum") window.UpdateState(nodes);
             foreach (PluginToolWindow window in Application.Current?.Windows.OfType<PluginToolWindow>().ToList() ?? [])
             {
                 window.Refresh(pluginId, contributionId, nodes);
@@ -117,6 +121,8 @@ public sealed class PluginUiDispatcher
             {
                 window.CloseFromHost();
             }
+            if (pluginId == "com.ducom.checksum")
+                foreach (ChecksumWindow window in Application.Current?.Windows.OfType<ChecksumWindow>().ToList() ?? []) window.Close();
 
             Changed?.Invoke(this, EventArgs.Empty);
         });
@@ -214,6 +220,25 @@ public sealed class PluginUiDispatcher
 
         RunOnUi(() =>
         {
+            if (pluginId == "com.ducom.checksum")
+            {
+                ChecksumWindow? existingChecksum = Application.Current.Windows.OfType<ChecksumWindow>().FirstOrDefault();
+                if (existingChecksum is not null)
+                {
+                    if (existingChecksum.WindowState == WindowState.Minimized) existingChecksum.WindowState = WindowState.Normal;
+                    existingChecksum.Activate();
+                    return;
+                }
+                ChecksumWindow checksum = new(async path =>
+                {
+                    StageReadSelection?.Invoke(pluginId, path);
+                    try { return await commandInvoker("select", new Dictionary<string, string>()); }
+                    finally { ClearReadSelection?.Invoke(pluginId); }
+                });
+                checksum.UpdateState(page!.Nodes);
+                checksum.Show();
+                return;
+            }
             foreach (PluginToolWindow existing in Application.Current.Windows.OfType<PluginToolWindow>()
                          .Where(window => string.Equals(window.PluginId, pluginId, StringComparison.Ordinal)
                              && string.Equals(window.ContributionId, contributionId, StringComparison.Ordinal)))

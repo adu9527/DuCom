@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\src\DuCom.PluginHost\DuCom.PluginHost.csproj" />
     <ProjectReference Include="..\..\src\DuCom\DuCom.csproj" />
     <ProjectReference Include="..\..\src\DuCom.Plugins.Timer\DuCom.Plugins.Timer.csproj" />
+    <ProjectReference Include="..\..\src\DuCom.Plugins.Checksum\DuCom.Plugins.Checksum.csproj" />
     <ProjectReference Include="..\DuCom.HostRecoveryWorker\DuCom.HostRecoveryWorker.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DuCom.PluginTestBed\DuCom.PluginTestBed.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DuCom.NativeHelperTestBed\DuCom.NativeHelperTestBed.csproj" ReferenceOutputAssembly="false" />

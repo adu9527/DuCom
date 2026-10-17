@@ -429,7 +429,8 @@ public sealed partial class PluginBroker : IDisposable
             return new FilesStatResult { Exists = false, Length = 0 };
         }
 
-        return new FilesStatResult { Exists = true, Length = new FileInfo(grant.Path).Length };
+        FileInfo info = new(grant.Path);
+        return new FilesStatResult { Exists = true, Length = info.Length, LastWriteTimeUtc = info.LastWriteTimeUtc };
     }
 
     private async Task<FilesReadResult> ReadChunkAsync(FilesReadRequest request)

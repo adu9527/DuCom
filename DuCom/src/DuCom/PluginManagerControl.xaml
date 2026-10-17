@@ -78,6 +78,9 @@
                     <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding SelectedPlugin.Name}" />
                 </DockPanel>
                 <TextBlock Margin="0,6,0,0" Style="{DynamicResource Style.MutedText}" Text="{Binding SelectedPlugin.Description}" TextWrapping="Wrap" />
+                <TextBlock Margin="0,10,0,0" Visibility="{Binding SelectedPlugin.HasIntegrationGuide, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Hyperlink Command="{Binding OpenIntegrationGuideCommand}">恒玄接入文档（内嵌流程、完整代码与验证指导）</Hyperlink>
+                </TextBlock>
 
                 <StackPanel Margin="0,18,0,0" Orientation="Horizontal">
                     <Border Padding="3" HorizontalAlignment="Left" CornerRadius="8"

@@ -363,7 +363,8 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
         bool remember = request.Remember;
         return RunOnUiAsync(() =>
         {
-            string? path = request.Mode == "directory" ? PickFolder() : PickFile(request);
+            string? path = _pendingReadSelections.Remove(pluginId, out string? selected)
+                ? selected : request.Mode == "directory" ? PickFolder() : PickFile(request);
             if (path is null)
             {
                 return null;
@@ -393,6 +394,12 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
             return result;
         }, CancellationToken.None);
     }
+
+    private readonly Dictionary<string, string> _pendingReadSelections = new(StringComparer.Ordinal);
+
+    // Only the host's native file picker/drop handler can stage this one-shot user selection.
+    internal void StageReadSelection(string pluginId, string path) => _pendingReadSelections[pluginId] = path;
+    internal void ClearReadSelection(string pluginId) => _pendingReadSelections.Remove(pluginId);
 
 
     public Task<HostPickResult?> PickWriteAsync(string pluginId, HostPickRequest request, CancellationToken cancellationToken) =>

@@ -14,6 +14,7 @@
     <PackageVersion Include="System.Management" Version="9.0.5" />
     <PackageVersion Include="Velopack" Version="1.2.0" />
     <PackageVersion Include="WPF-UI" Version="4.3.0" />
+    <PackageVersion Include="SharpCompress" Version="0.48.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>

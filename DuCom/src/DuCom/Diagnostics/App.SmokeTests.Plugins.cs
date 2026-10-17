@@ -70,6 +70,14 @@ public partial class App
                 _pluginSystemHost.Ui.OpenToolPage(row.Id, page, async (command, values) =>
                     await (_pluginSystemHost.Service.GetOrCreateController(row.Id)?.InvokeCommandAsync(command, values) ?? Task.FromResult(false)));
                 await Task.Delay(200);
+                if (row.Id == "com.ducom.checksum")
+                {
+                    Services.Plugins.ChecksumWindow checksum = Current.Windows.OfType<Services.Plugins.ChecksumWindow>().Single();
+                    if (checksum.Width != 700 || checksum.Height != 480 || !checksum.AllowDrop)
+                        throw new InvalidOperationException("Checksum window did not preserve original size/drop behavior.");
+                    checksum.Close();
+                    continue;
+                }
                 Services.Plugins.PluginToolWindow window = Current.Windows.OfType<Services.Plugins.PluginToolWindow>().Single(item => item.PluginId == row.Id);
                 if (window.Content is not Grid shell || shell.Children.OfType<Wpf.Ui.Controls.TitleBar>().Count() != 1
                     || !Descendants<System.Windows.Controls.Button>(window).Any(button => Equals(button.Content, FindResource("LogPackage.Cancel"))))

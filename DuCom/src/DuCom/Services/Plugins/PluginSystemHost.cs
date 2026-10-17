@@ -31,6 +31,8 @@ public sealed class PluginSystemHost : IAsyncDisposable
         Background = new BackgroundImageHostService();
         _rememberedGrants = RememberedGrantsStore.CreateDefault();
         _environment = new DuComPluginHostEnvironment(sessionsProvider, portsProvider, serialLeases, Ui, Background, _rememberedGrants, logDirectoryProvider);
+        Ui.StageReadSelection = _environment.StageReadSelection;
+        Ui.ClearReadSelection = _environment.ClearReadSelection;
         string executable = System.Environment.ProcessPath
             ?? throw new InvalidOperationException("Cannot determine the host executable for plugin workers.");
         _service = new PluginSystemService(

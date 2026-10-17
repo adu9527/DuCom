@@ -88,6 +88,7 @@ public partial class PluginToolWindow : FluentWindow
         {
             Content = FindResource("LogPackage.Cancel") as string ?? "关闭",
             MinWidth = 96,
+            VerticalAlignment = VerticalAlignment.Center,
         };
         close.Click += (_, _) => Close();
         System.Windows.Controls.Primitives.ToggleButton topmostToggle = new()
@@ -102,7 +103,7 @@ public partial class PluginToolWindow : FluentWindow
             Topmost = topmostToggle.IsChecked == true;
             PluginToolWindowPreferencesService.Save(new PluginToolWindowPreferences(Topmost));
         };
-        DockPanel footerPanel = new();
+        DockPanel footerPanel = new() { LastChildFill = false };
         DockPanel.SetDock(topmostToggle, Dock.Left);
         DockPanel.SetDock(close, Dock.Right);
         footerPanel.Children.Add(topmostToggle);

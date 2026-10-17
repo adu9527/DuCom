@@ -103,6 +103,7 @@ public sealed record FilesStatResult
 {
     [JsonPropertyName("exists")] public bool Exists { get; init; }
     [JsonPropertyName("length")] public long Length { get; init; }
+    [JsonPropertyName("lastWriteTimeUtc")] public DateTimeOffset? LastWriteTimeUtc { get; init; }
 }
 
 public sealed record FilesReadRequest

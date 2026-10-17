@@ -295,6 +295,9 @@ public partial class PluginManagerViewModel
         OperationMessage = Resource("Plugins.NotActive");
     }
 
+    [RelayCommand]
+    private static void OpenIntegrationGuide() => Services.Plugins.PluginIntegrationGuide.Show(Application.Current?.MainWindow);
+
     private void ScheduleRefresh()
     {
         Dispatcher? dispatcher = Application.Current?.Dispatcher;

@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "id": "com.ducom.checksum",
+  "name": "校验码查询工具",
+  "version": "1.0.0",
+  "protocolVersion": "1.0",
+  "minHostVersion": "0.0.1",
+  "entryAssembly": "DuCom.Plugins.Checksum.dll",
+  "entryType": "DuCom.Plugins.Checksum.Plugin",
+  "runtime": { "framework": "net10.0", "rid": "win-x64" },
+  "capabilities": [ "menu", "tool-page" ],
+  "permissions": [ "files.user-selected.read" ],
+  "defaultCulture": "zh-CN",
+  "description": "支持恒玄（需要接入，详见插件详情页内嵌接入文档）、杰理、蓝讯的固件校验码查询。",
+  "author": "DuCom"
+}
