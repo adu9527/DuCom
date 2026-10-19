@@ -50,7 +50,7 @@ Write-Host ""
 Write-Host "Portable build created: $portableExe"
 if ($FrameworkDependent) {
     $archivePath = Join-Path $solutionRoot "artifacts\DuCom-$version-win-x64-portable-lite.zip"
-    Compress-Archive -Path (Join-Path $outputDirectory "*") -DestinationPath $archivePath -Force
+    Compress-Archive -LiteralPath $portableExe -DestinationPath $archivePath -Force
     Copy-Item -LiteralPath $portableExe -Destination (Join-Path $solutionRoot "artifacts\DuCom-lite.exe") -Force
     Write-Host "Lightweight portable archive created: $archivePath"
     Write-Host "Requires Microsoft .NET 10 Desktop Runtime (Windows x64)."
