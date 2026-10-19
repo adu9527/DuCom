@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
+using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using DuCom.Plugin;
 using DuCom.PluginHost;
 using DuCom.PluginHost.Core;
@@ -16,6 +18,8 @@ namespace DuCom.Plugins.Tests;
 [Collection("WorkerLifecycle")]
 public sealed class ChecksumPluginTests
 {
+    private const string LegacyOta = "/////wAAAJhdAACAAP//////////AAURyNJhy3STZcSNsJwS/G8Vm4xztBcMrY+49rRu6gX1rIejYWF3U1pQwkOI9xk/j78zMJziQEfJHcsrlFLS0HJ1IVbEXhouzCB2TSar8eeDD1KGxgHVc6GiqTp+bEzknSzv+SPp0DpR8vw/590YTIKLsoaKHE3YYs7pyMeV75Vd1a2k1X//7x85YENSQzMyX09GX0lNQUdFPTB4QTI0QTUwRkIK";
+
     [Fact]
     public void BesFullImageCrcShaAndStableCodeAreVerifiedAtNonzeroOffset()
     {
@@ -40,7 +44,7 @@ public sealed class ChecksumPluginTests
         Assert.Equal(code, result.FirmwareCode);
         Assert.Equal("测试耳机", result.BluetoothName);
         Assert.Null(result.ImageValid);
-        Assert.Contains("未完成整文件", result.Status);
+        Assert.Equal("已读取校验码 · 未校验整份固件", result.Status);
         Assert.Throws<InvalidDataException>(() => FirmwareAnalyzer.Analyze(Encoding.ASCII.GetBytes("\nCHIP=best1502p\nKERNEL=RTX5\nBUILD_DATE=x\nFIRMWARE_CODE=12345678\n\0"), "missing-sha.bin"));
     }
 
@@ -55,7 +59,7 @@ public sealed class ChecksumPluginTests
     [Fact]
     public void BesLzmaOtaDecodesAndMatchesInternalCrc()
     {
-        byte[] ota = Convert.FromBase64String("/////wAAAJhdAACAAP//////////AAURyNJhy3STZcSNsJwS/G8Vm4xztBcMrY+49rRu6gX1rIejYWF3U1pQwkOI9xk/j78zMJziQEfJHcsrlFLS0HJ1IVbEXhouzCB2TSar8eeDD1KGxgHVc6GiqTp+bEzknSzv+SPp0DpR8vw/590YTIKLsoaKHE3YYs7pyMeV75Vd1a2k1X//7x85YENSQzMyX09GX0lNQUdFPTB4QTI0QTUwRkIK");
+        byte[] ota = Convert.FromBase64String(LegacyOta);
         FirmwareResult result = FirmwareAnalyzer.Analyze(ota, "ota.prd");
         Assert.Equal("恒玄", result.Manufacturer);
         Assert.Equal("OTA升级固件", result.FileType);
@@ -63,8 +67,73 @@ public sealed class ChecksumPluginTests
         Assert.True(result.CrcValid);
         Assert.True(result.PackageCrcMatches);
         Assert.Null(result.ImageValid);
+        Assert.Equal("CRC 校验通过 · 未校验整份固件", result.Status);
         ota[^2] ^= 1;
         Assert.True(FirmwareAnalyzer.Analyze(ota, "corrupt.bin").IsCorrupt);
+    }
+
+    [Fact]
+    public void BesCompressedPrefixCrcAcceptsNewFooterAndRejectsContainerChanges()
+    {
+        byte[] ota = Convert.FromBase64String(LegacyOta);
+        string outerCrc = FirmwareAnalyzer.Crc32(ota.AsSpan(0, ota.Length - 9)).ToString("X8", CultureInfo.InvariantCulture);
+        Assert.NotEqual(Encoding.ASCII.GetString(ota, ota.Length - 9, 8), outerCrc);
+        Encoding.ASCII.GetBytes(outerCrc).CopyTo(ota, ota.Length - 9);
+        FirmwareResult result = FirmwareAnalyzer.Analyze(ota, "renamed.unknown");
+        Assert.True(result.CrcValid);
+        Assert.True(result.PackageCrcMatches);
+        Assert.False(result.IsCorrupt);
+        Assert.Equal("A2B10169", result.FirmwareCode);
+
+        // A valid dictionary change leaves the decoded image intact, but changes the container CRC.
+        BinaryPrimitives.WriteUInt32LittleEndian(ota.AsSpan(9, 4), 32 * 1024 * 1024);
+        FirmwareResult changed = FirmwareAnalyzer.Analyze(ota, "changed.bin");
+        Assert.True(changed.CrcValid);
+        Assert.False(changed.PackageCrcMatches);
+        Assert.True(changed.IsCorrupt);
+    }
+
+    [Fact]
+    public void BesLegacyFooterRequiresValidInnerCrc()
+    {
+        // Same legacy fixture with one inner image byte changed and recompressed; tail CRC is unchanged.
+        byte[] ota = Convert.FromBase64String("/////wAAAJhdAACAAP//////////AAURyNJhy3STZcSNsFMq/G8Vm4xztBcMrY+49rRu6gX1rIejYWF3U1pQwkOI9xk/j78zMJziQEfJHcsrlFLS0HJ1IVbEXhouzCB2TSar8eeDD1KGxgHVc6GiqTp+bEzknSzv+SPp0DpR8vw/590YTIKLsoaKHE3YYs7pyMeV75Vd1a2k1X//7x85YENSQzMyX09GX0lNQUdFPTB4QTI0QTUwRkIK");
+        FirmwareResult result = FirmwareAnalyzer.Analyze(ota, "invalid-inner.bin");
+        Assert.False(result.CrcValid);
+        Assert.False(result.PackageCrcMatches);
+        Assert.True(result.IsCorrupt);
+    }
+
+    [Fact]
+    public void RealBesOtaMatchesRawImageAndRejectsTampering()
+    {
+        string? output = Environment.GetEnvironmentVariable("DUCOM_CHECKSUM_BES_OUTPUT");
+        if (string.IsNullOrEmpty(output)) return; // Optional proprietary fixtures are never bundled.
+        using JsonDocument report = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(output, "fw_identity.json")));
+        string target = report.RootElement.GetProperty("target").GetString()!;
+        byte[] raw = File.ReadAllBytes(Path.Combine(output, target + ".bin"));
+        byte[] ota = File.ReadAllBytes(Path.Combine(output, target + "_compressed.bin"));
+        FirmwareResult image = FirmwareAnalyzer.Analyze(raw, "raw.bin");
+        FirmwareResult package = FirmwareAnalyzer.Analyze(ota, "renamed.unknown");
+        Assert.True(image.CrcValid);
+        Assert.True(package.CrcValid);
+        Assert.True(package.PackageCrcMatches);
+        Assert.False(package.IsCorrupt);
+        Assert.Equal(image.FirmwareCode, package.FirmwareCode);
+        Assert.Equal(report.RootElement.GetProperty("firmware_code").GetString(), package.FirmwareCode);
+
+        byte[] legacy = (byte[])ota.Clone();
+        int metadataOffset = raw.AsSpan().IndexOf("\nCHIP="u8);
+        Assert.True(metadataOffset >= 0);
+        int crcOffset = metadataOffset + raw.AsSpan(metadataOffset).IndexOf("\nCRC32_OF_IMAGE=0x"u8) + 18;
+        raw.AsSpan(crcOffset, 8).CopyTo(legacy.AsSpan(legacy.Length - 9, 8));
+        Assert.True(FirmwareAnalyzer.Analyze(legacy, "legacy.bin").PackageCrcMatches);
+
+        BinaryPrimitives.WriteUInt32LittleEndian(ota.AsSpan(9, 4), 32 * 1024 * 1024);
+        FirmwareResult changed = FirmwareAnalyzer.Analyze(ota, "changed.bin");
+        Assert.True(changed.CrcValid);
+        Assert.False(changed.PackageCrcMatches);
+        Assert.True(changed.IsCorrupt);
     }
 
     [HostBuildFact]
@@ -83,7 +152,7 @@ public sealed class ChecksumPluginTests
             Assert.True(await controller.InvokeCommandAsync("select", new Dictionary<string, string>()));
             IReadOnlyList<UiNode> nodes = environment.Pages.Last();
             Assert.True(UiContributionValidator.Validate(nodes, out string? error), error);
-            Assert.Contains(nodes.OfType<UiLabelNode>(), node => node.Text == "完整性校验通过");
+            Assert.Contains(nodes.OfType<UiLabelNode>(), node => node.Text == "整份固件校验通过");
             Assert.Contains(nodes.OfType<UiLabelNode>(), node => node.Text == "厂商：恒玄");
             Assert.Contains(nodes.OfType<UiTextNode>(), node => node.FieldId == "checksum" && node.Text.Length == 8);
             Assert.NotEqual(0u, controller.WorkerPid);
@@ -124,6 +193,7 @@ public sealed class ChecksumPluginTests
     private static PluginRuntimeController Install(BedHarness harness)
     {
         FactoryPackDefinition pack = Assert.Single(PluginSystemHost.BuildFactoryPacks(), pack => pack.PluginId == "com.ducom.checksum");
+        Assert.Equal("1.0.2", pack.Version);
         Assert.Contains(pack.Files, file => file.RelativePath == "SharpCompress.dll");
         string target = Path.Combine(harness.Paths.InstalledRoot, pack.PluginId, pack.Version);
         Directory.CreateDirectory(target);

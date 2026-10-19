@@ -53,6 +53,15 @@ public sealed class ChecksumUiTests
                 Capture(window, "checksum-original-loaded-600.png");
                 Border card = (Border)window.FindName("InformationCard");
                 Assert.Equal(552, card.ActualWidth, 0);
+                string crcStatus = "CRC 校验通过 · 未校验整份固件";
+                string besPayload = JsonSerializer.Serialize(new { Busy = false, Error = false, Verified = false,
+                    Status = crcStatus, Path = @"C:\测试目录\合成固件.bin", Code = "A2B10169", Name = "Synthetic Test Headset",
+                    Chip = "best1502p", Manufacturer = "恒玄", Date = "2026-10-17 12:00:00", FileType = "OTA升级固件" });
+                type.GetMethod("UpdateState", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window,
+                    [new UiNode[] { new UiTextNode { FieldId = "native-state", Text = besPayload, ReadOnly = true } }]);
+                Capture(window, "checksum-crc-status-600.png");
+                Assert.StartsWith(crcStatus, ((TextBlock)window.FindName("StatusText")).Text);
+                Assert.DoesNotContain("旧版", ((TextBlock)window.FindName("StatusText")).Text);
                 foreach (string name in new[] { "CrcText", "BluetoothNameText", "ChipText", "ManufacturerText", "DateText", "FileTypeText", "StatusText" })
                 {
                     FrameworkElement element = (FrameworkElement)window.FindName(name);

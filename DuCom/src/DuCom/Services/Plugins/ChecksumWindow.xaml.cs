@@ -202,7 +202,11 @@ internal sealed class ChecksumWindowState : INotifyPropertyChanged
         _legacy = !_verified;
         _error = false;
         _busy = false;
-        string status = _verified ? "已校验" : Manufacturer is "蓝讯" or "杰理" ? "已读取官方校验码" : "已读取 · 旧版或未嵌入校验";
+        string status = Text("Status") is { Length: > 0 } message ? message
+            : _verified ? "整份固件校验通过"
+            : !IsLoaded ? "未识别到校验码"
+            : Manufacturer is "蓝讯" or "杰理" ? "已读取官方校验码 · 未校验整份固件"
+            : "已读取校验码 · 未校验整份固件";
         StatusMessage = status + " · " + DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
         Notify();
     }

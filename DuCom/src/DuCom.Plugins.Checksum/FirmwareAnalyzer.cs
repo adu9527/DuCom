@@ -26,9 +26,11 @@ public sealed record FirmwareResult
     public string Note { get; init; } = "";
     public bool IsCorrupt => CrcValid is false || ImageValid is false || PackageCrcMatches is false;
     public string Status => IsCorrupt ? "校验不一致，请核对固件文件。"
-        : VendorContentVerified is true || (ImageValid is true && CrcValid is true) ? "完整性校验通过"
+        : VendorContentVerified is true || (ImageValid is true && CrcValid is true) ? "整份固件校验通过"
+        : CrcValid is true ? "CRC 校验通过 · 未校验整份固件"
         : string.IsNullOrEmpty(FirmwareCode) ? "未识别到校验码；恒玄固件请先按接入文档配置。"
-        : "已读取校验码；未完成整文件完整性验证";
+        : Manufacturer is "蓝讯" or "杰理" ? "已读取官方校验码 · 未校验整份固件"
+        : "已读取校验码 · 未校验整份固件";
 }
 
 public static class FirmwareAnalyzer
@@ -129,7 +131,13 @@ public static class FirmwareAnalyzer
             BuildDate = NormalizeDate(Field("BUILD_DATE", "未嵌入")),
             BluetoothName = fields.ContainsKey("BT_NAME") ? Encoding.UTF8.GetString(Encoding.Latin1.GetBytes(Field("BT_NAME"))).Trim().Trim('"') : LegacyName(image),
             FirmwareCode = Field("FIRMWARE_CODE", stored == "00000000" ? "" : stored).ToUpperInvariant(),
-            CrcValid = crcValid, ImageValid = imageValid, PackageCrcMatches = compressed && stored.Length > 0 ? footerCrc == stored : null,
+            CrcValid = crcValid, ImageValid = imageValid,
+            // BES SDKs use a CRC of the compressed prefix or a legacy copy of
+            // the inner CRC. Accept the legacy value only when the inner CRC is valid.
+            PackageCrcMatches = compressed && stored.Length > 0
+                ? footerCrc == Crc32(file.AsSpan(0, file.Length - 9)).ToString("X8", CultureInfo.InvariantCulture)
+                    || (footerCrc == stored && crcValid is true)
+                : null,
             Note = imageValid.HasValue ? "整镜像 SHA-256 覆盖所有镜像字节（计算时自身与 CRC 字段置零）；版本短码与 OTA CRC 含义不同。"
                 : "已读取固件版本标识。若存在原厂 CRC，仅按 BES OTA 前缀约定验证，不覆盖该字段后的内容；未宣称整文件校验通过。",
         };

@@ -1,3 +1,4 @@
+using DuCom.Plugin;
 using DuCom.PluginHost.Packages;
 using DuCom.PluginHost.Registry;
 
@@ -20,6 +21,7 @@ public sealed partial class PluginSystemService
         foreach (FactoryPackDefinition pack in factoryPacks)
         {
             MaterializeFactoryPack(pack);
+            SelectUpdatedFactoryPack(pack);
         }
 
         ValidatePendingUpdatesBeforeStartup();
@@ -53,6 +55,25 @@ public sealed partial class PluginSystemService
 
         await ConsumePendingNoticesAsync().ConfigureAwait(false);
         Changed?.Invoke();
+    }
+
+    private void SelectUpdatedFactoryPack(FactoryPackDefinition pack)
+    {
+        PluginRegistryEntry entry = _registry.Current.Plugins[pack.PluginId];
+        InstalledVersionRecord? selected = entry.InstalledVersions.FirstOrDefault(version => version.Version == entry.SelectedVersion);
+        if (selected?.Source != InstalledVersionRecord.SourceBuiltIn || entry.PendingUpdate is not null
+            || !PluginManifestValidator.TryCompareSemVer(pack.Version, entry.SelectedVersion, out int comparison)
+            || comparison <= 0) return;
+
+        InstalledVersionRecord target = entry.InstalledVersions.Single(version => version.Version == pack.Version);
+        PluginPackageInstaller.ValidateExtractedPackage(target.Path, _isOfficialNamespace, out PackageValidationResult validation);
+        if (!validation.Accepted || validation.Manifest.Permissions.Except(entry.ApprovedPermissions, StringComparer.Ordinal).Any()) return;
+
+        _registry.Mutate(data =>
+        {
+            data.Plugins[pack.PluginId] = data.Plugins[pack.PluginId] with { SelectedVersion = pack.Version };
+        });
+        ProgramLog?.Invoke($"Factory pack '{pack.PluginId}' upgraded from {entry.SelectedVersion} to {pack.Version} before startup.");
     }
 
     private void ValidatePendingUpdatesBeforeStartup()

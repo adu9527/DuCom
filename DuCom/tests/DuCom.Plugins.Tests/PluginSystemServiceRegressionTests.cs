@@ -113,6 +113,40 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         Assert.False(restarted.Registry.Current.Plugins[Id].Enabled);
     }
 
+    [Theory]
+    [InlineData("1.0.0", false, "1.0.1")]
+    [InlineData("1.0.0", true, "1.0.0")]
+    [InlineData("2.0.0", false, "2.0.0")]
+    public async Task FactoryUpgradeSelectsNewEmbeddedVersionEvenWhenAlreadyMaterialized(string selectedVersion, bool addsPermission, string expectedVersion)
+    {
+        PluginSystemService seed = Create();
+        await seed.InitializeAsync([]);
+        Assert.True(seed.InstallPack(Pack(selectedVersion)).Accepted);
+        Assert.True(seed.InstallPack(Pack("1.0.1", addsPermission ? ["storage.own"] : [])).Accepted);
+        seed.Registry.Mutate(data =>
+        {
+            PluginRegistryEntry entry = data.Plugins[Id];
+            data.Plugins[Id] = entry with
+            {
+                BuiltIn = true, Enabled = false, PendingUpdate = null,
+                InstalledVersions = entry.InstalledVersions.Select(version => version with { Source = InstalledVersionRecord.SourceBuiltIn }).ToList(),
+            };
+        });
+        string stage = Path.Combine(_root, "stage-1.0.1");
+        FactoryPackDefinition factory = new()
+        {
+            PluginId = Id, Version = "1.0.1",
+            Files = Directory.GetFiles(stage).Select(path => FactoryPackFile.FromStream(Path.GetFileName(path), () => File.OpenRead(path))).ToList(),
+        };
+        PluginSystemService restarted = Create();
+        await restarted.InitializeAsync([factory]);
+        PluginRegistryEntry updated = restarted.Registry.Current.Plugins[Id];
+        Assert.Equal(expectedVersion, updated.SelectedVersion);
+        Assert.False(updated.Enabled);
+        Assert.Empty(updated.ApprovedPermissions);
+        Assert.Null(updated.PendingUpdate);
+    }
+
     [Fact]
     public async Task SetEnabledWaitsForLifecycleGateBeforeChangingRegistry()
     {
