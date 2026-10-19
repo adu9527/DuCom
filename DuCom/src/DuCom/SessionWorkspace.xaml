@@ -90,8 +90,20 @@
                         BorderThickness="1"
                         CornerRadius="{DynamicResource Radius.Medium}"
                         Panel.ZIndex="20"
-                        Visibility="{Binding HasFault, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <StackPanel HorizontalAlignment="Center">
+                        Visibility="{Binding IsFaultWarningVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Button HorizontalAlignment="Right"
+                                Style="{StaticResource Style.ToolbarIconButton}"
+                                Command="{Binding DismissFaultWarningCommand}"
+                                ToolTip="{DynamicResource Connection.DismissWarning}"
+                                AutomationProperties.Name="{DynamicResource Connection.DismissWarning}">
+                            <ui:SymbolIcon FontSize="16" Symbol="Dismiss24" />
+                        </Button>
+                        <StackPanel Grid.Row="1" HorizontalAlignment="Center">
                         <Border Width="52" Height="52" HorizontalAlignment="Center" Background="{DynamicResource Brush.DangerSoft}" CornerRadius="26">
                             <ui:SymbolIcon HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="26" Foreground="{DynamicResource Brush.Danger}" Symbol="ErrorCircle24" />
                         </Border>
@@ -99,7 +111,8 @@
                         <TextBlock Margin="0,6,0,0" HorizontalAlignment="Center" FontSize="15" FontWeight="SemiBold" Text="{Binding PortName}" />
                         <TextBlock Margin="0,10,0,0" HorizontalAlignment="Center" Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding FaultMessage}" TextAlignment="Center" TextWrapping="Wrap" />
                         <ui:Button Margin="0,18,0,0" MinWidth="120" HorizontalAlignment="Center" Appearance="Primary" Command="{Binding ToggleConnectionCommand}" Content="{DynamicResource Connection.Retry}" />
-                    </StackPanel>
+                        </StackPanel>
+                    </Grid>
                 </Border>
             </Grid>
 

@@ -38,6 +38,9 @@
     <system:String x:Key="Status.InvalidPortSettings">端口参数无效，请检查波特率、数据位、停止位和编码。</system:String>
     <system:String x:Key="Status.OpenFailed">打开串口失败：{0}</system:String>
     <system:String x:Key="Connection.OpenFailedTitle">串口连接失败</system:String>
+    <system:String x:Key="Connection.DismissWarning">关闭警告</system:String>
+    <system:String x:Key="Status.PortTimeout">串口操作超时，请检查设备连接和流控设置后重试。</system:String>
+    <system:String x:Key="Status.PortConnectionFault">串口连接失败或已异常断开，请检查设备连接、驱动和串口参数后重试。详细原因请查看诊断日志。</system:String>
     <system:String x:Key="Connection.Retry">重新连接</system:String>
     <system:String x:Key="Connection.KeepFailedTab">保留标签</system:String>
     <system:String x:Key="Connection.CloseFailedTab">关闭标签</system:String>

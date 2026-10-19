@@ -19,7 +19,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <ui:TitleBar x:Name="DialogTitleBar" ShowClose="False">
+        <ui:TitleBar x:Name="DialogTitleBar" ShowClose="False" ShowMaximize="False" ShowMinimize="False">
             <ui:TitleBar.TrailingContent><controls:WindowCaptionButtons /></ui:TitleBar.TrailingContent>
         </ui:TitleBar>
         <Grid Grid.Row="1" Margin="22,18,22,20">

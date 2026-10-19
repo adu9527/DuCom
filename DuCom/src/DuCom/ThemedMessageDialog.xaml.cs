@@ -101,9 +101,10 @@ public partial class ThemedMessageDialog : FluentWindow
         dialog.PrimaryButton.Content = GetResourceString("Dialog.OK", "OK");
         dialog.SecondaryButton.Visibility = Visibility.Collapsed;
 
-        // The primary action keeps the failed session available for parameter changes.
-        // The secondary action and title-bar X both request removing the failed tab.
-        return dialog.ShowDialog() != true;
+        // Both OK and the title-bar X dismiss the warning while keeping the
+        // failed session available for parameter changes and retrying.
+        _ = dialog.ShowDialog();
+        return false;
     }
 
     public static void CloseOpenFailureFor(object session)

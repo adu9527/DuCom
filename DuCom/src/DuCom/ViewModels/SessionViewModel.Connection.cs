@@ -45,6 +45,7 @@ public partial class SessionViewModel
 
     public async Task<PortCommandResult> OpenAsync(CancellationToken cancellationToken = default)
     {
+        _dismissedFault = null;
         IsBusy = true;
         try
         {

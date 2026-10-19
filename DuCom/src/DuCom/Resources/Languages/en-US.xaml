@@ -38,6 +38,9 @@
     <system:String x:Key="Status.InvalidPortSettings">Invalid port settings. Check baud rate, data bits, stop bits, and encoding.</system:String>
     <system:String x:Key="Status.OpenFailed">Failed to open port: {0}</system:String>
     <system:String x:Key="Connection.OpenFailedTitle">Serial connection failed</system:String>
+    <system:String x:Key="Connection.DismissWarning">Dismiss warning</system:String>
+    <system:String x:Key="Status.PortTimeout">The serial operation timed out. Check the device connection and flow control settings, then try again.</system:String>
+    <system:String x:Key="Status.PortConnectionFault">The serial connection failed or was unexpectedly disconnected. Check the device connection, driver, and port settings, then try again. See the diagnostic log for details.</system:String>
     <system:String x:Key="Connection.Retry">Retry connection</system:String>
     <system:String x:Key="Connection.KeepFailedTab">Keep tab</system:String>
     <system:String x:Key="Connection.CloseFailedTab">Close tab</system:String>

@@ -13,6 +13,17 @@ public partial class SessionViewModel
 {
     private const int MaximumWarnings = 50;
     private string _lastLoggedFault = string.Empty;
+    private object? _dismissedFault;
+
+    [ObservableProperty]
+    public partial bool IsFaultWarningVisible { get; private set; }
+
+    [RelayCommand]
+    private void DismissFaultWarning()
+    {
+        _dismissedFault = _session.Status.Fault;
+        IsFaultWarningVisible = false;
+    }
 
     public ObservableCollection<string> Warnings { get; } = [];
 
@@ -62,6 +73,8 @@ public partial class SessionViewModel
         State = state.State;
         IsOpen = state.State == PortLifecycleState.Open;
         HasFault = snapshot.Fault is not null;
+        if (!HasFault) _dismissedFault = null;
+        IsFaultWarningVisible = HasFault && !ReferenceEquals(snapshot.Fault, _dismissedFault);
         string diagnosticFault = snapshot.Fault?.Message ?? string.Empty;
         FaultMessage = GetUserFaultMessage(diagnosticFault);
         if (HasFault && !string.Equals(_lastLoggedFault, FaultMessage, StringComparison.Ordinal))
@@ -77,19 +90,37 @@ public partial class SessionViewModel
             !string.Equals(previousFaultMessage, FaultMessage, StringComparison.Ordinal);
     }
 
-    private static string GetUserFaultMessage(string message)
+    internal static string GetUserFaultMessage(string message)
     {
+        if (string.IsNullOrWhiteSpace(message)) return string.Empty;
+
         if (message.Contains("does not resolve to a valid serial port", StringComparison.OrdinalIgnoreCase))
         {
             return GetResourceString("Status.PortUnavailable");
         }
 
-        if (message.Contains("Access to the path", StringComparison.OrdinalIgnoreCase) &&
-            message.Contains("denied", StringComparison.OrdinalIgnoreCase))
+        if (message.Contains("UnauthorizedAccessException", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("denied", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("拒绝访问", StringComparison.Ordinal))
         {
             return GetResourceString("Status.PortOccupied");
         }
 
-        return message;
+        if (message.Contains("TimeoutException", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("timed out", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("超时", StringComparison.Ordinal))
+            return GetResourceString("Status.PortTimeout");
+
+        if (message.Contains("ArgumentException", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("ArgumentOutOfRangeException", StringComparison.OrdinalIgnoreCase))
+            return GetResourceString("Status.InvalidPortSettings");
+
+        if (message.Contains("does not exist", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("不存在", StringComparison.Ordinal) ||
+            message.Contains("找不到", StringComparison.Ordinal))
+            return GetResourceString("Status.PortUnavailable");
+
+        return GetResourceString("Status.PortConnectionFault");
     }
 }
