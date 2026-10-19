@@ -24,6 +24,7 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <Version>0.0.0.7</Version>
+    <DuComDistribution Condition="'$(DuComDistribution)' == ''">PortableFull</DuComDistribution>
     <ApplicationIcon>..\..\..\Image\DuCom_256x256.ico</ApplicationIcon>
     <StartupObject>DuCom.Program</StartupObject>
     <DuComBuildDate>$([System.DateTime]::Now.ToString('yyyy-MM-dd'))</DuComBuildDate>
@@ -36,7 +37,15 @@
 
   <ItemGroup>
     <AssemblyMetadata Include="BuildDate" Value="$(DuComBuildDate)" />
+    <AssemblyMetadata Include="Distribution" Value="$(DuComDistribution)" />
   </ItemGroup>
+
+  <Target Name="ValidateDistribution" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(DuComDistribution)' != 'Installed' And '$(DuComDistribution)' != 'PortableFull' And '$(DuComDistribution)' != 'PortableLite'"
+           Text="DuComDistribution must be Installed, PortableFull, or PortableLite." />
+    <Error Condition="'$(DuComDistribution)' == 'PortableLite' And '$(SelfContained)' == 'true'"
+           Text="PortableLite must not include the .NET runtime." />
+  </Target>
 
   <ItemGroup>
     <Resource Include="..\..\..\Image\DuCom_256x256.ico" Link="Assets\DuCom.ico" />

@@ -27,9 +27,10 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
 {
     public const string RepositoryUrl = "https://github.com/adu9527/DuCom";
     public const string PortableAssetName = "DuCom.exe";
+    public const string PortableLiteAssetName = "DuCom-lite.exe";
 
     private readonly GitHubReleaseClient _releaseClient = new(RepositoryUrl);
-    private readonly PortableUpdateStager _stager = new();
+    private readonly PortableUpdateStager _stager = new(channel: BuildDistribution.Current.ToString());
     private readonly UpdateManager? _updateManager;
     private readonly Version _currentVersion;
     private GitHubRelease? _latestRelease;
@@ -63,6 +64,10 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
     public string CurrentVersionText => UpdateVersion.ToDisplayString(_currentVersion);
 
     public bool UsesVelopack => _updateManager is { IsInstalled: true };
+
+    public DistributionKind Distribution => UsesVelopack ? DistributionKind.Installed : BuildDistribution.Current;
+
+    public string UpdateAssetName => Distribution == DistributionKind.PortableLite ? PortableLiteAssetName : PortableAssetName;
 
     /// <summary>True when the portable channel has a backed-up executable ready to restore.</summary>
     public bool CanRollbackPortable => _updateManager is not { IsInstalled: true } && _stager.HasRollbackBackup;
@@ -130,6 +135,8 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
         LastError = null;
         try
         {
+            if (Distribution == DistributionKind.Installed && !UsesVelopack)
+                throw new InvalidOperationException(GetResourceString("Update.InstalledUnavailable"));
             bool hasUpdate;
             if (_updateManager is { IsInstalled: true } manager)
             {
@@ -152,6 +159,8 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
                 Version? latest = UpdateVersion.TryParse(_latestRelease.TagName)
                     ?? throw new InvalidOperationException($"Release tag '{_latestRelease.TagName}' is not a recognizable version.");
                 hasUpdate = UpdateVersion.IsNewer(latest, _currentVersion);
+                if (hasUpdate && PortableAssetSelector.Select(_latestRelease.Assets ?? [], UpdateAssetName, exactOnly: true) is null)
+                    throw new InvalidOperationException(GetResourceString("Update.ChannelAssetMissing").Replace("{0}", UpdateAssetName, StringComparison.Ordinal));
             }
 
             Phase = hasUpdate ? UpdatePhase.Available : UpdatePhase.UpToDate;
@@ -201,10 +210,10 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
             {
                 GitHubReleaseAsset? asset = _latestRelease is null
                     ? null
-                    : PortableAssetSelector.Select(_latestRelease.Assets ?? [], PortableAssetName);
+                    : PortableAssetSelector.Select(_latestRelease.Assets ?? [], UpdateAssetName, exactOnly: true);
                 if (asset is null)
                 {
-                    throw new InvalidOperationException($"The release does not contain a portable '{PortableAssetName}' asset.");
+                    throw new InvalidOperationException(GetResourceString("Update.ChannelAssetMissing").Replace("{0}", UpdateAssetName, StringComparison.Ordinal));
                 }
 
                 long totalBytes = asset.Size;
@@ -362,6 +371,9 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
     {
         System.Windows.Application.Current?.Dispatcher.Invoke(action);
     }
+
+    private static string GetResourceString(string key) =>
+        System.Windows.Application.Current?.TryFindResource(key) as string ?? key;
 
     public void Dispose()
     {

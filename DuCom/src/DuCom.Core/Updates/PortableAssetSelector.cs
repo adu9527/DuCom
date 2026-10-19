@@ -15,7 +15,7 @@ public static class PortableAssetSelector
         "uninstaller",
     ];
 
-    public static GitHubReleaseAsset? Select(IEnumerable<GitHubReleaseAsset> assets, string preferredName = "DuCom.exe")
+    public static GitHubReleaseAsset? Select(IEnumerable<GitHubReleaseAsset> assets, string preferredName = "DuCom.exe", bool exactOnly = false)
     {
         ArgumentNullException.ThrowIfNull(assets);
 
@@ -30,6 +30,8 @@ public static class PortableAssetSelector
         {
             return exact;
         }
+
+        if (exactOnly) return null;
 
         List<GitHubReleaseAsset> executables = [.. candidates
             .Where(asset => asset.Name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))

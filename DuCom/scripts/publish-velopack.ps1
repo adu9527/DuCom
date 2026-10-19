@@ -40,6 +40,7 @@ dotnet publish $csproj `
     -c $Configuration `
     -r win-x64 `
     --self-contained true `
+    -p:DuComDistribution=Installed `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:EnableCompressionInSingleFile=true `

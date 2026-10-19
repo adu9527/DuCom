@@ -39,6 +39,9 @@
     <system:String x:Key="Status.OpenFailed">打开串口失败：{0}</system:String>
     <system:String x:Key="Connection.OpenFailedTitle">串口连接失败</system:String>
     <system:String x:Key="Connection.DismissWarning">关闭警告</system:String>
+    <system:String x:Key="Update.Channel.PortableLite">轻量便携版</system:String>
+    <system:String x:Key="Update.ChannelAssetMissing">此版本尚未发布当前类型的更新文件（{0}），请稍后重试或查看发布页面。</system:String>
+    <system:String x:Key="Update.InstalledUnavailable">安装版更新组件不可用，请通过安装包重新安装后重试。</system:String>
     <system:String x:Key="Status.PortTimeout">串口操作超时，请检查设备连接和流控设置后重试。</system:String>
     <system:String x:Key="Status.PortConnectionFault">串口连接失败或已异常断开，请检查设备连接、驱动和串口参数后重试。详细原因请查看诊断日志。</system:String>
     <system:String x:Key="Connection.Retry">重新连接</system:String>

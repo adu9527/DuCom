@@ -15,6 +15,7 @@ $solutionRoot = Resolve-Path (Join-Path $scriptDirectory "..")
 $csproj = Join-Path $solutionRoot "src\DuCom\DuCom.csproj"
 $outputDirectory = Join-Path $solutionRoot $(if ($FrameworkDependent) { "artifacts\portable-lite" } else { "artifacts\portable" })
 $selfContained = if ($FrameworkDependent) { "false" } else { "true" }
+$distribution = if ($FrameworkDependent) { "PortableLite" } else { "PortableFull" }
 
 [xml]$project = Get-Content -LiteralPath $csproj
 $version = @($project.Project.PropertyGroup | Where-Object { $_.Version })[0].Version
@@ -29,6 +30,7 @@ dotnet publish $csproj `
     -c $Configuration `
     -r win-x64 `
     --self-contained $selfContained `
+    -p:DuComDistribution=$distribution `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:EnableCompressionInSingleFile=$selfContained `
@@ -49,9 +51,10 @@ Write-Host "Portable build created: $portableExe"
 if ($FrameworkDependent) {
     $archivePath = Join-Path $solutionRoot "artifacts\DuCom-$version-win-x64-portable-lite.zip"
     Compress-Archive -Path (Join-Path $outputDirectory "*") -DestinationPath $archivePath -Force
+    Copy-Item -LiteralPath $portableExe -Destination (Join-Path $solutionRoot "artifacts\DuCom-lite.exe") -Force
     Write-Host "Lightweight portable archive created: $archivePath"
     Write-Host "Requires Microsoft .NET 10 Desktop Runtime (Windows x64)."
-    Write-Host "The current in-app updater downloads the full DuCom.exe; update manually to stay lightweight."
+    Write-Host "Upload artifacts\DuCom-lite.exe to the release for lightweight in-app updates."
     return
 }
 Write-Host "Next steps:"

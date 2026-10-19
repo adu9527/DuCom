@@ -33,6 +33,21 @@ public sealed class PortableUpdateStagerTests : IDisposable
     }
 
     [Fact]
+    public void DistributionStagingDoesNotReuseLegacyOrOtherChannelPackages()
+    {
+        string target = Path.Combine(_directory, "RenamedApp.exe");
+        PortableUpdateStager full = new(target, "PortableFull");
+        PortableUpdateStager lite = new(target, "PortableLite");
+        PortableUpdateStager legacy = new(target);
+        Directory.CreateDirectory(full.StagingDirectory);
+        Directory.CreateDirectory(legacy.StagingDirectory);
+        File.WriteAllText(full.StagedFilePath, "full package");
+        File.WriteAllText(legacy.StagedFilePath, "legacy package");
+        Assert.False(lite.HasStagedPackage);
+        Assert.NotEqual(full.StagedVersionMarkerPath, lite.StagedVersionMarkerPath);
+    }
+
+    [Fact]
     public void ApplyScriptIsAsciiAndReceivesPathsThroughEnvironment()
     {
         string script = PortableUpdateStager.BuildApplyScript();

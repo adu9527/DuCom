@@ -39,7 +39,7 @@ public sealed class PortableUpdateStager
 
     public string ApplyTimeoutMarkerPath => StagedFilePath + ".apply-timeout";
 
-    public PortableUpdateStager(string? targetExecutablePath = null)
+    public PortableUpdateStager(string? targetExecutablePath = null, string? channel = null)
     {
         _targetExecutablePath = targetExecutablePath
             ?? Environment.ProcessPath
@@ -51,6 +51,12 @@ public sealed class PortableUpdateStager
         }
 
         StagingDirectory = Path.Combine(directory, "Updates");
+        if (channel is not null)
+        {
+            if (channel is not ("PortableFull" or "PortableLite" or "Installed"))
+                throw new ArgumentException("Unknown update channel.", nameof(channel));
+            StagingDirectory = Path.Combine(StagingDirectory, channel);
+        }
         StagedFilePath = Path.Combine(StagingDirectory, $"{Path.GetFileNameWithoutExtension(_targetExecutablePath)}.exe.new");
     }
 
@@ -160,6 +166,7 @@ public sealed class PortableUpdateStager
 
     private void LaunchApplyScript(string stagedPath, string backupPath)
     {
+        Directory.CreateDirectory(StagingDirectory);
         File.WriteAllText(ScriptFilePath, BuildApplyScript(), Encoding.ASCII);
         ProcessStartInfo startInfo = new("cmd.exe", $"/c \"{ScriptFilePath}\"")
         {

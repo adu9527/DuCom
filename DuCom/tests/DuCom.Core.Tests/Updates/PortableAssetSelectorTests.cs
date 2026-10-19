@@ -4,6 +4,15 @@ namespace DuCom.Core.Tests.Updates;
 
 public sealed class PortableAssetSelectorTests
 {
+    [Theory]
+    [InlineData("DuCom.exe", "DuCom-lite.exe")]
+    [InlineData("DuCom-lite.exe", "DuCom.exe")]
+    public void StrictChannelNeverFallsBackToOtherDistribution(string requested, string other)
+    {
+        Assert.Null(PortableAssetSelector.Select([Asset(other)], requested, exactOnly: true));
+        Assert.Equal(requested, PortableAssetSelector.Select([Asset(other), Asset(requested)], requested, exactOnly: true)?.Name);
+    }
+
     private static GitHubReleaseAsset Asset(string name, string url = "https://example.com/download") =>
         new(name, $"{url}/{name}", 1024);
 

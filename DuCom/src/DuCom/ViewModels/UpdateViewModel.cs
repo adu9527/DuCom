@@ -129,9 +129,12 @@ public partial class UpdateViewModel : ObservableObject
     {
         CurrentVersion = _service.CurrentVersionText;
         LatestVersion = string.IsNullOrWhiteSpace(_service.LatestVersionTag) ? "—" : _service.LatestVersionTag;
-        ChannelText = _service.UsesVelopack
-            ? GetResourceString("Update.Channel.Installed")
-            : GetResourceString("Update.Channel.Portable");
+        ChannelText = GetResourceString(_service.Distribution switch
+        {
+            DistributionKind.Installed => "Update.Channel.Installed",
+            DistributionKind.PortableLite => "Update.Channel.PortableLite",
+            _ => "Update.Channel.Portable",
+        });
         ReleaseNotes = _service.ReleaseNotes ?? string.Empty;
         HasReleaseNotes = !string.IsNullOrWhiteSpace(ReleaseNotes);
 
