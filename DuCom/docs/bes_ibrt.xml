@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<AnalyseDoc xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="./AnalyseDoc.xsd">
+    <SearchText bgColor="red">METAL_ID</SearchText>
+    <SearchText color="red">app_deinit</SearchText>
+    <SearchText color="red">zk_chargerbox_shutdown</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">ASSERT</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">EXCEPTION</SearchText>
+    <SearchText color="red">af_thread:WARNING</SearchText>
+    <SearchText color="green">::HF</SearchText>
+    <SearchText color="green">::A2DP</SearchText>
+    <SearchText color="cyan">::avrcp</SearchText>
+    <SearchText color="liteGreen">status changed</SearchText>
+    <SearchText color="liteGreen" bgColor="liteBlue">[Notify]</SearchText>
+    <SearchText color="blue" bgColor="liteBlue">avrcp_key</SearchText>
+    <SearchText bgColor="cyan">ibrt_ui_log: [IO]</SearchText>
+    <SearchText bgColor="cyan">ibrt_link_mgr:input</SearchText>
+    <SearchText bgColor="cyan">complete_ind</SearchText>
+    <SearchText bgColor="cyan">app_tws_ibrt_tws_connect_request</SearchText>
+    <SearchText bgColor="cyan">run complete</SearchText>
+    <SearchText>CONNECT_IND/CNF</SearchText>
+    <SearchText>[BTEVENT] DISCONNECT</SearchText>
+    <SearchText>app_bt_accessmode_set</SearchText>
+    <SearchText doSearch="false" color="pink" comment="Connection Complete event">04 03 0b</SearchText>
+    <SearchText doSearch="false" color="pink" comment="Connection Request event">04 04 0a</SearchText>
+    <SearchText doSearch="false" color="pink" comment="Disconnection Complete event">04 05 04</SearchText>
+    <SearchText doSearch="false" color="pink" comment="Create Connection command">01 05 04</SearchText>
+    <SearchText doSearch="false" color="pink" comment="accessible_change">01 1a 0c</SearchText>
+    <SearchText doSearch="false" color="pink" comment="set addr">01 72 fc</SearchText>
+    <SearchText color="pink" comment="accessible_change">Bt dev</SearchText>
+    <SearchText color="pink" comment="accessible_change">HANDER AUTH</SearchText>
+    <SearchText color="blue" bgColor="litePink">QLOG</SearchText>
+    <SearchText color="blue" bgColor="litePink">app_ibrt_normal_ui_handle</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="yellow">communication</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="yellow">uart_rx_idle</SearchText>
+    <SearchText color="blue" bgColor="yellow">IN BOX!</SearchText>
+    <SearchText color="blue" bgColor="yellow">OUT BOX!</SearchText>
+    <SearchText color="blue" bgColor="yellow">BOX CLOSE!</SearchText>
+    <SearchText color="blue" bgColor="yellow">BOX OPEN!</SearchText>
+    <SearchText color="blue" bgColor="yellow">WEAR UP!</SearchText>
+    <SearchText color="blue" bgColor="yellow">psc      in</SearchText>
+    <SearchText color="blue" bgColor="yellow">WEAR DOWN!</SearchText>
+    <SearchText color="blue" bgColor="yellow">psc      out</SearchText>
+    <SearchText color="blue" bgColor="yellow">hsc_bt_key_handle</SearchText>
+    <SearchText color="blue" bgColor="pink"> app_status_indication_set_ex</SearchText>
+    <SearchText color="blue" bgColor="veryLiteBlue">app_ibrt_customif_ui_global_event_update</SearchText>
+    <SearchText color="blue" bgColor="veryLiteBlue">input event</SearchText>
+    <SearchText color="blue" bgColor="veryLiteBlue">retry_times</SearchText>
+    <SearchText color="blue" bgColor="veryLiteBlue">retry times</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="veryLiteBlue">sbc_player</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="veryLiteBlue">sco_player</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="yellow">curr_active_media</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="veryLiteBlue">media_active</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="veryLiteBlue">bt_media_start</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="veryLiteBlue">bt_media_stop</SearchText>
+    <SearchText color="blue" bgColor="veryLiteBlue">app_ble_force_switch_adv</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="liteGreen">IO_LED_UART</SearchText>
+    <SearchText color="blue" bgColor="liteGreen">loc aud_id</SearchText>
+    <SearchText color="blue" bgColor="liteGreen">aud_id:</SearchText>
+    <SearchText color="blue" bgColor="liteGreen">app_voice_report_handler</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="liteGreen">app_status_indication_set</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="liteGreen">zk_chargerbox</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="liteGreen">SINGLE_WIRE</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="liteGreen">LED_UART</SearchText>
+    <SearchText color="blue" bgColor="liteGreen">zk_chargerbox_open_box</SearchText>
+    <SearchText color="blue" bgColor="liteGreen">zk_chargerbox_close_box</SearchText>
+    <SearchText color="blue" bgColor="liteGreen">zk_chargerbox_pair</SearchText>
+    <SearchText color="blue" bgColor="liteGreen">zk_chargerbox_set_pair_flag</SearchText>
+    <SearchText color="blue" bgColor="liteGreen">zk_chargerbox_clear_pair</SearchText>
+    <SearchText doSearch="false" color="blue" bgColor="liteGreen" comment="&#x5F00;&#x59CB;&#x5E7F;&#x64AD;">01 37 20</SearchText>
+    <SearchText color="blue" bgColor="veryLitePurple">_app_ipop_active_:   ev:</SearchText>
+    <SearchText color="blue" bgColor="veryLitePurple">app_ipop_adv_start</SearchText>
+    <SearchText color="blue" bgColor="veryLitePurple">app_ipod_adv_stop</SearchText>
+    <SearchText color="blue" bgColor="veryLitePurple">app_ipop_start_timing_timer</SearchText>
+    <SearchText color="blue" bgColor="cyan" comment="TWS 状态机">TWS-STATE:</SearchText>
+    <SearchText color="green" bgColor="veryLiteBlue" comment="A2DP 协议事件">::A2DP_EVENT_</SearchText>
+    <SearchText color="cyan" bgColor="veryLiteBlue" comment="AVRCP 协议回调">::avrcp_callback_</SearchText>
+    <SearchText color="green" bgColor="veryLiteBlue" comment="HFP 协议事件">::HF_EVENT_</SearchText>
+    <SearchText color="green" bgColor="veryLiteBlue" comment="RFCOMM 通道打开">rfcomm_report_opened:</SearchText>
+    <SearchText color="green" bgColor="veryLiteBlue" comment="RFCOMM 通道关闭">rfcomm_report_closed:</SearchText>
+    <SearchText color="blue" bgColor="yellow" comment="盒仓状态变化">BudEvt:input=</SearchText>
+    <SearchText color="blue" bgColor="liteGreen" comment="耳机充电插拔状态">ear_putinout =</SearchText>
+    <SearchText color="blue" bgColor="veryLitePurple" comment="系统启动原因">boot_cause=</SearchText>
+    <SearchText color="blue" bgColor="veryLitePurple" comment="系统启动原因">boot_reason:</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">FaultInfo    :</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">FaultCause   :</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">System soft lockup</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">Find thread hung</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">osRtxErrorNotify, code:</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">stack overflow</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">CORRUPT HEAP:</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">Heap corrupt:</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">Cannot malloc any RAM</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">cannot malloc memory</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">System pool in shortage!</SearchText>
+    <SearchText doSearch="false" color="yellow" bgColor="red">CRASH ENCOUNTERED</SearchText>
+    <SearchText doSearch="false" color="red" bgColor="yellow">Possible Backtrace:</SearchText>
+    <SearchText doSearch="false" color="red" bgColor="yellow">End of crash dump</SearchText>
+</AnalyseDoc>
