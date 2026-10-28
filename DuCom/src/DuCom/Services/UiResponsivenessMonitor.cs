@@ -12,6 +12,8 @@ internal sealed class UiResponsivenessMonitor : IAsyncDisposable
     private readonly CancellationTokenSource _cancellation = new();
     private readonly Process _process = Process.GetCurrentProcess();
     private Task? _loopTask;
+    private readonly object _disposeGate = new();
+    private Task? _disposeTask;
 
     public UiResponsivenessMonitor(Dispatcher dispatcher)
     {
@@ -74,7 +76,15 @@ internal sealed class UiResponsivenessMonitor : IAsyncDisposable
             $"WorkingSetMiB={workingSetMiB.ToString("0.0", CultureInfo.InvariantCulture)}");
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
+    {
+        lock (_disposeGate)
+        {
+            return new ValueTask(_disposeTask ??= DisposeCoreAsync());
+        }
+    }
+
+    private async Task DisposeCoreAsync()
     {
         _cancellation.Cancel();
         if (_loopTask is not null)

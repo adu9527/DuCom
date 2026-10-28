@@ -136,7 +136,7 @@ public partial class PluginManagerViewModel
         return Task.CompletedTask;
     }
 
-    private Task RestartApplication()
+    private async Task RestartApplication()
     {
         string? executable = Environment.ProcessPath;
         if (executable is null)
@@ -145,7 +145,9 @@ public partial class PluginManagerViewModel
         }
 
         Process.Start(new ProcessStartInfo(executable, $"--wait-parent {Environment.ProcessId}") { UseShellExecute = true });
+        // Application.Shutdown ignores an asynchronous Closing cancellation. Finish
+        // teardown while the dispatcher is still running, before forcing shutdown.
+        if (Application.Current is App app) await app.PrepareShutdownAsync();
         Application.Current.Shutdown(0);
-        return Task.CompletedTask;
     }
 }

@@ -9,16 +9,27 @@ namespace DuCom.Services;
 
 internal sealed class LeaseAwareWorkspaceSession(IWorkspaceSession inner, SerialLeaseCoordinator leases) : IWorkspaceSession
 {
+    private SessionFaultSnapshot? _openFault;
     public string RuntimeId => inner.RuntimeId;
     public Guid? RuntimeGeneration => inner.RuntimeGeneration;
     public SerialPortSettings Settings => inner.Settings;
-    public SerialSessionStatusSnapshot Status => inner.Status;
+    public SerialSessionStatusSnapshot Status => _openFault is { } fault ? inner.Status with { Fault = fault } : inner.Status;
     public string LogDirectory => inner.LogDirectory;
     public string? CurrentLogFilePath => inner.CurrentLogFilePath;
     public event EventHandler<SessionWarningEventArgs>? Warning { add => inner.Warning += value; remove => inner.Warning -= value; }
     public SessionTapHub DisplayTaps => inner.DisplayTaps;
     public SessionRawTapHub RawTaps => inner.RawTaps;
-    public Task<PortCommandResult> OpenAsync(CancellationToken cancellationToken = default) => leases.RunPortOperationAsync(Settings.PortName, async () => { Demand(); return await inner.OpenAsync(cancellationToken); });
+    public Task<PortCommandResult> OpenAsync(CancellationToken cancellationToken = default) => leases.RunPortOperationAsync(Settings.PortName, async () =>
+    {
+        _openFault = null;
+        if (!leases.CanUse(Settings.PortName))
+        {
+            _openFault = new SessionFaultSnapshot("SerialLease", $"串口 {Settings.PortName} 正被插件任务占用，请等待任务结束后重试。 / Serial port is leased by a plugin task.");
+            return PortCommandResult.Faulted;
+        }
+
+        return await inner.OpenAsync(cancellationToken);
+    });
     public Task<PortCommandResult> CloseAsync(CancellationToken cancellationToken = default) => inner.CloseAsync(cancellationToken);
     public Task ApplySettingsAsync(SerialPortSettings settings, CancellationToken cancellationToken = default) => leases.RunPortOperationAsync(Settings.PortName, async () => { Demand(); await inner.ApplySettingsAsync(settings, cancellationToken); return true; });
     public ValueTask SendAsync(SendMode mode, string text, NewlinePolicy newline, CancellationToken cancellationToken = default) => new(leases.RunPortOperationAsync(Settings.PortName, async () => { Demand(); await inner.SendAsync(mode, text, newline, cancellationToken); return true; }));

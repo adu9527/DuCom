@@ -63,6 +63,16 @@ public partial class App
             }
             if (_pluginSystemHost is null) throw new InvalidOperationException("Plugin system is unavailable.");
 
+            foreach (PluginHost.PluginManagerRow builtIn in _pluginSystemHost.Service.BuildManagerRows().Where(row => row.IsBuiltIn))
+            {
+                if (!_pluginSystemHost.Ui.Activations.Any(item => item.PluginId == builtIn.Id))
+                {
+                    _pluginSystemHost.Service.SetEnabled(builtIn.Id, true, stopImmediately: false);
+                    await _pluginSystemHost.Service.StartRegisteredAsync(builtIn.Id);
+                }
+            }
+            await Task.Delay(200);
+
             foreach (PluginHost.PluginManagerRow row in _pluginSystemHost.Service.BuildManagerRows().Where(row => row.IsBuiltIn))
             {
                 PluginHost.PluginPublishedActivation activation = _pluginSystemHost.Ui.Activations.Single(item => item.PluginId == row.Id);
@@ -75,10 +85,18 @@ public partial class App
                     Services.Plugins.ChecksumWindow checksum = Current.Windows.OfType<Services.Plugins.ChecksumWindow>().Single();
                     if (checksum.Width != 700 || checksum.Height != 480 || !checksum.AllowDrop)
                         throw new InvalidOperationException("Checksum window did not preserve original size/drop behavior.");
+                    await VerifyIndependentPluginWindowAsync(owner, checksum);
                     checksum.Close();
+                    VerifyMainWindowUnchanged(owner);
                     continue;
                 }
                 Services.Plugins.PluginToolWindow window = Current.Windows.OfType<Services.Plugins.PluginToolWindow>().Single(item => item.PluginId == row.Id);
+                FeedbackWindow feedback = FeedbackWindow.ShowOrActivate();
+                if (!ReferenceEquals(feedback, FeedbackWindow.ShowOrActivate()))
+                    throw new InvalidOperationException("Repeated feedback action created duplicate windows.");
+                if (feedback.Owner is not null || !IsWindowEnabled(new System.Windows.Interop.WindowInteropHelper(window).Handle)
+                    || !IsWindowEnabled(new System.Windows.Interop.WindowInteropHelper(owner).Handle))
+                    throw new InvalidOperationException("Feedback disabled another application window.");
                 if (window.Content is not Grid shell || shell.Children.OfType<Wpf.Ui.Controls.TitleBar>().Count() != 1
                     || !Descendants<System.Windows.Controls.Button>(window).Any(button => Equals(button.Content, FindResource("LogPackage.Cancel"))))
                 {
@@ -88,7 +106,21 @@ public partial class App
                 {
                     throw new InvalidOperationException("Log package page did not use settings-card layout.");
                 }
+                await VerifyIndependentPluginWindowAsync(owner, window);
+                // Menu re-entry must restore an existing minimized tool without
+                // bringing the main window out of its independently minimized state.
+                owner.WindowState = WindowState.Minimized;
+                window.WindowState = WindowState.Minimized;
+                _pluginSystemHost.Ui.OpenToolPage(row.Id, page, (_, _) => Task.FromResult(true));
+                await Task.Delay(200);
+                if (window.WindowState != WindowState.Normal || owner.WindowState != WindowState.Minimized)
+                    throw new InvalidOperationException($"Plugin page restore changed the host state for {row.Id}.");
+                owner.WindowState = WindowState.Normal;
                 window.Close();
+                await Task.Delay(200);
+                VerifyMainWindowUnchanged(owner);
+                if (window.IsVisible) throw new InvalidOperationException("Plugin could not close while feedback was open.");
+                feedback.Close();
             }
 
             System.Windows.Controls.Button logEntry = Descendants<System.Windows.Controls.Button>(owner)
@@ -98,8 +130,12 @@ public partial class App
             await _pluginSystemHost.Service.StopAsync("com.ducom.log-package");
             DoEvents();
             if (logEntry.Visibility == Visibility.Visible) throw new InvalidOperationException("Disabled log-package plugin left the title-bar entry visible.");
+            _pluginSystemHost.Service.SetEnabled("com.ducom.log-package", true, stopImmediately: false);
 
             DiagnosticLog?.Information("Plugin UI smoke test passed. Built-in pages opened with themed shell and close actions; log entry followed Active state.");
+            // Exercise the same explicit-shutdown path used by plugin updates.
+            await PrepareShutdownAsync();
+            await PrepareShutdownAsync();
             Shutdown(0);
         }
         catch (Exception exception)
@@ -108,5 +144,48 @@ public partial class App
             Shutdown(-12);
         }
     }
+
+    private static async Task VerifyIndependentPluginWindowAsync(Window host, Window tool)
+    {
+        if (tool.Owner is not null || !tool.ShowInTaskbar)
+            throw new InvalidOperationException($"Plugin window is not an independent taskbar window: {tool.Title}.");
+        bool wasTopmost = tool.Topmost;
+        try
+        {
+            foreach (bool topmost in new[] { false, true })
+            {
+                tool.Topmost = topmost;
+                host.WindowState = WindowState.Minimized;
+                await Task.Delay(100);
+                if (!tool.IsVisible || tool.WindowState == WindowState.Minimized || tool.Topmost != topmost
+                    || IsIconic(new System.Windows.Interop.WindowInteropHelper(tool).Handle))
+                    throw new InvalidOperationException($"Minimizing the host also minimized its plugin: {tool.Title}.");
+                host.WindowState = WindowState.Normal;
+                tool.WindowState = WindowState.Minimized;
+                await Task.Delay(100);
+                VerifyMainWindowUnchanged(host);
+                tool.WindowState = WindowState.Normal;
+            }
+        }
+        finally
+        {
+            tool.Topmost = wasTopmost;
+            host.WindowState = WindowState.Normal;
+        }
+    }
+
+    private static void VerifyMainWindowUnchanged(Window host)
+    {
+        if (!host.IsVisible || host.WindowState != WindowState.Normal)
+            throw new InvalidOperationException("Plugin window action hid or minimized the main window.");
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool IsIconic(nint window);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool IsWindowEnabled(nint window);
 
 }

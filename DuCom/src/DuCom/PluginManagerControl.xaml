@@ -77,6 +77,11 @@
                     </Border>
                     <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding SelectedPlugin.Name}" />
                 </DockPanel>
+                <StackPanel Margin="0,8,0,0" Orientation="Horizontal"
+                            Visibility="{Binding IsRowSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="{DynamicResource Plugins.Column.Version}" />
+                    <TextBlock x:Name="PluginVersionText" Margin="8,0,0,0" FontWeight="SemiBold" Text="{Binding SelectedPlugin.Version}" />
+                </StackPanel>
                 <TextBlock Margin="0,6,0,0" Style="{DynamicResource Style.MutedText}" Text="{Binding SelectedPlugin.Description}" TextWrapping="Wrap" />
                 <TextBlock Margin="0,10,0,0" Visibility="{Binding SelectedPlugin.HasIntegrationGuide, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Hyperlink Command="{Binding OpenIntegrationGuideCommand}">恒玄接入文档（内嵌流程、完整代码与验证指导）</Hyperlink>

@@ -65,8 +65,7 @@ public partial class MainViewModel
     [RelayCommand]
     private static void OpenFeedback()
     {
-        FeedbackWindow window = new() { Owner = Application.Current.MainWindow };
-        window.ShowDialog();
+        FeedbackWindow.ShowOrActivate();
     }
 
     private static void OpenUrl(string url) =>

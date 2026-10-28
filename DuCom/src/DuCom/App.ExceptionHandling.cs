@@ -15,7 +15,17 @@ public partial class App
             (string)FindResource("Error.UnhandledMessage"),
             (string)FindResource("Error.UnhandledTitle"),
             ThemedMessageDialogKind.Error);
-        Shutdown(-1);
+        // Keep the dispatcher pumping while MainWindow asynchronously stops plugins
+        // and serial sessions. Synchronous OnExit cleanup can otherwise deadlock on UI work.
+        Program.BeginShutdown();
+        if (MainWindow is DuCom.MainWindow window)
+        {
+            window.RequestExit();
+        }
+        else
+        {
+            Shutdown(-1);
+        }
     }
 
     private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)

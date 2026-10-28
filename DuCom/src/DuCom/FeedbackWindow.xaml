@@ -13,7 +13,8 @@
                  ExtendsContentIntoTitleBar="True"
                  ResizeMode="NoResize"
                  WindowBackdropType="Mica"
-                 WindowStartupLocation="CenterOwner">
+                  ShowInTaskbar="True"
+                  WindowStartupLocation="CenterScreen">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />

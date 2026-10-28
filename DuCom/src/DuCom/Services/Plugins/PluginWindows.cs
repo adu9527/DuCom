@@ -26,7 +26,8 @@ public partial class PluginToolWindow : FluentWindow
         Height = page.PreferredHeight ?? (pluginId == "com.ducom.log-package" ? 900 : pluginId == "com.ducom.timer" ? 760 : 720);
         MinWidth = page.MinWidth ?? (pluginId == "com.ducom.log-package" ? 760 : pluginId == "com.ducom.timer" ? 560 : 640);
         MinHeight = 560;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        ShowInTaskbar = true;
         ExtendsContentIntoTitleBar = true;
         WindowBackdropType = WindowBackdropType.Mica;
         Topmost = PluginToolWindowPreferencesService.Load().Topmost;

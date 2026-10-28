@@ -10,6 +10,7 @@ public partial class App : Application, IDisposable
 {
     private CompositionRoot? _compositionRoot;
     private Services.Plugins.PluginSystemHost? _pluginSystemHost;
+    private Task? _shutdownTask;
 
     internal string CurrentLanguage { get; private set; } = "en-US";
 
@@ -105,6 +106,7 @@ public partial class App : Application, IDisposable
 
     protected override void OnExit(ExitEventArgs e)
     {
+        Program.BeginShutdown();
         ApplicationThemeManager.Changed -= OnApplicationThemeChanged;
         Services.SystemPowerService.SetPreventSleep(false);
         DiagnosticLog?.Information($"WPF application exiting. ExitCode={e.ApplicationExitCode}");
@@ -115,8 +117,39 @@ public partial class App : Application, IDisposable
         base.OnExit(e);
     }
 
+    internal Task PrepareShutdownAsync() => _shutdownTask ??= PrepareShutdownCoreAsync();
+
+    private async Task PrepareShutdownCoreAsync()
+    {
+        Program.BeginShutdown();
+        // Complete asynchronous teardown before closing the main window: the
+        // responsiveness monitor and plugin callbacks may still need its dispatcher.
+        if (_pluginSystemHost is not null)
+        {
+            Services.Plugins.PluginSystemHost host = _pluginSystemHost;
+            _pluginSystemHost = null;
+            try { await host.DisposeAsync(); }
+            catch (Exception exception) { DiagnosticLog?.Warning("Plugin system shutdown reported a failure.", exception); }
+        }
+
+        if (_compositionRoot is not null)
+        {
+            CompositionRoot root = _compositionRoot;
+            _compositionRoot = null;
+            try
+            {
+                // The view model closes WPF tool windows and stops dispatcher timers.
+                // Run that part on the UI thread before the root's background teardown.
+                await root.MainViewModel.DisposeAsync();
+                await root.DisposeAsync();
+            }
+            catch (Exception exception) { DiagnosticLog?.Warning("Application services shutdown reported a failure.", exception); }
+        }
+    }
+
     public void Dispose()
     {
+        Program.BeginShutdown();
         if (_pluginSystemHost is not null)
         {
             try

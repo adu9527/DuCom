@@ -196,6 +196,8 @@ public partial class MainWindow : FluentWindow
         }
 
         _shutdownStarted = true;
+        Program.BeginShutdown();
+        Program.DiagnosticLog?.Information("Main window shutdown started.");
         IsEnabled = false;
         Hide();
         try
@@ -204,6 +206,14 @@ public partial class MainWindow : FluentWindow
             {
                 await disposable.DisposeAsync();
             }
+            if (Application.Current is App app)
+            {
+                await app.PrepareShutdownAsync();
+            }
+        }
+        catch (Exception exception)
+        {
+            Program.DiagnosticLog?.Error("Main window cleanup failed; continuing application shutdown.", exception);
         }
         finally
         {

@@ -243,14 +243,14 @@ public sealed class PluginUiDispatcher
                          .Where(window => string.Equals(window.PluginId, pluginId, StringComparison.Ordinal)
                              && string.Equals(window.ContributionId, contributionId, StringComparison.Ordinal)))
             {
+                if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
                 existing.Activate();
                 return;
             }
 
-            PluginToolWindow window = new(pluginId, page!, activation?.PluginName ?? pluginId, commandInvoker)
-            {
-                Owner = Application.Current?.MainWindow,
-            };
+            // Tool pages are independent top-level windows. An Owner links native
+            // minimize/activation behavior even when the tool has its own taskbar entry.
+            PluginToolWindow window = new(pluginId, page!, activation?.PluginName ?? pluginId, commandInvoker);
             window.SetContent(page!.Nodes);
             window.Show();
         });

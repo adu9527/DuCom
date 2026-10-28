@@ -61,6 +61,8 @@ dlldata.c
 BenchmarkDotNet.Artifacts/
 
 # DuCom runtime and generated performance output
+# Private BES plugin sources and packages stay local.
+/DuCom/plugins/BesDownload/
 /DuCom/**/*.db
 /DuCom/**/*.db-shm
 /DuCom/**/*.db-wal

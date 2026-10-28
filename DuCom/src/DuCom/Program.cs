@@ -13,6 +13,15 @@ public static class Program
 
     private static DiagnosticFileLog? _log;
     private static Mutex? _singleInstanceMutex;
+    private static readonly ShutdownWatchdog ShutdownGuard = new(TimeSpan.FromSeconds(15), () =>
+    {
+        _log?.Error("Application shutdown exceeded 15 seconds; terminating the host and its plugin workers to release the single-instance lock.");
+        using System.Diagnostics.Process process = System.Diagnostics.Process.GetCurrentProcess();
+        try { process.Kill(entireProcessTree: true); }
+        finally { Environment.Exit(-1); }
+    });
+
+    internal static void BeginShutdown() => ShutdownGuard.Start();
 
     internal static DiagnosticFileLog? DiagnosticLog => _log;
 
@@ -58,9 +67,17 @@ public static class Program
         }
         finally
         {
-            _log.Dispose();
-            _log = null;
-            ReleaseSingleInstanceLock();
+            BeginShutdown();
+            try
+            {
+                _log.Dispose();
+                _log = null;
+            }
+            finally
+            {
+                ReleaseSingleInstanceLock();
+                ShutdownGuard.Complete();
+            }
         }
     }
 

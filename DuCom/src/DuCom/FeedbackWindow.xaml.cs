@@ -15,6 +15,21 @@ public partial class FeedbackWindow : FluentWindow
         InitializeComponent();
     }
 
+    internal static FeedbackWindow ShowOrActivate()
+    {
+        FeedbackWindow? existing = Application.Current.Windows.OfType<FeedbackWindow>().FirstOrDefault();
+        if (existing is not null)
+        {
+            if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
+            existing.Activate();
+            return existing;
+        }
+
+        FeedbackWindow window = new();
+        window.Show();
+        return window;
+    }
+
     private void CopyQQ_Click(object sender, RoutedEventArgs e) => Clipboard.SetText(QQGroupNumber);
 
     private void GitHub_Click(object sender, RoutedEventArgs e) =>
