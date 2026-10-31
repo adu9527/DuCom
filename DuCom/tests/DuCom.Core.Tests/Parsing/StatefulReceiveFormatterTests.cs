@@ -8,6 +8,36 @@ public sealed class StatefulReceiveFormatterTests
     private static readonly DateTimeOffset FirstReceivedAt = new(2026, 8, 26, 1, 2, 3, 456, TimeSpan.Zero);
     private static readonly DateTimeOffset SecondReceivedAt = FirstReceivedAt.AddSeconds(1);
 
+    [Theory]
+    [InlineData(ReceiveDisplayMode.Str)]
+    [InlineData(ReceiveDisplayMode.Hex)]
+    public void ReplyBoundarySeparatesRepliesButNotAdjacentReadBlocks(ReceiveDisplayMode mode)
+    {
+        StatefulReceiveFormatter formatter = new(Encoding.UTF8, mode, false,
+            unterminatedLineIdleTimeout: TimeSpan.FromMilliseconds(200));
+        formatter.Append("first"u8, FirstReceivedAt);
+        Assert.DoesNotContain(formatter.Append("part"u8, FirstReceivedAt.AddMilliseconds(5)), line => line.IsTerminated);
+        formatter.RequestLineBreak();
+        IReadOnlyList<FormattedLine> reply = formatter.Append("next"u8, FirstReceivedAt.AddMilliseconds(10));
+        Assert.True(reply[0].IsTerminated);
+        Assert.Single(reply, line => line.IsTerminated);
+        Assert.DoesNotContain(formatter.Append("tail"u8, FirstReceivedAt.AddMilliseconds(15)), line => line.IsTerminated);
+        Assert.True(formatter.Append("later"u8, SecondReceivedAt)[0].IsTerminated);
+    }
+
+    [Fact]
+    public void ReplyBoundaryDoesNotAddBlankLineAfterDeviceNewline()
+    {
+        StatefulReceiveFormatter formatter = new(Encoding.UTF8, ReceiveDisplayMode.Str, false,
+            unterminatedLineIdleTimeout: TimeSpan.FromMilliseconds(200));
+        formatter.Append("first\r\n"u8, FirstReceivedAt);
+        formatter.RequestLineBreak();
+        IReadOnlyList<FormattedLine> reply = formatter.Append("next"u8, SecondReceivedAt);
+        Assert.Single(reply);
+        Assert.Equal("next", reply[0].Text);
+        Assert.False(reply[0].IsTerminated);
+    }
+
     [Fact]
     public void ContractsExposeRequiredValues()
     {

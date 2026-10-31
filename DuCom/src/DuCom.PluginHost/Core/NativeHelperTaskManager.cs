@@ -58,10 +58,19 @@ internal sealed class NativeHelperTaskManager : IDisposable
         lock (_gate)
         {
             ThrowIfDisposed();
-            if (_tasks.Count >= 32) throw new PluginScopeException(PluginErrorCode.ResourceLimit, "This activation has reached the 32 helper-task limit.");
+            if (_tasks.Values.Count(task => !task.ExitConfirmed) >= 32)
+                throw new PluginScopeException(PluginErrorCode.ResourceLimit, "This activation has reached the 32 concurrent helper-task limit.");
             if (_tasks.ContainsKey(request.TaskId))
             {
                 throw new PluginScopeException(PluginErrorCode.InvalidArgument, $"Task id '{request.TaskId}' was already used in this activation.");
+            }
+
+            // Completed runs must not exhaust the activation's live-process quota.
+            // Keep a bounded status history for callers that are still collecting results.
+            foreach (RunningHelperTask completed in _tasks.Values.Where(task => task.ExitConfirmed)
+                         .OrderBy(task => task.Started).Take(Math.Max(0, _tasks.Count - 127)).ToArray())
+            {
+                _tasks.Remove(completed.Id);
             }
 
             // Reserve the identifier before process creation so concurrent duplicate starts can

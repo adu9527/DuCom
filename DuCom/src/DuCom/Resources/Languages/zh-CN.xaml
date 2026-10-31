@@ -745,6 +745,8 @@
     <system:String x:Key="Plugins.SafeStart">下次启动时禁用全部插件（含内置）</system:String>
     <system:String x:Key="Plugins.Column.Id">插件 ID</system:String>
     <system:String x:Key="Plugins.Column.Version">版本</system:String>
+    <system:String x:Key="Settings.ReplyOnNewLine">回复自动另起一行</system:String>
+    <system:String x:Key="Settings.ReplyOnNewLine.Hint">发送后的回复另起一行；接收间隔达到 200 ms 时也另起一行。仅调整文本显示和格式化日志，不向设备发送额外换行。按串口保存，立即生效。</system:String>
     <system:String x:Key="Plugins.Column.Source">来源</system:String>
     <system:String x:Key="Plugins.Column.State">状态</system:String>
     <system:String x:Key="Plugins.Column.Pid">进程</system:String>

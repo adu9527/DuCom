@@ -104,4 +104,5 @@ internal sealed record PortSettingSnapshot(
     bool? FilterEnabled = null,
     bool? AutoReconnect = null,
     Guid? HighlightRuleProjectId = null,
-    bool HighlightRuleChoiceMade = false);
+    bool HighlightRuleChoiceMade = false,
+    bool ReplyOnNewLine = false);

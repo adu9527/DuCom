@@ -69,8 +69,10 @@ public sealed class ReceiveSessionSink(
 
     private async Task SwitchProfileAsync(ReceiveFormattingProfile profile, CancellationToken cancellationToken)
     {
-        if (_activeProfile == profile)
+        if (_activeProfile is { } active && active with { ReplyBoundarySequence = profile.ReplyBoundarySequence } == profile)
         {
+            if (active.ReplyBoundarySequence != profile.ReplyBoundarySequence) _formatter!.RequestLineBreak();
+            _activeProfile = profile;
             return;
         }
 

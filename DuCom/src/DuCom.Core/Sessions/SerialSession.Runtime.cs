@@ -36,7 +36,7 @@ public sealed partial class SerialSession
         _receiveDisplayMode,
         _timestampEnabled,
         TimestampFormat: _timestampFormat,
-        UnterminatedLineIdleMilliseconds: 200);
+        UnterminatedLineIdleMilliseconds: _settings.ReplyOnNewLine ? 200 : 0);
 
     private void CaptureRuntimeFault(SessionRuntime runtime)
     {

@@ -26,6 +26,7 @@ internal sealed class PortOverrideStore
             DtrEnable = value?.DtrEnable ?? defaults.DtrEnable,
             RtsEnable = value?.RtsEnable ?? defaults.RtsEnable,
             DiscardNull = value?.DiscardNull ?? defaults.DiscardNull,
+            ReplyOnNewLine = value?.ReplyOnNewLine ?? defaults.ReplyOnNewLine,
         };
     }
 
@@ -59,7 +60,8 @@ internal sealed class PortOverrideStore
             session?.FilterEnabled ?? previous?.FilterEnabled,
             session?.AutoReconnect ?? previous?.AutoReconnect,
             projectId,
-            projectId is null && (session is not null || previous?.HighlightRuleChoiceMade == true));
+            projectId is null && (session is not null || previous?.HighlightRuleChoiceMade == true),
+            settings?.ReplyOnNewLine ?? session?.WorkspaceSession.Settings.ReplyOnNewLine ?? previous?.ReplyOnNewLine ?? false);
     }
 
     public Dictionary<string, PortSettingSnapshot> Capture(

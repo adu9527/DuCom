@@ -15,7 +15,8 @@ public sealed record SerialPortSettings(
     bool DiscardNull,
     string EncodingName,
     int ReadBufferSize,
-    int WriteBufferSize)
+    int WriteBufferSize,
+    bool ReplyOnNewLine = false)
 {
     public static SerialPortSettings Default(string portName) => new(
         portName,

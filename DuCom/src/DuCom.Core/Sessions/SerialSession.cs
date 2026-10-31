@@ -129,9 +129,11 @@ public sealed partial class SerialSession : IAsyncDisposable
 
             SerialPortSettings previous = _settings;
             bool encodingChanged = _runtime is not null &&
-                !string.Equals(settings.EncodingName, _settings.EncodingName, StringComparison.OrdinalIgnoreCase);
+                (!string.Equals(settings.EncodingName, _settings.EncodingName, StringComparison.OrdinalIgnoreCase)
+                 || settings.ReplyOnNewLine != _settings.ReplyOnNewLine);
             ReceiveFormattingProfile? replacementProfile = encodingChanged
-                ? CreateFormattingProfile(settings.EncodingName, _formattingProfileVersion + 1)
+                ? CreateFormattingProfile(settings.EncodingName, _formattingProfileVersion + 1) with
+                { UnterminatedLineIdleMilliseconds = settings.ReplyOnNewLine ? 200 : 0 }
                 : null;
 
             try
@@ -208,6 +210,7 @@ public sealed partial class SerialSession : IAsyncDisposable
                 _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null),
             };
 
+            if (_settings.ReplyOnNewLine && payload.Length > 0) _runtime.Pipeline.BeginReplyLine();
             await _transport.WriteAsync(payload, cancellationToken).ConfigureAwait(false);
             _rawTaps.PublishTransmit(payload, DateTimeOffset.UtcNow);
 

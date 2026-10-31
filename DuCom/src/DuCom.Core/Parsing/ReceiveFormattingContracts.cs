@@ -30,7 +30,8 @@ public sealed record ReceiveFormattingProfile(
     bool EscapeNullBytes = true,
     ReceiveNewlinePolicy NewlinePolicy = ReceiveNewlinePolicy.NormalizeCrLfCrLf,
     string TimestampFormat = "HH:mm:ss.fff",
-    int UnterminatedLineIdleMilliseconds = 0)
+    int UnterminatedLineIdleMilliseconds = 0,
+    long ReplyBoundarySequence = 0)
 {
     public void Validate()
     {

@@ -745,6 +745,8 @@
     <system:String x:Key="Plugins.SafeStart">Start with all plugins disabled next time (includes built-ins)</system:String>
     <system:String x:Key="Plugins.Column.Id">Plugin id</system:String>
     <system:String x:Key="Plugins.Column.Version">Version</system:String>
+    <system:String x:Key="Settings.ReplyOnNewLine">Start replies on a new line</system:String>
+    <system:String x:Key="Settings.ReplyOnNewLine.Hint">Start a new line after sending or a receive gap of 200 ms. Affects display and formatted logs only; no extra newline is sent. Saved per port and applied immediately.</system:String>
     <system:String x:Key="Plugins.Column.Source">Source</system:String>
     <system:String x:Key="Plugins.Column.State">State</system:String>
     <system:String x:Key="Plugins.Column.Pid">PID</system:String>

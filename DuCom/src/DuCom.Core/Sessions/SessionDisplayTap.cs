@@ -152,12 +152,19 @@ public sealed class SessionTapHub
                     ReceiveDisplayMode desiredMode = runtime.Tap.FormatSelector() == SessionTapDisplayFormat.Hex
                         ? ReceiveDisplayMode.Hex
                         : ReceiveDisplayMode.Str;
-                    if (runtime.Formatter is null || runtime.FormatterMode != desiredMode)
+                    if (runtime.Formatter is null || runtime.FormatterMode != desiredMode || runtime.ProfileVersion != profile.Version)
                     {
                         runtime.Formatter = (profile with { DisplayMode = desiredMode }).CreateFormatter();
                         runtime.FormatterMode = desiredMode;
+                        runtime.ProfileVersion = profile.Version;
                         runtime.HasEmittedContent = false;
                         runtime.AwaitsSeparator = false;
+                    }
+
+                    if (runtime.ReplyBoundarySequence != profile.ReplyBoundarySequence)
+                    {
+                        runtime.Formatter.RequestLineBreak();
+                        runtime.ReplyBoundarySequence = profile.ReplyBoundarySequence;
                     }
 
                     IReadOnlyList<FormattedLine> lines = runtime.Formatter.Append(bytes, receivedAtUtc);
@@ -289,6 +296,8 @@ public sealed class SessionTapHub
         public SessionDisplayTap Tap { get; }
 
         public StatefulReceiveFormatter? Formatter { get; set; }
+        public long ReplyBoundarySequence { get; set; }
+        public long ProfileVersion { get; set; }
 
         public ReceiveDisplayMode FormatterMode { get; set; }
 

@@ -27,6 +27,20 @@ public sealed class NativeHelperTaskManagerTests : IDisposable
     }
 
     [Fact]
+    public async Task CompletedRunsDoNotExhaustConcurrentTaskQuota()
+    {
+        using NativeHelperTaskManager manager = CreateManager();
+        for (int index = 0; index < 40; index++)
+        {
+            string id = "repeat-task-" + index;
+            manager.Start(Start(id, index % 2 == 0 ? "success" : "fail"));
+            HelperTaskResult result = await WaitTerminal(manager, id);
+            Assert.True(result.ExitConfirmed);
+            Assert.Equal(index % 2 == 0 ? "succeeded" : "failed", result.State);
+        }
+    }
+
+    [Fact]
     public async Task CooperativeCancelProducesCancelledTerminalState()
     {
         using NativeHelperTaskManager manager = CreateManager();

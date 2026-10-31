@@ -121,6 +121,7 @@ public partial class SerialParametersEditorViewModel : ObservableObject, IDispos
     [ObservableProperty] public partial bool SerialParameterDtrEnable { get; set; }
     [ObservableProperty] public partial bool SerialParameterRtsEnable { get; set; }
     [ObservableProperty] public partial bool SerialParameterDiscardNull { get; set; }
+    [ObservableProperty] public partial bool SerialParameterReplyOnNewLine { get; set; }
     [ObservableProperty] public partial bool SerialParameterAutoReconnect { get; set; }
     [ObservableProperty] public partial ReceiveDisplayMode SerialParameterReceiveMode { get; set; } = ReceiveDisplayMode.Str;
     [ObservableProperty] public partial bool SerialParameterTimestampEnabled { get; set; } = true;
@@ -375,6 +376,7 @@ public partial class SerialParametersEditorViewModel : ObservableObject, IDispos
             DtrEnable = SerialParameterDtrEnable,
             RtsEnable = SerialParameterRtsEnable,
             DiscardNull = SerialParameterDiscardNull,
+            ReplyOnNewLine = SerialParameterReplyOnNewLine,
         };
         if (ReferenceEquals(_targetSession, session) && _targetGeneration == generation)
         {
@@ -433,6 +435,7 @@ public partial class SerialParametersEditorViewModel : ObservableObject, IDispos
             SerialParameterDtrEnable = includeSessionOnlyValues && settings.DtrEnable;
             SerialParameterRtsEnable = includeSessionOnlyValues && settings.RtsEnable;
             SerialParameterDiscardNull = includeSessionOnlyValues && settings.DiscardNull;
+            SerialParameterReplyOnNewLine = settings.ReplyOnNewLine;
             if (!includeSessionOnlyValues)
             {
                 SerialParameterAutoReconnect = false;
@@ -580,6 +583,7 @@ public partial class SerialParametersEditorViewModel : ObservableObject, IDispos
     partial void OnSerialParameterDtrEnableChanged(bool value) => ScheduleTransportApply();
     partial void OnSerialParameterRtsEnableChanged(bool value) => ScheduleTransportApply();
     partial void OnSerialParameterDiscardNullChanged(bool value) => ScheduleTransportApply();
+    partial void OnSerialParameterReplyOnNewLineChanged(bool value) => ScheduleTransportApply();
 
     partial void OnSerialParameterAutoReconnectChanged(bool value)
     {

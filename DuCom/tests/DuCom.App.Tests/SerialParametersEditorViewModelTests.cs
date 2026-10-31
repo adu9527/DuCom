@@ -11,6 +11,20 @@ namespace DuCom.App.Tests;
 public sealed class SerialParametersEditorViewModelTests
 {
     [Fact]
+    public async Task ReplyLinePreferenceLoadsAndAppliesToSelectedPort()
+    {
+        using Harness harness = new();
+        FakeSession session = new(Settings(115_200) with { ReplyOnNewLine = true });
+        harness.Editor.BeginSession(session);
+        Assert.True(harness.Editor.SerialParameterReplyOnNewLine);
+        harness.Editor.SerialParameterReplyOnNewLine = false;
+        Assert.True(await harness.Editor.FlushAsync());
+        Assert.False(session.Settings.ReplyOnNewLine);
+        harness.Editor.BeginSession(session);
+        Assert.False(harness.Editor.SerialParameterReplyOnNewLine);
+    }
+
+    [Fact]
     public void BeginDefaultLoadsDefaultsAndUpdatesThemImmediately()
     {
         using Harness harness = new();

@@ -46,6 +46,7 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
     private long _diagnosticBatchSequence;
     private long _lastDataAvailableTimestamp;
     private long _nextDiagnosticPublishTimestamp;
+    private long _replyBoundarySequence;
     private readonly object _diagnosticGate = new();
     private readonly Dictionary<long, ReceiveDiagnosticBatch> _diagnosticBatches = [];
 
@@ -122,6 +123,12 @@ public sealed partial class ReceivePipeline : IAsyncDisposable
     }
 
     public Exception? Fault { get; private set; }
+
+    public void BeginReplyLine()
+    {
+        ReceiveFormattingProfile current = Volatile.Read(ref _formattingProfile);
+        Volatile.Write(ref _formattingProfile, current with { ReplyBoundarySequence = Interlocked.Increment(ref _replyBoundarySequence) });
+    }
 
     public event EventHandler<Exception>? Faulted;
 

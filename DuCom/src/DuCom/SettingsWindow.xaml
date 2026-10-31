@@ -230,7 +230,8 @@
                                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Settings.ReceiveMode}" />
                                              <ComboBox ItemsSource="{Binding ReceiveModeOptions}" SelectedItem="{Binding SerialParameters.SerialParameterReceiveMode}" />
                                              <CheckBox Margin="0,12,0,0" Content="{DynamicResource Settings.Timestamp}" IsChecked="{Binding SerialParameters.SerialParameterTimestampEnabled}" />
-                                             <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.AutoLog}" IsChecked="{Binding SerialParameters.SerialParameterLoggingEnabled}" />
+                                              <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.AutoLog}" IsChecked="{Binding SerialParameters.SerialParameterLoggingEnabled}" />
+                                              <CheckBox Margin="0,10,0,0" Content="{DynamicResource Settings.ReplyOnNewLine}" IsChecked="{Binding SerialParameters.SerialParameterReplyOnNewLine}" ToolTip="{DynamicResource Settings.ReplyOnNewLine.Hint}" />
                                         </StackPanel>
                                         <StackPanel Grid.Column="2">
                                              <CheckBox Content="{DynamicResource Log.Follow}" IsChecked="{Binding SerialParameters.SerialParameterFollowEnd}" />

@@ -21,6 +21,9 @@ public sealed class StatefulReceiveFormatter
     private DateTimeOffset? _lastInputReceivedAtUtc;
     private bool _pendingCr;
     private bool _hexHasValues;
+    private bool _lineBreakRequested;
+
+    public void RequestLineBreak() => _lineBreakRequested = true;
 
     public StatefulReceiveFormatter(
         Encoding encoding,
@@ -76,6 +79,17 @@ public sealed class StatefulReceiveFormatter
 
         DateTimeOffset? previousInputReceivedAtUtc = _lastInputReceivedAtUtc;
         _lastInputReceivedAtUtc = receivedAtUtc;
+
+        if (_mode == ReceiveDisplayMode.Hex)
+        {
+            List<FormattedLine> lines = [];
+            if (_lineReceivedAtUtc.HasValue && (_lineBreakRequested ||
+                _unterminatedLineIdleTimeout is { } timeout && previousInputReceivedAtUtc is { } previous && receivedAtUtc - previous >= timeout))
+                lines.Add(CompleteLine());
+            _lineBreakRequested = false;
+            lines.AddRange(AppendHex(bytes, receivedAtUtc));
+            return lines;
+        }
 
         return _mode == ReceiveDisplayMode.Hex
             ? AppendHex(bytes, receivedAtUtc)
@@ -162,15 +176,17 @@ public sealed class StatefulReceiveFormatter
         if (_lineReceivedAtUtc.HasValue &&
             !_pendingCr &&
             _pendingInputReceivedAtUtc is null &&
-            _unterminatedLineIdleTimeout.HasValue &&
+            bytes[0] is not ((byte)'\r') and not ((byte)'\n') &&
+            (_lineBreakRequested || _unterminatedLineIdleTimeout.HasValue &&
             previousInputReceivedAtUtc.HasValue &&
-            receivedAtUtc - previousInputReceivedAtUtc.Value >= _unterminatedLineIdleTimeout.Value)
+            receivedAtUtc - previousInputReceivedAtUtc.Value >= _unterminatedLineIdleTimeout.Value))
         {
             // Some devices emit records without CR/LF. A meaningful receive idle period is
             // their only record boundary; unlike splitting every read, this preserves
             // high-speed messages that the driver delivers in multiple adjacent blocks.
             lines.Add(CompleteLine());
         }
+        if (_pendingInputReceivedAtUtc is null) _lineBreakRequested = false;
 
         _pendingInputReceivedAtUtc ??= receivedAtUtc;
         char[] characters = ArrayPool<char>.Shared.Rent(_encoding.GetMaxCharCount(bytes.Length));

@@ -12,6 +12,18 @@ namespace DuCom.App.Tests;
 public sealed class PortOverrideStoreTests
 {
     [Fact]
+    public void ReplyLinePreferenceSurvivesSnapshotAndRemainsPerPort()
+    {
+        PortOverrideStore store = new();
+        store.Remember("COM7", SerialPortSettings.Default("COM7") with { ReplyOnNewLine = true }, null, CreateDefaults());
+        string json = System.Text.Json.JsonSerializer.Serialize(store.Capture([], CreateDefaults()));
+        PortOverrideStore restored = new();
+        restored.Replace(System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, PortSettingSnapshot>>(json)!);
+        Assert.True(restored.ApplyTransport("COM7", SerialPortSettings.Default("COM7"), CreateDefaults()).ReplyOnNewLine);
+        Assert.False(restored.ApplyTransport("COM8", SerialPortSettings.Default("COM8"), CreateDefaults()).ReplyOnNewLine);
+    }
+
+    [Fact]
     public void ApplyTransportUsesOverrideAndPreservesUnsetDeviceFlags()
     {
         PortOverrideStore store = new();
