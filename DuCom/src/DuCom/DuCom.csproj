@@ -9,6 +9,7 @@
     <ProjectReference Include="..\DuCom.Plugins.Timer\DuCom.Plugins.Timer.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DuCom.Plugins.Checksum\DuCom.Plugins.Checksum.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DuCom.Plugins.Crc\DuCom.Plugins.Crc.csproj" />
+    <ProjectReference Include="..\DuCom.Plugins.Production\DuCom.Plugins.Production.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,7 +25,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <Version>0.0.0.7</Version>
+    <Version>0.0.0.8</Version>
     <DuComDistribution Condition="'$(DuComDistribution)' == ''">PortableFull</DuComDistribution>
     <ApplicationIcon>..\..\..\Image\DuCom_256x256.ico</ApplicationIcon>
     <StartupObject>DuCom.Program</StartupObject>
@@ -50,6 +51,7 @@
 
   <ItemGroup>
     <Resource Include="..\..\..\Image\DuCom_256x256.ico" Link="Assets\DuCom.ico" />
+    <Content Include="..\..\profiles\X8I_V1.json" Link="profiles\X8I_V1.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <EmbeddedResource Include="..\..\..\Doc\BesFirmwareIntegration.zh-CN.md" LogicalName="DuCom.Docs.BesFirmwareIntegration" WithCulture="false" />
   </ItemGroup>
 
@@ -61,11 +63,8 @@
     <MSBuild Projects="..\DuCom.Plugins.Timer\DuCom.Plugins.Timer.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
     <MSBuild Projects="..\DuCom.Plugins.Checksum\DuCom.Plugins.Checksum.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
     <MSBuild Projects="..\DuCom.Plugins.Crc\DuCom.Plugins.Crc.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
+    <MSBuild Projects="..\DuCom.Plugins.Production\DuCom.Plugins.Production.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
     <ItemGroup>
-      <CrcPackFile Include="..\DuCom.Plugins.Crc\bin\$(Configuration)\net10.0\DuCom.Plugins.Crc.dll;..\DuCom.Plugins.Crc\bin\$(Configuration)\net10.0\DuCom.Plugin.Sdk.dll;..\DuCom.Plugins.Crc\bin\$(Configuration)\net10.0\plugin.manifest.json" />
-      <EmbeddedResource Include="@(CrcPackFile)">
-        <LogicalName>DuCom.Factory.com.ducom.crc/1.0.0/%(Filename)%(Extension)</LogicalName>
-      </EmbeddedResource>
       <BackgroundPackFile Include="..\DuCom.Plugins.BackgroundImage\bin\$(Configuration)\net10.0\**\*.*"
                           Exclude="..\DuCom.Plugins.BackgroundImage\bin\$(Configuration)\net10.0\*.pdb" />
       <LogPackFile Include="..\DuCom.Plugins.LogPackage\bin\$(Configuration)\net10.0\**\*.*"
@@ -73,9 +72,17 @@
       <TimerPackFile Include="..\DuCom.Plugins.Timer\bin\$(Configuration)\net10.0\**\*.*"
                       Exclude="..\DuCom.Plugins.Timer\bin\$(Configuration)\net10.0\*.pdb" />
       <ChecksumPackFile Include="..\DuCom.Plugins.Checksum\bin\$(Configuration)\net10.0\**\*.*"
-                        Exclude="..\DuCom.Plugins.Checksum\bin\$(Configuration)\net10.0\*.pdb" />
+                         Exclude="..\DuCom.Plugins.Checksum\bin\$(Configuration)\net10.0\*.pdb" />
+      <ProductionPackFile Include="..\DuCom.Plugins.Production\bin\$(Configuration)\net10.0\DuCom.Plugins.Production.dll;..\DuCom.Plugins.Production\bin\$(Configuration)\net10.0\DuCom.Plugin.Sdk.dll;..\DuCom.Plugins.Production\bin\$(Configuration)\net10.0\plugin.manifest.json" />
+      <EmbeddedResource Include="@(ProductionPackFile)" Condition="'%(Extension)' == '.dll' Or '%(Extension)' == '.json'">
+        <LogicalName>DuCom.Factory.com.ducom.production/1.0.0/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+      </EmbeddedResource>
       <EmbeddedResource Include="@(ChecksumPackFile)" Condition="'%(Extension)' == '.dll' Or '%(Extension)' == '.json'">
         <LogicalName>DuCom.Factory.com.ducom.checksum/1.0.2/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+      </EmbeddedResource>
+      <CrcPackFile Include="..\DuCom.Plugins.Crc\bin\$(Configuration)\net10.0\DuCom.Plugins.Crc.dll;..\DuCom.Plugins.Crc\bin\$(Configuration)\net10.0\DuCom.Plugin.Sdk.dll;..\DuCom.Plugins.Crc\bin\$(Configuration)\net10.0\plugin.manifest.json" />
+      <EmbeddedResource Include="@(CrcPackFile)">
+        <LogicalName>DuCom.Factory.com.ducom.crc/1.0.0/%(Filename)%(Extension)</LogicalName>
       </EmbeddedResource>
       <EmbeddedResource Include="@(BackgroundPackFile)"
                         Condition="'%(Extension)' == '.dll' Or '%(Extension)' == '.json'">

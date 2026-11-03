@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "id": "com.ducom.production",
+  "name": "耳机产测",
+  "version": "1.0.0",
+  "protocolVersion": "1.0",
+  "minHostVersion": "0.0.1",
+  "entryAssembly": "DuCom.Plugins.Production.dll",
+  "entryType": "DuCom.Plugins.Production.Plugin",
+  "runtime": { "framework": "net10.0", "rid": "win-x64" },
+  "capabilities": [ "menu", "tool-page" ],
+  "permissions": [ "serial.lease", "storage.own" ],
+  "defaultCulture": "zh-CN",
+  "description": "配置化 HEX 产测，独立双串口、命令序列与项目配置导入导出。",
+  "author": "DuCom"
+}

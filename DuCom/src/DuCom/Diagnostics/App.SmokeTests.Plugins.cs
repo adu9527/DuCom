@@ -80,6 +80,15 @@ public partial class App
                 _pluginSystemHost.Ui.OpenToolPage(row.Id, page, async (command, values) =>
                     await (_pluginSystemHost.Service.GetOrCreateController(row.Id)?.InvokeCommandAsync(command, values) ?? Task.FromResult(false)));
                 await Task.Delay(200);
+                if (row.Id == "com.ducom.production")
+                {
+                    Services.Plugins.ProductionWindow production = Current.Windows.OfType<Services.Plugins.ProductionWindow>().Single();
+                    await VerifyIndependentPluginWindowAsync(owner, production);
+                    production.Close();
+                    await Task.Delay(200);
+                    VerifyMainWindowUnchanged(owner);
+                    continue;
+                }
                 if (row.Id == "com.ducom.checksum")
                 {
                     Services.Plugins.ChecksumWindow checksum = Current.Windows.OfType<Services.Plugins.ChecksumWindow>().Single();

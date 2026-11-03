@@ -109,6 +109,11 @@ public interface IPluginSerial : IDisposable
     Task UnsubscribeAllAsync(CancellationToken cancellationToken = default);
     Task<SerialLeaseResult> AcquireLeaseAsync(string taskId, string port, string? deviceIdentity, bool restoreSession, CancellationToken cancellationToken = default);
     Task<SerialLeaseResult> ReleaseLeaseAsync(string leaseId, CancellationToken cancellationToken = default);
+    Task OpenLeasedPortAsync(string leaseId, int baudRate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task OpenConfiguredPortAsync(SerialLeaseIoRequest options, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task<string> RecordProductionAsync(ProductionRecordRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task WriteLeasedPortAsync(string leaseId, byte[] bytes, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    Task<byte[]> ReadLeasedPortAsync(string leaseId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 }
 
 public sealed class SerialDataEventArgs(byte[] data, string sessionId, long sequence, long byteOffset, DateTimeOffset receivedAtUtc) : EventArgs

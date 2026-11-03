@@ -255,11 +255,12 @@ public sealed class PluginUiRendererFormEventTests
                 FrameworkElement probe = PluginUiRenderer.Render(page.Nodes, new PluginCommandRouter((_, _) => Task.FromResult(true)));
                 Assert.NotNull(FindLogical<Expander>(probe));
                 window.SetContent(page.Nodes);
-                Expander initial = FindLogical<Expander>(window);
+                Expander initial = Assert.IsType<Expander>(FindLogical<Expander>(window));
                 Assert.False(initial.IsExpanded);
                 initial.IsExpanded = true;
                 window.SetContent(page.Nodes);
-                Assert.True(FindLogical<Expander>(window).IsExpanded);
+                Expander refreshed = Assert.IsType<Expander>(FindLogical<Expander>(window));
+                Assert.True(refreshed.IsExpanded);
                 window.Close();
             }
             catch (Exception exception) { failure = exception; }

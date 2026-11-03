@@ -83,6 +83,10 @@ public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
                 return new HostSerialLeaseResult(string.Empty, request.Port, "changed", false, false, "The physical serial device changed after task confirmation.");
             SessionViewModel? session = _sessionsProvider().FirstOrDefault(item => string.Equals(item.PortName, request.Port, StringComparison.OrdinalIgnoreCase));
             bool wasOpen = session?.IsOpen == true;
+            // Production is an independent fixture: never take an active terminal away
+            // from the operator. Check inside the port gate to avoid an open/lease race.
+            if (wasOpen && request.PluginId == "com.ducom.production")
+                return new HostSerialLeaseResult(string.Empty, request.Port, "busy", true, false, "端口正在 DuCom 中使用，请先关闭该端口");
             SerialLeaseSnapshot lease;
             try { lease = _serialLeases.Acquire(request.PluginId, request.ActivationId, request.TaskId, request.Port, request.DeviceIdentity, request.RestoreSession, wasOpen); }
             catch (InvalidOperationException exception) { return new HostSerialLeaseResult(string.Empty, request.Port, "busy", wasOpen, false, exception.Message); }

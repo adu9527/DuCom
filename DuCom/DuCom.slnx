@@ -12,6 +12,7 @@
     <Project Path="src/DuCom.Plugins.Timer/DuCom.Plugins.Timer.csproj" />
     <Project Path="src/DuCom.Plugins.Checksum/DuCom.Plugins.Checksum.csproj" />
     <Project Path="src/DuCom.Plugins.Crc/DuCom.Plugins.Crc.csproj" />
+    <Project Path="src/DuCom.Plugins.Production/DuCom.Plugins.Production.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/DuCom.App.Tests/DuCom.App.Tests.csproj" />

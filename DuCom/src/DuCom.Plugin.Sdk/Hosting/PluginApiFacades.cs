@@ -274,6 +274,19 @@ internal sealed class PluginApiFacades(IPluginRequestChannel channel) : IPluginH
             return RequestTypedAsync<SerialLeaseResult>(channel, PluginOps.SerialLeaseRelease, new SerialLeaseRequest { LeaseId = leaseId }, cancellationToken)!;
         }
 
+        public Task OpenLeasedPortAsync(string leaseId, int baudRate, CancellationToken cancellationToken = default) =>
+            RequestAsync(channel, PluginOps.SerialLeaseOpen, new SerialLeaseIoRequest { LeaseId = leaseId, BaudRate = baudRate }, cancellationToken);
+        public Task OpenConfiguredPortAsync(SerialLeaseIoRequest options, CancellationToken cancellationToken = default) =>
+            RequestAsync(channel, PluginOps.SerialLeaseOpen, options, cancellationToken);
+        public async Task<string> RecordProductionAsync(ProductionRecordRequest request, CancellationToken cancellationToken = default) =>
+            (await RequestTypedAsync<SerialLeaseIoResult>(channel, "production.record", request, cancellationToken))?.Path ?? "";
+
+        public Task WriteLeasedPortAsync(string leaseId, byte[] bytes, CancellationToken cancellationToken = default) =>
+            RequestAsync(channel, PluginOps.SerialLeaseWrite, new SerialLeaseIoRequest { LeaseId = leaseId, Bytes = bytes }, cancellationToken);
+
+        public async Task<byte[]> ReadLeasedPortAsync(string leaseId, CancellationToken cancellationToken = default) =>
+            (await RequestTypedAsync<SerialLeaseIoResult>(channel, PluginOps.SerialLeaseRead, new SerialLeaseIoRequest { LeaseId = leaseId }, cancellationToken))?.Bytes ?? [];
+
         public void Dispose()
         {
         }

@@ -92,6 +92,8 @@ public sealed class PluginUiDispatcher
         {
             foreach (CrcWindow window in Application.Current?.Windows.OfType<CrcWindow>().ToList() ?? [])
                 if (pluginId == "com.ducom.crc") window.UpdateState(nodes);
+            foreach (ProductionWindow window in Application.Current?.Windows.OfType<ProductionWindow>().ToList() ?? [])
+                if (pluginId == "com.ducom.production") window.UpdateState(nodes);
             foreach (ChecksumWindow window in Application.Current?.Windows.OfType<ChecksumWindow>().ToList() ?? [])
                 if (pluginId == "com.ducom.checksum") window.UpdateState(nodes);
             foreach (PluginToolWindow window in Application.Current?.Windows.OfType<PluginToolWindow>().ToList() ?? [])
@@ -123,10 +125,12 @@ public sealed class PluginUiDispatcher
             {
                 window.CloseFromHost();
             }
-            if (pluginId == "com.ducom.crc")
-                foreach (CrcWindow window in Application.Current?.Windows.OfType<CrcWindow>().ToList() ?? []) window.Close();
             if (pluginId == "com.ducom.checksum")
                 foreach (ChecksumWindow window in Application.Current?.Windows.OfType<ChecksumWindow>().ToList() ?? []) window.Close();
+            if (pluginId == "com.ducom.crc")
+                foreach (CrcWindow window in Application.Current?.Windows.OfType<CrcWindow>().ToList() ?? []) window.Close();
+            if (pluginId == "com.ducom.production")
+                foreach (ProductionWindow window in Application.Current?.Windows.OfType<ProductionWindow>().ToList() ?? []) window.CloseFromHost();
 
             Changed?.Invoke(this, EventArgs.Empty);
         });
@@ -236,6 +240,20 @@ public sealed class PluginUiDispatcher
                 CrcWindow crc = new(commandInvoker);
                 crc.UpdateState(page!.Nodes);
                 crc.Show();
+                return;
+            }
+            if (pluginId == "com.ducom.production")
+            {
+                ProductionWindow? existing = Application.Current.Windows.OfType<ProductionWindow>().FirstOrDefault();
+                if (existing is not null)
+                {
+                    if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
+                    existing.Activate();
+                    return;
+                }
+                ProductionWindow production = new(commandInvoker);
+                production.UpdateState(page!.Nodes);
+                production.Show();
                 return;
             }
             if (pluginId == "com.ducom.checksum")

@@ -92,6 +92,9 @@ public static class PluginOps
     public const string HelperCancel = "helper.cancel";
     public const string SerialLeaseAcquire = "serial.lease.acquire";
     public const string SerialLeaseRelease = "serial.lease.release";
+    public const string SerialLeaseOpen = "serial.lease.open";
+    public const string SerialLeaseWrite = "serial.lease.write";
+    public const string SerialLeaseRead = "serial.lease.read";
     public const string LogsList = "logs.list";
     public const string LogsSnapshot = "logs.snapshot";
     public const string LogsRead = "logs.read";
