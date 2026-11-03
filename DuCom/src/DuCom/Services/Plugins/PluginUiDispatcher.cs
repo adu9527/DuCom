@@ -90,6 +90,8 @@ public sealed class PluginUiDispatcher
 
         RunOnUi(() =>
         {
+            foreach (CrcWindow window in Application.Current?.Windows.OfType<CrcWindow>().ToList() ?? [])
+                if (pluginId == "com.ducom.crc") window.UpdateState(nodes);
             foreach (ChecksumWindow window in Application.Current?.Windows.OfType<ChecksumWindow>().ToList() ?? [])
                 if (pluginId == "com.ducom.checksum") window.UpdateState(nodes);
             foreach (PluginToolWindow window in Application.Current?.Windows.OfType<PluginToolWindow>().ToList() ?? [])
@@ -121,6 +123,8 @@ public sealed class PluginUiDispatcher
             {
                 window.CloseFromHost();
             }
+            if (pluginId == "com.ducom.crc")
+                foreach (CrcWindow window in Application.Current?.Windows.OfType<CrcWindow>().ToList() ?? []) window.Close();
             if (pluginId == "com.ducom.checksum")
                 foreach (ChecksumWindow window in Application.Current?.Windows.OfType<ChecksumWindow>().ToList() ?? []) window.Close();
 
@@ -220,6 +224,20 @@ public sealed class PluginUiDispatcher
 
         RunOnUi(() =>
         {
+            if (pluginId == "com.ducom.crc")
+            {
+                CrcWindow? existingCrc = Application.Current.Windows.OfType<CrcWindow>().FirstOrDefault();
+                if (existingCrc is not null)
+                {
+                    if (existingCrc.WindowState == WindowState.Minimized) existingCrc.WindowState = WindowState.Normal;
+                    existingCrc.Activate();
+                    return;
+                }
+                CrcWindow crc = new(commandInvoker);
+                crc.UpdateState(page!.Nodes);
+                crc.Show();
+                return;
+            }
             if (pluginId == "com.ducom.checksum")
             {
                 ChecksumWindow? existingChecksum = Application.Current.Windows.OfType<ChecksumWindow>().FirstOrDefault();

@@ -8,6 +8,7 @@
     <ProjectReference Include="..\DuCom.Plugins.LogPackage\DuCom.Plugins.LogPackage.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DuCom.Plugins.Timer\DuCom.Plugins.Timer.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DuCom.Plugins.Checksum\DuCom.Plugins.Checksum.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\DuCom.Plugins.Crc\DuCom.Plugins.Crc.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -59,7 +60,12 @@
     <MSBuild Projects="..\DuCom.Plugins.LogPackage\DuCom.Plugins.LogPackage.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
     <MSBuild Projects="..\DuCom.Plugins.Timer\DuCom.Plugins.Timer.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
     <MSBuild Projects="..\DuCom.Plugins.Checksum\DuCom.Plugins.Checksum.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
+    <MSBuild Projects="..\DuCom.Plugins.Crc\DuCom.Plugins.Crc.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
     <ItemGroup>
+      <CrcPackFile Include="..\DuCom.Plugins.Crc\bin\$(Configuration)\net10.0\DuCom.Plugins.Crc.dll;..\DuCom.Plugins.Crc\bin\$(Configuration)\net10.0\DuCom.Plugin.Sdk.dll;..\DuCom.Plugins.Crc\bin\$(Configuration)\net10.0\plugin.manifest.json" />
+      <EmbeddedResource Include="@(CrcPackFile)">
+        <LogicalName>DuCom.Factory.com.ducom.crc/1.0.0/%(Filename)%(Extension)</LogicalName>
+      </EmbeddedResource>
       <BackgroundPackFile Include="..\DuCom.Plugins.BackgroundImage\bin\$(Configuration)\net10.0\**\*.*"
                           Exclude="..\DuCom.Plugins.BackgroundImage\bin\$(Configuration)\net10.0\*.pdb" />
       <LogPackFile Include="..\DuCom.Plugins.LogPackage\bin\$(Configuration)\net10.0\**\*.*"

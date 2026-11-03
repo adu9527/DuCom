@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "id": "com.ducom.crc",
+  "name": "CRC计算",
+  "version": "1.0.0",
+  "protocolVersion": "1.0",
+  "minHostVersion": "0.0.1",
+  "entryAssembly": "DuCom.Plugins.Crc.dll",
+  "entryType": "DuCom.Plugins.Crc.Plugin",
+  "runtime": { "framework": "net10.0", "rid": "win-x64" },
+  "capabilities": [ "menu", "tool-page" ],
+  "permissions": [ "files.user-selected.read" ],
+  "defaultCulture": "zh-CN",
+  "description": "离线 CRC 计算：Hex / ASCII、文件校验、21 种常见模型、自定义 1–32 位参数、Hex / Bin 结果及模型参考。",
+  "author": "DuCom"
+}

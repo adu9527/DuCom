@@ -80,6 +80,7 @@ public sealed record PluginManagerRow
         "com.ducom.background-image" => "在 DuCom 主窗口底层显示自定义图片，支持单图和目录轮播。",
         "com.ducom.log-package" => "选择当前串口会话日志，填写问题信息并生成 ZIP 压缩包。",
         "com.ducom.timer" => "秒表计时器：正计时、计次分段对比、记录导出，工具窗口支持置顶。",
+        "com.ducom.crc" => "CRC 离线计算：Hex / ASCII 输入、文件校验、21 种常见模型及自定义 1–32 位参数。支持 Hex / Bin 结果复制、参数说明和完整模型对照表。",
         "com.ducom.checksum" => "支持恒玄（需要接入，请查看下方内嵌接入文档）、杰理、蓝讯的固件校验码查询。支持 BIN / BES 压缩 OTA、FW / UFW、PRD / UPD；同时显示默认蓝牙名、芯片、时间和文件类型。",
         _ => "通过 DuCom 插件运行时提供扩展功能。",
     };
@@ -146,6 +147,7 @@ public sealed partial class PluginSystemService : IAsyncDisposable
         "com.ducom.log-package",
         "com.ducom.timer",
         "com.ducom.checksum",
+        "com.ducom.crc",
     ];
 
     public event Action<string>? ProgramLog;

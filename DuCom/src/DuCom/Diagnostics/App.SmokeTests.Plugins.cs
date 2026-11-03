@@ -90,6 +90,14 @@ public partial class App
                     VerifyMainWindowUnchanged(owner);
                     continue;
                 }
+                if (row.Id == "com.ducom.crc")
+                {
+                    Services.Plugins.CrcWindow crc = Current.Windows.OfType<Services.Plugins.CrcWindow>().Single();
+                    await VerifyIndependentPluginWindowAsync(owner, crc);
+                    crc.Close();
+                    VerifyMainWindowUnchanged(owner);
+                    continue;
+                }
                 Services.Plugins.PluginToolWindow window = Current.Windows.OfType<Services.Plugins.PluginToolWindow>().Single(item => item.PluginId == row.Id);
                 FeedbackWindow feedback = FeedbackWindow.ShowOrActivate();
                 if (!ReferenceEquals(feedback, FeedbackWindow.ShowOrActivate()))
