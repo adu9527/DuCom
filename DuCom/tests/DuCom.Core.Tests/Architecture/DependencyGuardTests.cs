@@ -77,7 +77,7 @@ public sealed class DependencyGuardTests
     public void TestProjectApplicationSourceLinksStayWithinApprovedBoundary()
     {
         // The test project compiles a frozen list of pure application-layer sources via
-        // <Compile Include> links (ADR-0003). No new links may be added silently.
+        // <Compile Include> links (ADR-0005). No new links may be added silently.
         XDocument project = LoadProject("tests", "DuCom.Core.Tests", "DuCom.Core.Tests.csproj");
         string[] linkedSources = project
             .Descendants("Compile")

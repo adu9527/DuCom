@@ -1,12 +1,14 @@
 # DuCom Plugin Protocol DPP/1
 
-Status: convergence draft v0.5; not released or frozen.
+Status: v0.9. Implemented in DuCom 0.0.0.8, with a runtime and SDK in the repository. Not frozen.
 
-Date: 2026-09-08. Languages: [Chinese](PluginProtocol.DPP1.zh-CN.md) | [English](PluginProtocol.DPP1.en-US.md). Changes in this revision: added the `files.pickWrite` directory mode, `files.createWriteTarget`, `files.hostPaths`, `ui.notify`, and the slider UI node (all optional capabilities; see §10, §11, §13).
+Date: 2026-11-04. Languages: [Chinese](PluginProtocol.DPP1.zh-CN.md) | [English](PluginProtocol.DPP1.en-US.md). Changes in this revision: added `serial.lease`, `speech.online`, and `native-helpers.execute`, and updated the capability and permission tables to match the shipped plugins.
 
 Basis: converged from multi-round model reviews and user decisions; the review drafts were removed and this document is authoritative.
 
-This document specifies target behavior and developer contracts. It does not claim that the repository already implements a plugin runtime, sandbox, or SDK. Examples are design inputs, not an available SDK. Both languages should be updated together. Resolve ambiguity against the Chinese record of user decisions and correct both documents; do not ship incompatible implementations based on translation differences.
+This document defines the contract between plugins and the host. `DuCom.Plugin.Sdk`, `DuCom.PluginHost`, and the built-in plugins in this repository implement it.
+
+Both languages should be updated together. Resolve ambiguity against the Chinese record of user decisions and correct both documents; do not ship incompatible implementations based on translation differences.
 
 ## 1. Goals and Normative Language
 
@@ -40,7 +42,7 @@ Process isolation is a fault boundary, not automatically a malicious-code sandbo
 
 Plugins cannot directly access serial devices, the host process, host settings/log directories, or the network by default; required resources are granted through broker services. The runtime MUST enforce these restrictions rather than merely document them. If the required restrictions cannot be established on a target machine, the host must refuse execution with a reason, not silently fall back to an unrestricted worker.
 
-The concrete Windows policy requires implementation validation and is a release gate in §18. This does not promise protection against OS vulnerabilities, kernel failures, or every malicious program; this draft must not be advertised as an already verified sandbox.
+The concrete Windows policy requires implementation validation and is a release gate in §18. This does not promise protection against OS vulnerabilities, kernel failures, or every malicious program; this specification must not be advertised as an already verified sandbox.
 
 Official signatures, an online approval service, and a marketplace are not currently required. The maintainer reviews changes and controls main-branch merges; this is source governance, not a substitute for installation consent, package validation, and runtime isolation. First activation of an unreviewed package must display its unverified origin and requested permissions. Neither a directory name nor the `com.ducom.*` prefix proves safety.
 
@@ -190,10 +192,13 @@ Capabilities identify registration points; permissions authorize broker resource
 | `storage.own` | Private plugin configuration and quota-limited storage. |
 | `serial.read` | Receive side-channel subscriptions and read-only session information. |
 | `serial.logs.read` | Bounded log snapshots and chunked reads; does not require serial.read. |
+| `serial.lease` | Exclusive serial lease: list ports, open, read, write; the host restores the previous session on release. |
 | `files.user-selected.read` | Scoped file/directory read tokens obtained through user selection. |
 | `files.user-selected.write` | Transactional output tokens for user-selected destinations. |
+| `native-helpers.execute` | Run plugin-supplied native programs in a restricted helper process. |
+| `speech.online` | Host-brokered online speech: voice list, preview, and synthesis, with concurrency and deadline limits. |
 
-Version 1 exposes no serial transmission/control, network access, ReceiveTransform, SendTransform, arbitrary window embedding, or direct plugin-to-plugin calls. Reserved names are not implemented capabilities; unsupported requests must be rejected.
+Version 1 exposes no general network access, ReceiveTransform, SendTransform, arbitrary window embedding, or direct plugin-to-plugin calls. Serial I/O is available only through the `serial.lease` interface, and online speech only through the `speech.online` broker. Reserved names are not implemented capabilities; unsupported requests must be rejected.
 
 System pickers are host-owned, require a user gesture or explicit operation, and are rate-limited/cancellable. They return tokens with scope, expiry, and operation restrictions, not unrestricted host objects. Denied authorization returns `PermissionDenied`; normal cancellation returns `Cancelled`. Every handle use checks permissions and activation identity; stop invalidates it immediately. `files.pickWrite` supports two modes: save-file (default) and output-directory (`mode: "directory"`); the directory mode returns a directory token, and the host records that directory as the plugin's authorized output location for later dialog-free target creation (§13).
 
@@ -227,7 +232,7 @@ Specify snapshot retention, byte/handle quotas, rotation, deletion, and cancella
 
 Configuration is isolated by plugin id with host-managed atomic writes and size limits. Plugins define schemaVersion; migration failure preserves the original. Uninstall does not delete user data by default; deletion requires separate consent. Plugins cannot directly open global host configuration.
 
-Outputs such as archives are written to host-managed temporary results. The current DPP/1 draft uses `output.begin`, strictly ordered `output.write(token, offset, base64Chunk)`, `output.commit(token, targetToken, commitId)`, `output.commitStatus(commitId)`, and `output.discard`: begin returns only an opaque token, total quota, and chunk limit, and **must not return a writable path**; chunks append continuously from offset 0, while duplicate, out-of-order, empty, oversized, or over-quota chunks are rejected before writing. The host exclusively owns output and snapshot staging; workers use only authorized chunk reads/writes. Commit has Preparing/Committing/Committed/Aborted phases: lengthy copy and flush work occurs outside the revocation lock, while the final same-volume rename is the short publication linearization point, and publication succeeds at most once. Output, snapshots, and destination-side publication staging share a cumulative per-plugin disk-staging limit and a separate host-process-wide staging disk limit; growth or copying reserves atomically before I/O and releases only after actual deletion. The shared host limit covers one host process only and is not advertised as a cross-process total when multiple hosts share a directory. It is also separate from the tool-wide 1,000,000,000-byte memory budget. Cross-volume publication performs a bounded copy to a ledger-registered file on the destination volume, keeps the verified staging object open, and renames that exact handle rather than reopening a path after close. Replacement authorization is path-scoped, not bound to the file identity observed at selection time. Only explicit user approval authorizes replacement at that path; without it the host uses atomic create-only publication, so a target appearing later causes failure and remains intact. Resource intent is durably recorded before creating any file. Failed deletion retains the ledger record and matching quota for online or later-start retry. Recovery cleans only registered resources whose owning host is confirmed gone, never guesses by recursive scanning or deletes resources of another live host.
+Outputs such as archives are written to host-managed temporary results. The current DPP/1 specification uses `output.begin`, strictly ordered `output.write(token, offset, base64Chunk)`, `output.commit(token, targetToken, commitId)`, `output.commitStatus(commitId)`, and `output.discard`: begin returns only an opaque token, total quota, and chunk limit, and **must not return a writable path**; chunks append continuously from offset 0, while duplicate, out-of-order, empty, oversized, or over-quota chunks are rejected before writing. The host exclusively owns output and snapshot staging; workers use only authorized chunk reads/writes. Commit has Preparing/Committing/Committed/Aborted phases: lengthy copy and flush work occurs outside the revocation lock, while the final same-volume rename is the short publication linearization point, and publication succeeds at most once. Output, snapshots, and destination-side publication staging share a cumulative per-plugin disk-staging limit and a separate host-process-wide staging disk limit; growth or copying reserves atomically before I/O and releases only after actual deletion. The shared host limit covers one host process only and is not advertised as a cross-process total when multiple hosts share a directory. It is also separate from the tool-wide 1,000,000,000-byte memory budget. Cross-volume publication performs a bounded copy to a ledger-registered file on the destination volume, keeps the verified staging object open, and renames that exact handle rather than reopening a path after close. Replacement authorization is path-scoped, not bound to the file identity observed at selection time. Only explicit user approval authorizes replacement at that path; without it the host uses atomic create-only publication, so a target appearing later causes failure and remains intact. Resource intent is durably recorded before creating any file. Failed deletion retains the ledger record and matching quota for online or later-start retry. Recovery cleans only registered resources whose owning host is confirmed gone, never guesses by recursive scanning or deletes resources of another live host.
 
 There is no universal rollback guarantee for external effects. Each writable service defines its commit point and post-failure state. If commit completed before worker exit, the host retains a queryable final result. Version 1 never automatically replays writes.
 
@@ -245,9 +250,21 @@ Core cleanup failure must be reported and abort automatic restart or require exp
 
 ## 15. Built-ins and Distribution
 
-BuiltIn is a distribution-origin label, not a separate execution API. Background images and log packaging MUST use the same manifest, runner, IPC, permissions, budgets, disablement, and recovery. A shipping inventory may preapprove initial permissions for identified versions; arbitrary DLLs added to the install directory do not inherit trust.
+BuiltIn is a distribution-origin label, not a separate execution API. Every built-in plugin MUST use the same manifest, runner, IPC, permissions, budgets, disablement, and recovery. A shipping inventory may preapprove initial permissions for identified versions; arbitrary DLLs added to the install directory do not inherit trust.
 
-Background images use `background-image`, `settings-panel`, `storage.own`, and `files.user-selected.read`, with host rendering and no main-window object access. Log packaging uses `menu`, an optional manifest-level selection of UI capabilities, `serial.logs.read`, `storage.own`, and `files.user-selected.write`; it does not access SessionViewModel, and its output target is resolved and named by the host — the host-managed log directory by default, or a directory the user authorized through the directory picker (§13) — with the plugin holding only opaque tokens throughout. "Optional selection" means the developer chooses whether to declare it; declared capabilities remain required.
+Current built-in plugins and their manifests:
+
+| Plugin | Capabilities | Permissions |
+|---|---|---|
+| Speech synthesis | `menu`, `tool-page` | `storage.own`, `files.user-selected.read`, `files.user-selected.write`, `speech.online` |
+| Background image | `settings-panel`, `background-image`, `tool-page` | `storage.own`, `files.user-selected.read` |
+| Firmware checksum | `menu`, `tool-page` | `files.user-selected.read` |
+| CRC calculator | `menu`, `tool-page` | `files.user-selected.read` |
+| Log package | `menu`, `tool-page` | `serial.logs.read`, `storage.own`, `files.user-selected.write` |
+| Earbud production test | `menu`, `tool-page` | `serial.lease`, `storage.own` |
+| Stopwatch | `menu`, `tool-page` | `storage.own`, `files.user-selected.write` |
+
+The host renders background images and never exposes main-window objects. Log packaging does not access SessionViewModel; the host resolves and names the output target, following the host log directory by default or a directory the user authorized through the picker (§13), with the plugin holding only opaque tokens. Earbud production test takes exclusive leases on two ports through `serial.lease`; the host restores the session state that existed before the plugin opened them.
 
 Migration must retain background playback settings, log-output follow-directory behavior, and existing standalone preferences. The previous implementation has no established public execution ABI; do not invent an unnecessary legacy binary adapter.
 
@@ -255,7 +272,7 @@ Both installer and portable distributions must carry the runner, managed depende
 
 ## 16. Developer Starting Example
 
-This is a manifest design example for log packaging. Host version `0.1.0` is a placeholder; use the first actual DPP/1 host release. Runtime APIs/schemas are not published yet, and this example does not imply current DuCom can load the package.
+This is a manifest example for log packaging, matching the fields used by the shipped plugin. Set `minHostVersion` to the first DPP/1 host release; the SDK in this repository can be referenced directly.
 
 ```json
 {
@@ -307,4 +324,4 @@ Stress results must include a no-plugin baseline, serial configuration/throughpu
 
 Before DPP/1.0 freezes, deliver machine-validatable manifest/IPC/UI JSON Schemas, the complete operation/DTO catalog, versioned errors, Windows restriction profiles and compatibility matrix, measured memory/CPU quotas and deadlines, SDK APIs/minimal examples, old-binary compatibility tests, installation/recovery vectors, and bilingual consistency checks.
 
-These are implementation/release gates, not product-direction questions awaiting the user again. Until complete, this remains a draft without a compatibility certification label.
+These are implementation and release gates, not product-direction questions awaiting the user again. Until they are complete the protocol is not marked frozen; new fields stay backward compatible and breaking changes bump the major version.

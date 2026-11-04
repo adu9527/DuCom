@@ -495,3 +495,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Local agent workspace data
+.workbuddy/

@@ -1,12 +1,14 @@
 # DuCom 插件协议 DPP/1
 
-状态：收敛草案 v0.5，尚未发布或冻结。
+状态：v0.9，已随 DuCom 0.0.0.8 实现并提供运行时与 SDK，协议尚未冻结。
 
-日期：2026-09-08。语言：[中文](PluginProtocol.DPP1.zh-CN.md) | [English](PluginProtocol.DPP1.en-US.md)。本版变更：新增 `files.pickWrite` 目录模式、`files.createWriteTarget`、`files.hostPaths`、`ui.notify` 与滑轨 UI 节点（均为可选能力，见 §10、§11、§13）。
+日期：2026-11-04。语言：[中文](PluginProtocol.DPP1.zh-CN.md) | [English](PluginProtocol.DPP1.en-US.md)。本版变更：补充 `serial.lease`、`speech.online`、`native-helpers.execute` 三项权限，并按实际内置插件更新能力与权限清单。
 
 依据：多轮模型评审与用户决策收敛形成本文；评审过程稿已清理，以本文条款为准。
 
-本文定义目标行为与开发者契约，不表示仓库已有插件运行时、沙箱或 SDK。示例是设计输入，不可当作现成 SDK 使用。中英文应同时更新；出现歧义时先以中文核对用户决策，修正两份文档，不依据翻译差异发布不兼容实现。
+本文定义插件与宿主之间的契约。仓库中的 `DuCom.Plugin.Sdk`、`DuCom.PluginHost` 和内置插件按本文实现。
+
+中英文应同时更新；出现歧义时先以中文核对用户决策，修正两份文档，不依据翻译差异发布不兼容实现。
 
 ## 1. 目标与规范用语
 
@@ -40,7 +42,7 @@ DuCom Host
 
 插件默认不能直接访问串口设备、宿主进程、宿主设置/日志目录或网络；所需资源通过宿主代理服务授予。运行时 MUST 阻止这些直接访问，而不能只在文档中禁止。若目标机器无法建立所需限制，宿主必须拒绝执行插件并说明原因，不得静默退回无限制进程。
 
-具体 Windows 策略尚待实现验证，属于 §18 发布门禁。不承诺抵御操作系统漏洞、内核故障或所有恶意代码；不得把本草案宣传为已经验证的沙箱。
+具体 Windows 策略尚待实现验证，属于 §18 发布门禁。不承诺抵御操作系统漏洞、内核故障或所有恶意代码；不得把本规范宣传为已经验证的沙箱。
 
 当前不要求官方签名、在线审批平台或插件市场。维护者自行审核并控制主分支合并；这只是源码治理，不能替代本机安装确认、包校验及运行时隔离。未审核包首次启用必须显示来源未知及其申请权限。不得根据目录名或 `com.ducom.*` 前缀认定包安全。
 
@@ -147,7 +149,7 @@ FaultDisabled -> Starting  [explicit user retry only]
 
 ## 8. 整个工具的资源预算
 
-用户要求的“1 GB”适用于整个工具，不是单插件。本草案明确计量默认值为 **1 GB = 1,000,000,000 字节**；正式 UI 必须展示准确单位，不能混用 GB 与 GiB 或借单位转换提高预算。
+用户要求的“1 GB”适用于整个工具，不是单插件。本规范明确计量默认值为 **1 GB = 1,000,000,000 字节**；正式 UI 必须展示准确单位，不能混用 GB 与 GiB 或借单位转换提高预算。
 
 主要预算指标为每个受管进程的 Windows private committed bytes 之和：宿主、全部 worker、受管辅助进程均纳入。它不是 GC 堆大小，也不等同于实际驻留物理内存；共享页不能通过简单相加 working set 可靠计量。另行观测系统可用内存和 working set，不能把两类指标混称为同一上限。
 
@@ -157,7 +159,7 @@ FaultDisabled -> Starting  [explicit user retry only]
 
 主程序必须保留经压力测试确定的核心预算与安全余量，将剩余预算分配给插件；单插件配额之和不能超过插件池，限制值由宿主握手告知。应使用 OS 级分配限制与进程监管，不仅依赖采样。CPU、进程数、IPC、磁盘输出及 UI 刷新也必须有限额，插件无权自行解除。
 
-**本草案没有证明整工具瞬时内存绝不会超过 1 GB。** 宿主自身增长、内核缓冲和采样延迟均需验证；不得给包含核心的进程组设置“超限杀全部进程”来伪造保障。若所有插件停止后核心仍超限，报告宿主资源压力、限制非核心缓存/新任务并保留接收与日志优先级，不虚构插件责任。若合法核心负载本身无法满足预算，必须作为发布阻塞问题处理，调整实现或明确修订预算，不能静默宣称达标。
+**本规范没有证明整工具瞬时内存绝不会超过 1 GB。** 宿主自身增长、内核缓冲和采样延迟均需验证；不得给包含核心的进程组设置“超限杀全部进程”来伪造保障。若所有插件停止后核心仍超限，报告宿主资源压力、限制非核心缓存/新任务并保留接收与日志优先级，不虚构插件责任。若合法核心负载本身无法满足预算，必须作为发布阻塞问题处理，调整实现或明确修订预算，不能静默宣称达标。
 
 ## 9. 期限与慢插件
 
@@ -190,10 +192,13 @@ FaultDisabled -> Starting  [explicit user retry only]
 | `storage.own` | 插件私有配置和有配额的存储。 |
 | `serial.read` | 接收数据旁路订阅与会话只读信息。 |
 | `serial.logs.read` | 有边界的日志快照和分块读取；不要求 serial.read。 |
+| `serial.lease` | 申请独占串口租约：列出端口、打开、读、写；释放后由宿主恢复原会话。 |
 | `files.user-selected.read` | 通过用户选择取得的限定文件/目录读令牌。 |
 | `files.user-selected.write` | 用户选定目标的事务式文件输出令牌。 |
+| `native-helpers.execute` | 在受限辅助进程中执行插件自带原生程序。 |
+| `speech.online` | 由宿主代理在线语音：音色列表、试听与合成，受并发和时限约束。 |
 
-首版不提供串口发送/控制、网络、ReceiveTransform、SendTransform、任意窗口嵌入或插件互调。保留名称不等于实现，使用未开放能力必须拒绝。
+首版不提供通用网络访问、ReceiveTransform、SendTransform、任意窗口嵌入或插件互调。串口收发只能通过 `serial.lease` 的租约接口，在线语音只能通过 `speech.online` 的宿主代理。保留名称不等于实现，使用未开放能力必须拒绝。
 
 系统文件选择器由宿主发起，需用户手势或明确操作，限频且可取消；返回有范围、期限及操作限制的令牌，不返回可任意使用的宿主对象。拒绝授权返回 `PermissionDenied`，正常取消返回 `Cancelled`。句柄每次调用都检查权限和激活代次，停用立即失效。`files.pickWrite` 支持两种模式：保存文件（默认）与输出目录（`mode: "directory"`）；目录模式返回目录令牌，并由宿主把该目录记为本插件的已授权输出目录，供后续无对话框的写目标创建（§13）复用。
 
@@ -227,7 +232,7 @@ FaultDisabled -> Starting  [explicit user retry only]
 
 配置以插件 id 隔离，宿主执行原子写入和大小限制；schemaVersion 由插件定义，迁移失败保留原件。卸载默认不删除用户数据，删除需独立确认。插件不能自行打开宿主全局配置文件。
 
-日志打包等输出写入由宿主管理的临时结果。当前 DPP/1 草案使用 `output.begin`、严格顺序的 `output.write(token, offset, base64Chunk)`、`output.commit(token, targetToken, commitId)`、`output.commitStatus(commitId)` 和 `output.discard`：begin 只返回不透明 token、总额度及块上限，**不得返回可写路径**；块必须从 offset 0 连续追加，重复、乱序、空块、超块或超额在写入前拒绝。宿主独占暂存和快照目录，worker 只通过授权分块读取/写入。提交分为 Preparing/Committing/Committed/Aborted 等阶段，耗时复制和 flush 不持有撤权锁，最终同卷 rename 是短提交线性化点，发布最多一次。输出、快照和目标侧 publication staging 同时受每插件累计限额及独立的宿主进程暂存磁盘共享额度约束，扩容或复制前原子预留，实际删除成功后归还；该宿主共享额度只覆盖单个宿主进程，不宣称是多宿主跨进程磁盘总额，也不属于整个工具的 1,000,000,000 字节内存预算。成功校验后才将宿主暂存发布至授权目标；跨卷先有界复制到目标卷内的宿主登记临时文件，保持打开的宿主句柄并从该句柄执行最终 rename，不能在关闭后重新按路径发布。覆盖授权绑定用户选择的路径，不绑定当时文件身份；只有用户明确批准该路径可被覆盖时才允许 replace，否则使用文件系统原子 create-only 发布，目标后来出现即失败并保留其内容。资源意图在创建任何文件前持久化；失败或删除失败保留 ledger 与对应额度并在线/后续启动重试。恢复仅清理宿主 ledger 已登记且所属 host 已确认退出的路径，不递归扫描猜测未知资源，也不删除其他活跃 host 的资源。
+日志打包等输出写入由宿主管理的临时结果。当前 DPP/1 规范使用 `output.begin`、严格顺序的 `output.write(token, offset, base64Chunk)`、`output.commit(token, targetToken, commitId)`、`output.commitStatus(commitId)` 和 `output.discard`：begin 只返回不透明 token、总额度及块上限，**不得返回可写路径**；块必须从 offset 0 连续追加，重复、乱序、空块、超块或超额在写入前拒绝。宿主独占暂存和快照目录，worker 只通过授权分块读取/写入。提交分为 Preparing/Committing/Committed/Aborted 等阶段，耗时复制和 flush 不持有撤权锁，最终同卷 rename 是短提交线性化点，发布最多一次。输出、快照和目标侧 publication staging 同时受每插件累计限额及独立的宿主进程暂存磁盘共享额度约束，扩容或复制前原子预留，实际删除成功后归还；该宿主共享额度只覆盖单个宿主进程，不宣称是多宿主跨进程磁盘总额，也不属于整个工具的 1,000,000,000 字节内存预算。成功校验后才将宿主暂存发布至授权目标；跨卷先有界复制到目标卷内的宿主登记临时文件，保持打开的宿主句柄并从该句柄执行最终 rename，不能在关闭后重新按路径发布。覆盖授权绑定用户选择的路径，不绑定当时文件身份；只有用户明确批准该路径可被覆盖时才允许 replace，否则使用文件系统原子 create-only 发布，目标后来出现即失败并保留其内容。资源意图在创建任何文件前持久化；失败或删除失败保留 ledger 与对应额度并在线/后续启动重试。恢复仅清理宿主 ledger 已登记且所属 host 已确认退出的路径，不递归扫描猜测未知资源，也不删除其他活跃 host 的资源。
 
 外部副作用不提供普遍事务回滚承诺。每个可写服务必须定义提交点与失败后状态；进程已退出但提交已完成时，宿主保留可查询的最终结果。首版不自动重放写操作。
 
@@ -245,9 +250,21 @@ FaultDisabled -> Starting  [explicit user retry only]
 
 ## 15. 内置插件与分发
 
-BuiltIn 仅是发布来源标记，不是另一套执行接口。背景图和日志打包 MUST 使用同一 manifest、runner、IPC、权限、资源预算、故障禁用及恢复流程。出厂清单可批准明确版本的初始权限，不意味着安装目录下任意新增 DLL 自动获信任。
+BuiltIn 仅是发布来源标记，不是另一套执行接口。所有内置插件 MUST 使用同一 manifest、runner、IPC、权限、资源预算、故障禁用及恢复流程。出厂清单可批准明确版本的初始权限，不意味着安装目录下任意新增 DLL 自动获信任。
 
-背景图使用 `background-image`、`settings-panel`、`storage.own` 和 `files.user-selected.read`；由宿主渲染，不访问主窗口对象。日志打包使用 `menu`、可选的清单级 UI 能力组合、`serial.logs.read`、`storage.own`、`files.user-selected.write`，不访问 SessionViewModel；其输出目标由宿主解析与命名——默认跟随宿主日志目录，或为用户经目录选择授权的目录（§13），插件全程只持有不透明令牌。此处“可选组合”指开发者选择是否在清单声明，已声明能力仍为必需。
+当前内置插件与清单：
+
+| 插件 | 能力 | 权限 |
+|---|---|---|
+| 语音合成 | `menu`, `tool-page` | `storage.own`, `files.user-selected.read`, `files.user-selected.write`, `speech.online` |
+| 背景图 | `settings-panel`, `background-image`, `tool-page` | `storage.own`, `files.user-selected.read` |
+| 校验码查询 | `menu`, `tool-page` | `files.user-selected.read` |
+| CRC 计算 | `menu`, `tool-page` | `files.user-selected.read` |
+| 日志打包 | `menu`, `tool-page` | `serial.logs.read`, `storage.own`, `files.user-selected.write` |
+| 耳机产测 | `menu`, `tool-page` | `serial.lease`, `storage.own` |
+| 秒表 | `menu`, `tool-page` | `storage.own`, `files.user-selected.write` |
+
+背景图由宿主渲染，不访问主窗口对象。日志打包不访问 SessionViewModel，其输出目标由宿主解析与命名，默认跟随宿主日志目录，或为用户经目录选择授权的目录（§13），插件全程只持有不透明令牌。耳机产测通过 `serial.lease` 独占两个串口，租约释放后宿主恢复插件打开前的会话状态。
 
 迁移必须保留背景图轮播设置、日志输出目录跟随行为及独立偏好文件中的既有数据。旧实现尚无公开执行 ABI，不凭空增加旧插件二进制兼容层。
 
@@ -255,7 +272,7 @@ BuiltIn 仅是发布来源标记，不是另一套执行接口。背景图和日
 
 ## 16. 开发者入门示例
 
-下面是日志打包插件的清单设计示例；宿主版本 `0.1.0` 仅为占位，实际需使用首个实现 DPP/1 的宿主版本。运行时 API/schema 尚未发布，不能据此声称当前 DuCom 可加载该包。
+下面是日志打包插件的清单示例，字段与实际使用的清单一致。`minHostVersion` 填首个实现 DPP/1 的宿主版本；当前仓库的 SDK 可直接引用。
 
 ```json
 {
@@ -307,4 +324,4 @@ GitHub 分支、PR 和主分支合并规则由仓库治理文件定义，不嵌�
 
 正式 DPP/1.0 冻结前还必须交付：机器可校验的 manifest/IPC/UI JSON Schema、完整操作及 DTO 目录、版本化错误码、Windows 限制配置及兼容矩阵、内存/CPU 配额与默认期限实测、SDK API 和最小示例、旧二进制兼容测试、安装与恢复测试向量、中英文一致性检查。
 
-以上是实现与发布门禁，不是尚待用户重新决定的产品方向。在完成前本文保持草案，不打兼容认证标签。
+以上是实现与发布门禁，不是尚待用户重新决定的产品方向。门禁项完成前协议不标记为冻结；新增字段保持向后兼容，破坏性变更升主版本。

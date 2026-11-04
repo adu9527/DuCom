@@ -8,9 +8,11 @@ Own the WPF composition root, localized Fluent workspace, application ViewModels
 
 Visible session snapshots are pulled from `CompositionTarget.Rendering` with a 144 Hz upper bound. Each frame processes only incremental line-store ranges; views and ViewModels never receive one Dispatcher operation per serial packet and do not reference receive-pipeline, Channel, or pooled-buffer implementations.
 
-## M1 Status
+## Main Log Display
 
-The main log uses a bounded, read-only AvalonEdit projection over the frame-pulled `SerialSession` snapshots. Native editor selection, copy, caret, and search are available without moving serial, Channel, pooled-buffer, or logging ownership into the view. While following the end, the main display retains only the newest 30,000 segments or 4 MiB of text; older display content is trimmed without affecting session log files. Pausing follow keeps updating and retains the paused display without these two UI limits until the user resumes or clears it; crossing the configured private-memory threshold produces one warning per clear cycle.
+The main log uses a bounded, read-only AvalonEdit projection over the frame-pulled `SerialSession` snapshots. Native editor selection, copy, caret, and search are available without moving serial, Channel, pooled-buffer, or logging ownership into the view.
+
+Memory limits work on two levels. The Core session store is capped by the user-visible display budget (settings default 64 MB, clamped to 16–512 MB); evicted-line counts come back from the store and are surfaced in the UI. The visible collection itself keeps at most 10,000 segments / 1,400,000 characters (1,000 / 140,000 while memory pressure is active) so the editor stays responsive. Trimming on either level never touches session log files on disk.
 
 ## Current Command Dock
 
@@ -62,7 +64,7 @@ The original DuCom top menu aligns the reference behavior categories without cop
 - Tools: serial settings, log folder, diagnostic folder, documentation, and explicit future-module entries for VirtualPort/Telnet.
 - About: DuCom information, feedback, and help.
 
-The About window displays DuCom, `V0001`, release date `2026年8月27日 09:31:26`, author `du`, and a one-second live clock.
+The About window displays DuCom, the assembly version (formatted `V{major.minor.build}`, for example `V0.0.0.8`), the build date read from the `BuildDate` assembly metadata (`未知` when absent), author `du`, and a one-second live clock.
 
 The main log workspace now reserves the dominant area: the sidebar is 208 px and can be hidden, outer margins/panel padding are compact, and the send editor defaults to 88 px and remains vertically resizable.
 
@@ -87,7 +89,7 @@ The reference project's Tools menu has been aligned with original DuCom implemen
 - Command groups and send history pages.
 - Advanced command groups expose a persisted multi-select target list covering current ports and sessions. Every group loop refreshes the selected open-session snapshot, orders targets by port name, and runs targets independently; result checks use a separate receive tail per port, while one port's send error or timeout remains visible without stopping the others.
 
-## 2026-08-28 additions (GLM long task)
+## Title-Bar Menus, Mini Log Windows, and Render Cadence
 
 - Edit menu in the title bar: copy visible log, clear, follow toggle, FormatJson/JoinLines, clipboard text↔HEX and timestamp→local-time transforms, display options (word wrap, line numbers, current-line highlight, CR/LF, spaces, tabs, font size), all persisted in settings.json.
 - File menu: save visible log as text / HEX text / binary, all written on background threads from the visible-line snapshot; DuCom JSON configuration import and export remain available.
@@ -103,6 +105,6 @@ Shortcut configuration lives in `Services/Shortcuts/` and is split between a pur
 - `ShortcutManager` owns the action registry, conflict detection, default reset, and JSON persistence.
 - `ShortcutEngine` handles `MainWindow.PreviewKeyDown`, maps WPF keys to the manager, and executes the whitelist of `MainViewModel` commands.
 - `ToolCenterViewModel` exposes a searchable list, an edit popup that captures key combinations, and per-action / reset-all commands.
-- Default bindings include `Ctrl+Enter` (open/close), `F5` (refresh), `Ctrl+L` (clear), `Ctrl+S` (save visible log), `Ctrl+P` (toggle follow), `Ctrl+B` (sidebar), `Ctrl+T` (tools), `F11` (maximize), `Ctrl+D` (focus send), and `Ctrl+Shift+W` (close right pane).
+- Default bindings include `Ctrl+Enter` (open/close), `F5` (refresh), `Ctrl+L` (clear), `Ctrl+S` (save visible log), `Ctrl+P` (toggle follow), `Ctrl+F` (search), `Ctrl+B` (sidebar), `Ctrl+T` (tools), `F11` (maximize), `Ctrl+D` (focus send), `Ctrl+W` (close session), `Ctrl+Shift+W` (close right pane), `Alt+E` (toggle HEX display), and `Alt+D` (toggle timestamps).
 
 Invalid `shortcuts.json` falls back to defaults and logs a warning to the diagnostic log. Conflicts cannot be saved.

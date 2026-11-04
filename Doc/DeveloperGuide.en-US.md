@@ -2,8 +2,8 @@
 
 [中文](DeveloperGuide.zh-CN.md) · [User Manual](UserManual.en-US.md) · [Web version](Web/developer-guide-en.html) · [GitHub](https://github.com/adu9527/DuCom)
 
-> Stack: .NET 10, WPF, C# 14, WPF-UI, CommunityToolkit.Mvvm  
-> Updated: 2026-09-02
+> Stack: .NET 10, WPF, C# 14, WPF-UI, CommunityToolkit.Mvvm
+> Updated: 2026-11-04
 
 ## 1. Purpose
 
@@ -59,9 +59,15 @@ DuCom/                         repository root
    ├─ Directory.Packages.props
    ├─ src/DuCom/               WPF application
    ├─ src/DuCom.Core/          UI-independent core
-   ├─ tests/DuCom.Core.Tests/  xUnit tests
-   ├─ tools/                   load and support tools
+   ├─ src/DuCom.Plugin.Sdk/    plugin protocol SDK (DPP/1)
+   ├─ src/DuCom.PluginHost/    plugin host: lifecycle, IPC, budgets
+   ├─ src/DuCom.Plugins.*/     built-in plugins (audio, background, checksum, CRC, log package, production test, stopwatch)
+   ├─ profiles/                earbud production profiles
+   ├─ samples/                 plugin sample
+   ├─ tests/                   unit, plugin, and host recovery tests
+   ├─ tools/                   load generator and setup wizard
    ├─ benchmarks/              BenchmarkDotNet projects
+   ├─ scripts/                 packaging, release, and plugin gates
    └─ docs/                    ADRs, design, and verification notes
 ```
 
@@ -71,12 +77,15 @@ DuCom/                         repository root
 
 ### 5.1 Layers
 
-- **DuCom.Core:** serial lifecycle, receive pipeline, parsing, search, sending, storage, Telnet, diagnostics, and persistence primitives.
+- **DuCom.Core:** serial lifecycle, receive pipeline, parsing, search, sending, storage, protocol decoding, log analysis, Telnet, diagnostics, and persistence primitives.
 - **DuCom:** WPF views, ViewModels, application services, configuration composition, localization, and Windows integration.
-- **Tests:** automated evidence for Core behavior and critical boundaries.
+- **DuCom.Plugin.Sdk:** manifest, capability, permission, and host API contracts.
+- **DuCom.PluginHost:** plugin process lifecycle, IPC proxies, resource budgets, and recovery.
+- **DuCom.Plugins.*:** built-in plugins, each in its own project and process.
+- **Tests:** automated evidence for Core behavior, plugin contracts, and critical boundaries.
 - **Tools/Benchmarks:** deterministic load, completeness checks, and performance benchmarks.
 
-Core must not reference WPF types. Protocol, parsing, storage, and state-machine logic should be placed in Core whenever practical.
+Core must not reference WPF types. Protocol, parsing, storage, and state-machine logic should be placed in Core whenever practical. Plugins reach the host only through the SDK contract and never reference Core or WPF.
 
 ### 5.2 Receive Flow
 
@@ -112,6 +121,8 @@ STR/HEX encoders create bytes, an optional line ending is appended, and the sess
 - `Storage/`: budgeted line storage and snapshots.
 - `Sending/`: encoding, history, scripts, and multi-target runners.
 - `Search/`: safe search and regex timeout handling.
+- `Protocols/`: protocol decoders, frame models, and checksums.
+- `LogAnalysis/`: log parsing plus BES and Bluetooth event decoding.
 - `Diagnostics/`: load metrics, WatchDog, variable and memory evaluation.
 - `Telnet/`: server, authentication, and protocol handling.
 - `Persistence/`: atomic file storage and migration infrastructure.
@@ -124,7 +135,12 @@ STR/HEX encoders create bytes, an optional line ending is appended, and the sess
 - `Resources/DesignTokens*`: themes, spacing, and styles.
 - `Controls/`, `Behaviors/`, `Converters/`: reusable UI building blocks.
 - `MainWindow`, `SessionWorkspace`: shell and session workspace.
-- `ToolCenterWindow`: virtual ports, Telnet, monitoring, commands, and other tools.
+- `ToolCenterWindow`: monitoring, virtual ports, Telnet, WatchDog, and other tools.
+- `CommandGroupsWindow`: command group editor and runner.
+- `LogAnalyzerWindow`: log analyzer.
+- `FloatSendWindow`: floating send window.
+- `SettingsWindow`: settings, plugin management, and shortcuts.
+- `ProtocolDecoderWindow`, `VariablePlotWindow`: analysis windows.
 
 ## 7. MVVM and Commands
 
@@ -163,11 +179,23 @@ Persistence rules:
 
 ## 10. Testing Strategy
 
-- **Unit:** encoding, parsing, search, regex timeouts, state machines, storage budgets, migrations.
-- **Integration:** serial-session pipeline, log completeness, shutdown order, multi-target commands.
+- **Unit:** encoding, parsing, search, regex timeouts, state machines, storage budgets, protocol decoding, migrations.
+- **Integration:** serial-session pipeline, log completeness, shutdown order, multi-target commands, log analysis.
+- **Plugins:** manifests, permissions, IPC contracts, host recovery, and deadline handling.
 - **Smoke:** localization keys, settings migration, tool routing, split behavior.
 - **Hardware:** real adapters, hot-plug, occupied ports, serial errors, long high-baud runs.
 - **Load:** deterministic generation and comparison of generated, received, logged, and display-trim metrics.
+
+Test projects live under `tests/`:
+
+| Project | Scope |
+| --- | --- |
+| `DuCom.Core.Tests` | Core logic, protocols, log analysis |
+| `DuCom.App.Tests` | ViewModels, settings, routing, UI contracts |
+| `DuCom.Plugins.Tests` | Built-in plugin behavior and manifests |
+| `DuCom.HostRecoveryWorker` | Host crash recovery |
+| `DuCom.PluginTestBed` | Plugin development and integration |
+| `DuCom.NativeHelperTestBed` | Native helper process |
 
 Before a PR:
 
@@ -219,7 +247,15 @@ Create feature branches from `test`. A PR should include context, summary, test 
 
 ## 15. Release Publishing
 
-DuCom is published to users as a self-contained single EXE, currently measured at approximately 78 MB (the size may vary slightly between versions). Users download and double-click it without installing .NET.
+DuCom ships three artifacts:
+
+| Artifact | Contents | Updates |
+| --- | --- | --- |
+| `DuCom-win-Setup.exe` | Velopack installer with the runtime | Installer channel |
+| `DuCom.exe` | Self-contained single file with the .NET runtime | Portable channel |
+| `DuCom-lite.exe` | Framework-dependent single file using the system .NET 10 | Lite channel |
+
+Release scripts live in `scripts/`: `publish-portable.ps1` builds the portables, `publish-velopack.ps1` builds the installer. Run both from a Release build.
 
 Recommended settings:
 
@@ -244,10 +280,11 @@ Before publishing, check version metadata, About release date, manuals, README l
 ## 16. Documentation Maintenance
 
 - `Doc/*.md`: GitHub reading and review.
-- `Doc/Web/*.html`: browser reading and GitHub Pages.
+- `Doc/Web/*.html`: browser reading and GitHub Pages, currently kept in sync by hand.
 - Keep Chinese and English facts/sections synchronized.
 - The Help menu opens the manual for the active language.
 - Update the user manual in the same PR as user-visible behavior.
+- When plugin capabilities, permissions, or manifest fields change, update `Doc/PluginProtocol.DPP1.*.md` and the affected manifests.
 - Add an ADR under `DuCom/docs/decisions/` for architectural boundaries or important trade-offs.
 
 ## 17. Feedback

@@ -2,8 +2,8 @@
 
 [English](DeveloperGuide.en-US.md) · [用户手册](UserManual.zh-CN.md) · [网页版](Web/developer-guide-zh.html) · [GitHub](https://github.com/adu9527/DuCom)
 
-> 技术栈：.NET 10、WPF、C# 14、WPF-UI、CommunityToolkit.Mvvm  
-> 文档更新：2026-09-02
+> 技术栈：.NET 10、WPF、C# 14、WPF-UI、CommunityToolkit.Mvvm
+> 文档更新：2026-11-04
 
 ## 1. 项目目标
 
@@ -61,9 +61,15 @@ DuCom/                         仓库根目录
    ├─ Directory.Packages.props
    ├─ src/DuCom/               WPF 应用、窗口、ViewModel、服务与资源
    ├─ src/DuCom.Core/          无 WPF 依赖的核心逻辑
-   ├─ tests/DuCom.Core.Tests/  xUnit 测试
-   ├─ tools/                   负载与辅助工具
+   ├─ src/DuCom.Plugin.Sdk/    插件协议 SDK（DPP/1）
+   ├─ src/DuCom.PluginHost/    插件宿主：生命周期、IPC、资源预算
+   ├─ src/DuCom.Plugins.*/     内置插件（语音合成、背景图、校验码、CRC、日志打包、耳机产测、秒表）
+   ├─ profiles/                耳机产测项目配置
+   ├─ samples/                 插件示例
+   ├─ tests/                   单元测试、插件测试、宿主恢复测试
+   ├─ tools/                   负载生成器与安装向导
    ├─ benchmarks/              BenchmarkDotNet 基准
+   ├─ scripts/                 打包、发布与插件门禁脚本
    └─ docs/                    ADR、设计、测试和内部行为资料
 ```
 
@@ -73,12 +79,15 @@ DuCom/                         仓库根目录
 
 ### 5.1 分层
 
-- **DuCom.Core**：串口生命周期、接收管线、解析、搜索、发送、存储、Telnet、监控与持久化基础能力。
+- **DuCom.Core**：串口生命周期、接收管线、解析、搜索、发送、存储、协议解码、日志分析、Telnet、监控与持久化基础能力。
 - **DuCom**：WPF 视图、ViewModel、应用服务、配置装配、本地化和 Windows 集成。
-- **Tests**：Core 行为和关键边界的自动化验证。
+- **DuCom.Plugin.Sdk**：插件清单、能力与权限契约、宿主 API 的公开定义。
+- **DuCom.PluginHost**：插件进程生命周期、IPC 代理、资源预算与故障恢复。
+- **DuCom.Plugins.***：内置插件，各自独立项目和进程。
+- **Tests**：Core 行为、插件契约和关键边界的自动化验证。
 - **Tools/Benchmarks**：确定性负载、完整性检查和性能基准。
 
-Core 不应引用 WPF 类型。可测试的协议、解析、存储和状态机逻辑优先放入 Core。
+Core 不应引用 WPF 类型。可测试的协议、解析、存储和状态机逻辑优先放入 Core。插件只能通过 SDK 暴露的契约访问宿主，不引用 Core 或 WPF。
 
 ### 5.2 接收数据流
 
@@ -114,6 +123,8 @@ SerialPort callback
 - `Storage/`：预算化行存储和显示快照。
 - `Sending/`：发送编码、历史、命令脚本和多目标运行器。
 - `Search/`：安全搜索和正则超时。
+- `Protocols/`：协议解码器、帧模型和校验算法。
+- `LogAnalysis/`：日志解析、BES 与蓝牙事件解码。
 - `Diagnostics/`：负载指标、WatchDog、变量与内存评估。
 - `Telnet/`：Telnet 服务、认证和协议处理。
 - `Persistence/`：原子文件存储和迁移基础设施。
@@ -126,7 +137,12 @@ SerialPort callback
 - `Resources/DesignTokens*`：主题颜色、间距和控件样式。
 - `Controls/`、`Behaviors/`、`Converters/`：可复用 UI 组件。
 - `MainWindow`、`SessionWorkspace`：主窗口和会话工作区。
-- `ToolCenterWindow`：虚拟串口、Telnet、监控、命令组等工具入口。
+- `ToolCenterWindow`：监控、虚拟串口、Telnet、WatchDog 等工具页入口。
+- `CommandGroupsWindow`：命令组编辑与运行。
+- `LogAnalyzerWindow`：日志分析器。
+- `FloatSendWindow`：悬浮发送窗口。
+- `SettingsWindow`：设置、插件管理和快捷键。
+- `ProtocolDecoderWindow`、`VariablePlotWindow`：分析窗口。
 
 ## 7. MVVM 与命令
 
@@ -163,11 +179,23 @@ src/DuCom/Resources/Languages/en-US.xaml
 
 ## 10. 测试策略
 
-- **单元测试**：编码、解析、搜索、正则超时、状态机、存储预算、迁移映射。
-- **集成测试**：串口会话管线、日志完整性、关闭顺序、多目标命令。
+- **单元测试**：编码、解析、搜索、正则超时、状态机、存储预算、协议解码、迁移映射。
+- **集成测试**：串口会话管线、日志完整性、关闭顺序、多目标命令、日志分析。
+- **插件测试**：清单校验、权限、IPC 契约、宿主恢复和超时处理。
 - **Smoke 测试**：本地化键、设置迁移、工具页路由、分屏行为。
 - **硬件验证**：真实 USB 串口、拔插、端口占用、错误帧、高波特率长跑。
 - **负载测试**：使用确定性负载生成器，比较生成字节、接收字节、日志字节和显示裁剪指标。
+
+测试项目位于 `tests/`：
+
+| 项目 | 覆盖范围 |
+| --- | --- |
+| `DuCom.Core.Tests` | 核心逻辑与协议、日志分析 |
+| `DuCom.App.Tests` | ViewModel、设置、路由与界面契约 |
+| `DuCom.Plugins.Tests` | 内置插件行为与清单 |
+| `DuCom.HostRecoveryWorker` | 宿主异常恢复 |
+| `DuCom.PluginTestBed` | 插件开发与联调 |
+| `DuCom.NativeHelperTestBed` | 原生辅助进程 |
 
 提交前至少运行：
 
@@ -219,7 +247,15 @@ dotnet test DuCom.slnx --configuration Release
 
 ## 15. Release 发布
 
-DuCom 面向用户发布为自包含单文件 EXE，当前实测约 78 MB（不同版本可能略有浮动），用户下载后直接双击，无需安装 .NET。
+DuCom 对外提供三种产物：
+
+| 产物 | 内容 | 更新方式 |
+| --- | --- | --- |
+| `DuCom-win-Setup.exe` | Velopack 安装包，含运行时 | 安装器更新 |
+| `DuCom.exe` | 自包含单文件，含 .NET 运行时 | 便携版更新通道 |
+| `DuCom-lite.exe` | 框架依赖单文件，使用系统 .NET 10 | 轻量版更新通道 |
+
+发布脚本在 `scripts/`：`publish-portable.ps1` 生成便携版，`publish-velopack.ps1` 生成安装包。两者都需要在 Release 构建下运行。
 
 Visual Studio 发布建议：
 
@@ -246,10 +282,11 @@ dotnet publish src\DuCom\DuCom.csproj `
 ## 16. 文档维护
 
 - `Doc/*.md`：GitHub 阅读和版本审查。
-- `Doc/Web/*.html`：浏览器阅读和 GitHub Pages。
+- `Doc/Web/*.html`：浏览器阅读和 GitHub Pages，目前与 Markdown 手工同步。
 - 中英文文档应保持章节和事实同步。
 - 菜单“帮助”指向仓库中的当前语言用户手册。
 - 改变用户可见行为时，同一 PR 更新用户手册。
+- 新增或修改插件能力、权限、清单字段时，同步更新 `Doc/PluginProtocol.DPP1.*.md` 和对应 manifest。
 - 改变架构边界或重要取舍时，在 `DuCom/docs/decisions/` 增加 ADR。
 
 ## 17. 问题反馈

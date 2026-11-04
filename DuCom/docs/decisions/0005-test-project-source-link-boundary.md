@@ -1,8 +1,11 @@
-# ADR-0003: Test-Project Application Source-Link Boundary
+# ADR-0005: Test-Project Application Source-Link Boundary
 
 - Status: Accepted (review-fix round, 2026-08-27)
 - Context: Review item nine
 - Supersedes: none
+- Note: originally recorded as a second "0003" (filename collision with the
+  development-diagnostic-logging ADR); renumbered to 0005 on 2026-11-04.
+  Content is unchanged.
 
 ## Decision
 

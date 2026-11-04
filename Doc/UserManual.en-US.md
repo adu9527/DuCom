@@ -2,156 +2,374 @@
 
 [中文](UserManual.zh-CN.md) · [Developer Guide](DeveloperGuide.en-US.md) · [Web version](Web/user-manual-en.html) · [GitHub](https://github.com/adu9527/DuCom)
 
-> Platform: Windows 10 or later  
-> Updated: 2026-09-02
+> Platform: Windows 10 or later
+> Updated: 2026-11-04
 
-## 1. Overview
+## 1. What DuCom is
 
-DuCom is a Windows serial communication and debugging tool designed for embedded development, high-throughput device logs, and multi-port workflows. It provides independent serial sessions, STR/HEX communication, automatic logging, search and filtering, command groups, split views, a Telnet bridge, virtual-port tools, and runtime monitoring.
+A Windows serial tool for embedded debugging and Bluetooth audio development.
 
-## 2. Install and Start
+It opens several serial ports at once, writes logs to disk, highlights and filters output by rule, and runs saved command sequences across multiple ports. Plugins cover narrower jobs: firmware checksums, CRC calculation, earbud production testing, and speech synthesis.
 
-Each GitHub Release provides a single `DuCom.exe` of approximately 78 MB (the size may vary slightly between versions). The executable is self-contained and includes the required .NET runtime and dependencies. There is no installer and no separate runtime package is required.
+## 2. Install and start
 
-1. Open [GitHub Releases](https://github.com/adu9527/DuCom/releases).
-2. Download the latest `DuCom.exe`.
-3. Put it in a permanent folder where you have write permission.
-4. Double-click `DuCom.exe`.
+The Releases page offers three packages:
 
-If Windows displays a security warning, verify that the file came from the official DuCom GitHub repository before running it. Do not run the executable directly inside an archive.
+| File | Description | Size |
+| --- | --- | --- |
+| `DuCom-win-Setup.exe` | Installer, adds Start menu entries, uses the installer update channel | about 130 MB |
+| `DuCom.exe` | Full portable build, single file, bundles the .NET runtime | about 79 MB |
+| `DuCom-lite.exe` | Light portable build, single file, uses the .NET 10 runtime already on the system | about 17 MB |
 
-## 3. Quick Serial Connection
+Sizes change between releases. Check the Releases page.
 
-1. Connect the USB-to-serial adapter or development board.
-2. Refresh the port list in the left sidebar.
-3. Select the target COM port.
-4. Review baud rate, data bits, stop bits, parity, flow control, and encoding.
-5. Connect. DuCom creates an independent session tab for the port.
-6. Device output appears in the log area; enter commands in the send area.
+The portable builds need no installation. Put the EXE in a writable folder and run it. Do not run it from inside a zip archive, or logs and settings may fail to save.
 
-A common setup is `115200 / 8 / 1 / None`, but the values must match the firmware. If another program owns the port, close that program first.
+The lite build requires the .NET 10 Desktop Runtime. If it is missing, Windows will prompt you to install it. Use the full build if you would rather not deal with that.
 
-## 4. Main Window
+Windows may show a security warning on first launch. Confirm the file came from this repository's Releases before running it.
 
-- **Top menu:** File, View, Tools, and About.
-- **Port sidebar:** refresh, visibility, sorting, connection, and device details.
-- **Session tabs:** independent connection, display, send, and logging settings per port.
-- **Log area:** received/transmitted records, follow, pause, clear, search, and save.
-- **Send area:** STR/HEX, line ending, escape decoding, file send, and timed send.
-- **Status area:** connection state, serial warnings, and operation results.
+A cover page appears at startup. You can turn it off in Settings → Appearance, or keep the page and disable only the animation.
 
-## 5. Serial Parameters
+## 3. Connect a port
 
-DuCom supports baud rate, data bits, stop bits, parity, flow control, encoding, DTR, RTS, and optional NUL-byte discard. Custom baud rates can be added. Some receive/display values are captured when a session is created, so close and reopen the port after changing them.
+1. Connect the USB-serial adapter or development board.
+2. Click refresh in the port sidebar.
+3. Select the port.
+4. Check baud rate, data bits, stop bits, parity, flow control, and encoding under Serial parameters.
+5. Click Connect, or press `Ctrl+Enter`.
 
-Auto reconnect waits for the same device after an unexpected removal. A manual disconnect does not trigger reconnection.
+Each port gets its own session. Parameters, logs, and send history stay separate.
 
-## 6. Receive Display and Logging
+`115200 / 8 / 1 / None` is a common default. Use whatever the firmware specifies. If another program holds the port, close it first.
 
-### 6.1 STR / HEX
+When a port fails to open, the session shows the reason and offers a retry.
 
-- **STR:** decoded text using UTF-8, ASCII, GB2312, GBK, or another configured encoding.
-- **HEX:** hexadecimal byte display for binary protocols.
-- **ANSI/VT:** STR mode supports common colors, bold, underline, reverse video, 256-color, and RGB sequences.
+## 4. Main window
 
-### 6.2 Timestamps and Display
+- **Menu bar**: File, Edit, View, Tools, Plugins, About.
+- **Port sidebar**: refresh, sort, filter, hide ports, open and close.
+- **Session area**: one tab per port, with horizontal or vertical split.
+- **Log area**: received and sent data, with search, highlight, filter, follow, and save.
+- **Send area**: STR/HEX, line ending, escape handling, history, timed send.
+- **Status bar**: connection state, byte counters, errors.
 
-Configure timestamp format, word wrap, line numbers, current-line highlight, CR/LF markers, spaces, tabs, font family, and font size. Pausing auto-scroll does not stop reception or file logging.
+Hide the sidebar with View → Sidebar or `Ctrl+B` when you need the width for logs.
 
-### 6.3 Automatic Logs
+The title bar shows current memory use. It can be turned off in Settings.
 
-When automatic logging is enabled, received data is written asynchronously. Configure the directory, filename pattern, rotation, and segment size. The display uses a memory budget and may trim old visible lines, while data already written to disk remains intact.
+## 5. Serial parameters
 
-### 6.4 Save and Open
+DuCom supports baud rate, data bits, stop bits, parity, flow control, encoding, DTR, RTS, and discarding NUL bytes. Baud rates can be typed in, and custom values are remembered.
 
-The File menu saves the visible snapshot as text, hexadecimal, or binary. Opening an existing log launches the system-associated viewer in read-only fashion; it does not import the file into an active serial session.
+Some receive settings are fixed when the port opens. Close and reopen the session after changing them.
 
-## 7. Search, Highlight, and Filter
+With auto-reconnect enabled, DuCom tries to reopen the same port after an unexpected unplug. A manual disconnect does not trigger reconnection.
 
-- Session search supports plain text, regular expressions, case sensitivity, and previous/next navigation.
-- Highlight rules support Contains/Regex, foreground/background colors, bold, and italic.
-- Filtering can be enabled independently per port.
-- Regular-expression timeouts protect the UI from expensive patterns.
-- Rule projects can be saved, imported, and exported.
+## 6. Receiving and display
 
-## 8. Sending Data
+### 6.1 STR and HEX
 
-### 8.1 STR Mode
+STR mode decodes text with the selected encoding: UTF-8, ASCII, GB2312, GBK, and others. HEX mode shows raw bytes, which suits binary protocols.
 
-Send normal text with None, CR, LF, or CRLF line endings. Escape decoding supports `\r`, `\n`, `\t`, `\\`, and `\xNN`.
+STR mode renders common ANSI/VT sequences, including color, bold, underline, reverse video, 256-color, and RGB.
 
-### 8.2 HEX Mode
+### 6.2 Timestamps and display options
 
-Enter complete byte pairs, for example `AA 55 01 0D 0A`. HEX mode does not decode STR escapes. Invalid or incomplete bytes are rejected.
+Timestamp format is configurable; `[HH:mm:ss.fff]` is typical. You can also enable line numbers, word wrap, current-line highlight, and visible markers for CR/LF, spaces, and tabs.
 
-### 8.3 History and Timed Send
+Change font size under View → Font size. Change the log font under Settings → Appearance.
 
-Send history is deduplicated and persisted. Use Up/Down in the editor, or use Tool Center to search, delete, clear, or restore entries. The minimum timed-send interval is 50 ms; verify that the target can handle the selected rate.
+Pausing follow only stops scrolling. Receiving and disk logging continue.
 
-### 8.4 Files and Command Groups
+### 6.3 Automatic logging and rotation
 
-Text files can be loaded as send content. Advanced command groups support CRUD, import/export, delay, expected-result checks, timeout, loop execution, and multiple target ports. A failure on one port does not automatically stop other ports.
+With auto-save on, received data is written to disk asynchronously. You can set:
 
-## 9. Multiple Sessions, Split View, and Floating Windows
+- Log directory
+- File name pattern, with `{Port}`, `{yyyy}`, `{MM}`, `{dd}`, `{HH}`, `{mm}`, `{ss}`, `{fff}`
+- Whether to rotate by size, and the size limit per file
 
-Multiple ports can run concurrently with independent state. Drag a session into the secondary pane for horizontal or vertical two-pane layouts, resize the split, and persist the layout. Quad view is not available in the current version.
+A live preview shows the resulting file name. Rotation is size-based only; it does not roll over on a timer.
 
-A floating send/mini-log window remains bound to one port and can stay on top, clear, save, switch STR/HEX, and send commands even when another main tab is selected.
+### 6.4 Display budget
 
-## 10. Tool Center
+Each session has a display budget, 64 MB by default. When the log exceeds it, older content is dropped from the view. The file on disk keeps everything.
 
-- **Virtual ports:** detect com0com and manage pairs through `setupc.exe`; some operations require elevation.
-- **Telnet:** run a local shell and optionally bridge client input with a serial session. Remote listening exposes serial data and therefore requires authentication and a trusted network.
-- **WatchDog:** alert, log, or send a command when expected content is absent for a configured period.
-- **Runtime/variable monitor:** CPU, memory, GC, threads, regex-captured values, and CSV export. Charts are not implemented.
-- **ASCII table:** DEC, HEX, and ASCII lookup.
-- **Plugins:** the background-image feature is available; external DLLs are discovered for metadata only and are not executed.
-- **Compatible data import:** discover and migrate supported settings from another serial tool without modifying the source data.
+DuCom shows a notice when lines are evicted. This is not data loss on the serial side.
 
-## 11. Settings, Themes, and Shortcuts
+### 6.5 Save and open
 
-Light/dark themes and Simplified Chinese/English can be switched immediately. General settings, per-port overrides, session layout, hidden ports, history, command groups, and rules are persisted.
+File → Save log as writes the visible content as text, HEX, or binary.
 
-Shortcut management supports search, edit, conflict detection, clearing, and default restoration for connection, refresh, clear, save, follow, sidebar, tools, search, and send actions.
+File → Open log opens a log file with the system default program, read-only. It does not import the file into the current session. To analyze a log inside DuCom, use Tools → Log Analyzer.
 
-## 12. Troubleshooting
+## 7. Search, highlight, and filter
 
-### Port not found
+### 7.1 Search
 
-Install the correct driver, use a data-capable cable, refresh, check hidden-port filters, and restore hidden ports.
+Search supports plain text and regular expressions, case matching, whole-line matching, and next/previous navigation. Regex evaluation has a timeout, so a bad pattern cannot freeze the UI.
 
-### Port cannot open
+### 7.2 Highlight
 
-Close other serial software, reconnect the device, verify permissions, and review the serial parameters.
+Manage rules under Tools → Highlight & Filter. Matching is by substring or regex. A match can set foreground color, background color, bold, and italic.
+
+Built-in templates cover common BES log levels: Error, Warning, Status, Fault, Audio, Address, Unit, and Version. Add your own rules, or import and export rule sets.
+
+### 7.3 Filter
+
+Filter rules decide which lines appear in the view. They do not affect receiving or file logging. Rules can be enabled per port.
+
+## 8. Sending
+
+### 8.1 STR send
+
+Type text and choose None, CR, LF, or CRLF as the line ending.
+
+With Parse escapes enabled, `\r`, `\n`, `\t`, `\\`, and `\xNN` are translated.
+
+### 8.2 HEX send
+
+Enter complete byte pairs, for example `AA 55 01 0D 0A`. Spaces are optional.
+
+Incomplete bytes or invalid characters are not sent. HEX mode does not process STR escapes.
+
+### 8.3 Send prefix in the log
+
+A prefix can be added to sent lines in the log. The default is `TX > `.
+
+It affects display only and is never written to the serial port. Turn it off in Settings if you do not want it.
+
+### 8.4 Send history
+
+Sent content is recorded and de-duplicated. Use the up and down arrows in the input box, or open Tools → Send History to search, delete, clear, or reuse an entry.
+
+### 8.5 Timed send
+
+Send the current content repeatedly at a fixed interval. The minimum is 50 ms.
+
+Check that the device can handle the rate before starting. Flooding firmware with commands can hang it.
+
+### 8.6 Send from file
+
+Load a text file as the send payload. Useful for long scripts or batch commands.
+
+## 9. Command groups
+
+Open Tools → Command Groups.
+
+A group holds an ordered list of commands. Each command sets:
+
+- Payload (STR or HEX)
+- Delay after sending
+- Reply timeout
+- Expected reply
+
+At run time, select one or more target ports, for example both earbuds. Each command shows its state: sending, waiting for reply, passed, timed out, or send failed.
+
+A failure on one port does not stop the others. Stopping a run marks the current round as aborted.
+
+Groups can be created, renamed, deleted, imported, and exported. An exported group file can be shared directly.
+
+## 10. Multiple ports, split view, and the floating window
+
+Several ports can run at the same time. Each session keeps its own parameters and state.
+
+Drag a session to the right edge to split the view horizontally, or switch to a vertical split. The split ratio is saved.
+
+View → Floating Send opens a small always-on-top window bound to the current port. It can stay on top, keep a fixed scroll position, clear, save, switch STR/HEX, and send commands. It keeps updating when the main window switches to another tab.
+
+Position and size are stored per port.
+
+## 11. Tool Center
+
+Tools → Tool Center has seven tabs:
+
+| Tool | Purpose |
+| --- | --- |
+| Monitor | CPU, memory, private memory, thread count; extract variables by regex and export them |
+| Virtual ports | Detect com0com, create and remove virtual port pairs; some actions need administrator rights |
+| ASCII table | Look up DEC, HEX, and ASCII |
+| Reference | Open the repository's architecture, test, and developer docs |
+| Telnet | Local Telnet service that can bridge client input to a serial port |
+| WatchDog | Alert, log, or send a command when expected content does not arrive in time |
+| Send history | Search, reuse, and clear everything sent |
+
+Telnet listens on localhost by default. Remote listening exposes serial data; enable authentication and use it only on trusted networks.
+
+## 12. Log Analyzer
+
+Tools → Log Analyzer opens archived logs or attaches to a live session.
+
+Filter by time, level, module, and keyword. Rules can be imported and exported, and results can be exported as a table.
+
+For BES logs, the analyzer decodes startup flow, faults, Bluetooth HCI, and profile events. The analysis tree jumps straight to the relevant section, which is faster than scrolling through a log someone sent you.
+
+## 13. Plugins
+
+Plugins follow the DPP/1 protocol and run in separate processes. If one crashes, serial traffic in the main app keeps running.
+
+Settings → Plugins lists installed plugins with version, capabilities, permissions, and status. From there you can enable, disable, or open a plugin page.
+
+Seven plugins ship with the repository.
+
+### 13.1 Firmware checksum
+
+Drop a firmware file on the window, or press `Ctrl+O`. JieLi and BlueX are supported directly. Bestechnic (BES) needs a one-time setup following the integration guide, which is available offline from the plugin details page.
+
+Results show the checksum, default Bluetooth name, chip, vendor, and build time. The status line distinguishes a fully verified image, a CRC-verified image, a checksum-only read, and an unrecognized image.
+
+The window can stay on top, and the checksum can be copied in one click.
+
+### 13.2 CRC calculator
+
+Accepts HEX or ASCII input, or a file up to 64 MiB.
+
+Twenty-one common CRC models are built in. Custom parameters support 1 to 32 bits, including polynomial, init, xor-out, and input/output reflection.
+
+Results can be copied as HEX or binary. Press `Ctrl+Enter` to calculate; the window supports always-on-top.
+
+### 13.3 Speech synthesis
+
+Uses Microsoft online speech with 318 voices. Adjust rate, pitch, and volume, then preview before generating.
+
+TXT and MD files can be imported. Long text is split into chunks with a progress display. MP3 audio and SRT subtitles can be exported separately.
+
+Output goes to the current log directory by default, or a directory you choose. A network connection is required. Proxies follow the system settings by default and can be set separately for HTTP or SOCKS5.
+
+### 13.4 Earbud production test
+
+Connect the left and right earbuds to two serial ports. Two channels maximum.
+
+The flow is: choose a profile, tick left and/or right and their COM ports, connect, start. Only ticked channels are tested. In loop mode, each round starts fresh.
+
+Test items are defined in Profile Configuration:
+
+- Send frame: header, length, command, CRC. Leave length empty to calculate it.
+- Reply fields: added in protocol order. A MAC is 6 bytes; a command returning two MACs gets two rows.
+- Timeout and post-send delay
+- Enabled flag
+
+The default header is `55 AA` with CRC8/MAXIM.
+
+Calculate frame (do not send) builds the frame and CRC locally without opening the port, which is useful for checking the configuration.
+
+Compound commands combine several sub-commands into one test item. Left/right roles and data references are supported, for example writing the MAC read from the left earbud to the right one.
+
+Each round writes a `.log` and a `.csv`. The CSV uses UTF-8 BOM and opens directly in Excel. Statistics separate passed, failed, and aborted rounds; aborted rounds do not count as completed.
+
+Profiles are JSON files under `profiles` in the program directory and can be imported or exported.
+
+### 13.5 Background image
+
+Draws an image behind the main window without affecting selection, copying, or split view.
+
+Point it at a folder to rotate images, with adjustable opacity and interval.
+
+### 13.6 Log package
+
+The One-click Package button in the title bar collects a problem report into a zip.
+
+Fill in project, tester, firmware version, reproduction rate, device name, description, and steps, then select the ports to include. System logs can be included too.
+
+The archive uses a structured layout, with log copies named after the device. The output directory is configurable.
+
+### 13.7 Stopwatch
+
+High-resolution timing with lap, pause, and resume. Results export to CSV or Excel, which is handy for timing measurements.
+
+## 14. Settings, appearance, and shortcuts
+
+Settings has ten pages:
+
+| Page | Contents |
+| --- | --- |
+| General | Cover page, close to tray, prevent sleep, configuration backup, private memory warning, scroll behavior |
+| Serial parameters | Default baud rate, data bits, stop bits, parity, flow control, encoding, DTR/RTS |
+| Receive & log | Receive mode, timestamps, auto-save, rotation, display budget, send recording |
+| Highlight & filter | Rule editing, templates, import/export |
+| Plugins | Installed plugins, details, enable/disable |
+| Send | Line ending, escapes, send prefix, timed send defaults |
+| Appearance | Light/dark, Chinese/English, log font, search panel opacity, cover page |
+| Shortcuts | View, edit, conflict detection, restore defaults |
+| Tool Center | Which tool tabs appear and in what order |
+| Updates | Automatic checks and update channel |
+
+Theme, language, and font changes apply immediately; no restart is needed.
+
+Configuration is backed up on a schedule, every 7 days by default. Restore from a backup after a bad change or on a new machine.
+
+Shortcuts come with a default set. Common ones:
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Enter` | Open or close the selected port |
+| `F5` | Refresh the port list |
+| `Ctrl+L` | Clear the log |
+| `Ctrl+S` | Save the log |
+| `Ctrl+F` | Search |
+| `Ctrl+B` | Show or hide the sidebar |
+| `Ctrl+T` | Open Tool Center |
+| `Ctrl+D` | Focus the send box |
+| `Ctrl+W` | Close the current session |
+| `Ctrl+Shift+W` | Close the right split |
+| `Alt+E` | Toggle HEX display |
+| `Alt+D` | Toggle timestamps |
+
+## 15. Updates
+
+About → Check for updates queries GitHub for the latest release.
+
+Each package has its own update channel: the installer updates through the installer, while the full and lite portables download a replacement single file. Automatic checks can be enabled in Settings.
+
+## 16. Troubleshooting
+
+### No ports listed
+
+Check the driver, confirm the cable supports data, then refresh. Also check whether the port was hidden and use Restore hidden ports if needed.
+
+### Port will not open
+
+Usually the port is in use, permissions are insufficient, or the parameters are invalid. Close other serial software, reconnect the device, and try again.
 
 ### Garbled text
 
-Match both baud rate and encoding. UTF-8 is common; some Chinese firmware uses GBK or GB2312.
+Check baud rate and encoding. Chinese firmware often uses GBK/GB2312; newer firmware usually uses UTF-8.
 
-### HEX send rejected
+### HEX send does nothing
 
-Every byte requires two hexadecimal characters, optionally separated by spaces, such as `01 0A FF`.
+Each byte needs two hex digits, for example `01 0A FF`. DuCom refuses to send when invalid characters are present.
 
-### Does pausing the display stop logging?
+### Scrolling stopped. Is logging still running?
 
-No. Pausing follow/scroll changes the view only. Reception and automatic file logging continue.
+Yes. Pausing follow only changes the view position. Receiving and file logging continue.
 
-### Remote Telnet cannot connect
+### Older lines disappeared
 
-Check remote-listen settings, address, firewall, and port. Authentication is mandatory for remote listening. Never expose it to an untrusted network.
+The display budget was reached. Old lines are dropped from the view, not from the file on disk. Raise the budget or open the log file to see everything.
 
-## 13. Feedback and Support
+### Telnet cannot connect
+
+Check listen address, port, firewall, and authentication. Remote mode requires authentication.
+
+### A plugin will not open
+
+Check its status under Settings → Plugins. Disabled plugins, version mismatches, and unapproved permissions prevent startup, and the details panel shows the reason.
+
+## 17. Support
 
 - QQ group: `1107820408`
-- GitHub: [https://github.com/adu9527/DuCom](https://github.com/adu9527/DuCom)
-- Issues: [https://github.com/adu9527/DuCom/issues](https://github.com/adu9527/DuCom/issues)
+- GitHub: https://github.com/adu9527/DuCom
+- Issues: https://github.com/adu9527/DuCom/issues
 
-Include the DuCom version, Windows version, serial chipset/driver, settings, reproduction steps, and relevant logs. Remove credentials, device identities, and other sensitive information first.
+Include the DuCom version, Windows version, serial chip and driver, port settings, reproduction steps, and relevant logs.
 
-## 14. Safety
+Logs may contain device keys, accounts, or identity data. Remove them before posting.
 
-- Download releases from the official GitHub repository.
-- Review commands that can erase firmware, write Flash, or change device security state.
-- Enable remote Telnet only on a trusted network.
+## 18. Security notes
+
+- Download only from the official GitHub Releases.
+- Be careful with commands that erase firmware, rewrite flash, or change security state.
+- Enable remote Telnet only on trusted networks.
 - Sanitize logs before sharing.
-- DuCom is licensed under GPL-3.0; see the repository license file.
+- DuCom is licensed under GPL-3.0. See the repository license file.

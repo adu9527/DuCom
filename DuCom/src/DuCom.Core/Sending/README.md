@@ -28,6 +28,6 @@ Use table-driven tests for valid and invalid HEX, encoding, escaping, newline co
 - `CommandScriptRunner`: sequential group loop executor (send, optional probe with 100 ms polling until timeout, delay slices), continuous playback until cancellation matching reference behavior. Delay is injectable for determinism (`WithDelay`, internal seam enabled via InternalsVisibleTo DuCom.Core.Tests).
 - `MultiTargetCommandScriptRunner`: refreshes the selected target snapshot at each group loop, sorts targets by name, and runs each target concurrently. Send failures and result timeouts are reported per target and do not cancel other targets; an empty live target snapshot is an explicit run error.
 
-## 2026-08-28 additions (GLM long task)
+## Export and Clipboard Helpers
 
 - `HexRepresentation`: pure text/HEX representations for the File-menu exports (uppercase space-separated byte pairs) plus strict hex-text parsing used by the clipboard transforms. Round-trip tested.
