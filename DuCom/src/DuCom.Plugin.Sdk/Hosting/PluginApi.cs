@@ -213,4 +213,6 @@ public interface IPluginHostApi
     IPluginBackground Background { get; }
 
     IPluginDiagnostics Diagnostics { get; }
+
+    IPluginSpeech Speech => throw new NotSupportedException("Online speech requires a newer host.");
 }

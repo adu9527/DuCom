@@ -39,6 +39,7 @@ public sealed record PluginManifest
         Permission.FilesUserSelectedWrite,
         Permission.NativeHelpersExecute,
         Permission.SerialLease,
+        Permission.SpeechOnline,
     };
 
     [JsonPropertyName("manifestVersion")] public int ManifestVersion { get; init; }
@@ -76,4 +77,5 @@ public static class Permission
     public const string FilesUserSelectedWrite = "files.user-selected.write";
     public const string NativeHelpersExecute = "native-helpers.execute";
     public const string SerialLease = "serial.lease";
+    public const string SpeechOnline = "speech.online";
 }

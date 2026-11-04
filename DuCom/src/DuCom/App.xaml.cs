@@ -24,6 +24,7 @@ public partial class App : Application, IDisposable
     {
         base.OnStartup(e);
         DiagnosticLog?.Information($"WPF startup entered. Arguments={string.Join(' ', e.Args)}");
+        Services.TaskbarIconService.Initialize(Services.Updates.BuildDistribution.Current != Services.Updates.DistributionKind.Installed);
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -47,6 +48,7 @@ public partial class App : Application, IDisposable
         _compositionRoot = new CompositionRoot();
         DiagnosticLog?.Information("Creating main window.");
         MainWindow = _compositionRoot.CreateMainWindow();
+        Services.TaskbarIconService.Attach(MainWindow);
         MainWindow.Show();
         DiagnosticLog?.Information("Main window shown.");
 

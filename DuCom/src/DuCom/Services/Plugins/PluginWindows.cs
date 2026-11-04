@@ -28,6 +28,7 @@ public partial class PluginToolWindow : FluentWindow
         MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ShowInTaskbar = true;
+        Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/DuCom;component/Assets/DuCom.ico", UriKind.Absolute));
         ExtendsContentIntoTitleBar = true;
         WindowBackdropType = WindowBackdropType.Mica;
         Topmost = PluginToolWindowPreferencesService.Load().Topmost;

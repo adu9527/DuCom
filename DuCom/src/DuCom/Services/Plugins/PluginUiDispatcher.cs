@@ -92,6 +92,8 @@ public sealed class PluginUiDispatcher
         {
             foreach (CrcWindow window in Application.Current?.Windows.OfType<CrcWindow>().ToList() ?? [])
                 if (pluginId == "com.ducom.crc") window.UpdateState(nodes);
+            foreach (AudioWindow window in Application.Current?.Windows.OfType<AudioWindow>().ToList() ?? [])
+                if (pluginId == "com.ducom.audio") window.UpdateState(nodes);
             foreach (ProductionWindow window in Application.Current?.Windows.OfType<ProductionWindow>().ToList() ?? [])
                 if (pluginId == "com.ducom.production") window.UpdateState(nodes);
             foreach (ChecksumWindow window in Application.Current?.Windows.OfType<ChecksumWindow>().ToList() ?? [])
@@ -131,6 +133,8 @@ public sealed class PluginUiDispatcher
                 foreach (CrcWindow window in Application.Current?.Windows.OfType<CrcWindow>().ToList() ?? []) window.Close();
             if (pluginId == "com.ducom.production")
                 foreach (ProductionWindow window in Application.Current?.Windows.OfType<ProductionWindow>().ToList() ?? []) window.CloseFromHost();
+            if (pluginId == "com.ducom.audio")
+                foreach (AudioWindow window in Application.Current?.Windows.OfType<AudioWindow>().ToList() ?? []) window.CloseFromHost();
 
             Changed?.Invoke(this, EventArgs.Empty);
         });
@@ -241,6 +245,27 @@ public sealed class PluginUiDispatcher
                 crc.UpdateState(page!.Nodes);
                 crc.Show();
                 return;
+            }
+            if (pluginId == "com.ducom.audio")
+            {
+                AudioWindow? existing = Application.Current.Windows.OfType<AudioWindow>().FirstOrDefault();
+                if (existing is not null)
+                {
+                    if (existing.WindowState == WindowState.Minimized) existing.WindowState = WindowState.Normal;
+                    existing.Activate(); return;
+                }
+                AudioWindow audio = new(commandInvoker, async (path, values) =>
+                {
+                    StageReadSelection?.Invoke(pluginId, path);
+                    try
+                    {
+                        bool accepted = await commandInvoker("import", values);
+                        if (!accepted) ClearReadSelection?.Invoke(pluginId);
+                        return accepted;
+                    }
+                    catch { ClearReadSelection?.Invoke(pluginId); throw; }
+                });
+                audio.UpdateState(page!.Nodes); audio.Show(); return;
             }
             if (pluginId == "com.ducom.production")
             {

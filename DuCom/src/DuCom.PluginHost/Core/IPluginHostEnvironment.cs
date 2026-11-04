@@ -126,4 +126,6 @@ public interface IPluginHostEnvironment
     void RemoveActivation(string pluginId);
 
     void ApplyBackground(BackgroundApply apply);
+
+    Task PlaySpeechPreviewAsync(string pluginId, byte[]? mp3, CancellationToken cancellationToken) => Task.CompletedTask;
 }

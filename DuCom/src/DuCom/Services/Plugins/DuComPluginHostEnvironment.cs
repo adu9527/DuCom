@@ -14,7 +14,7 @@ namespace DuCom.Services.Plugins;
 /// live serial sessions (raw tap fan-out, log snapshots), host-owned pickers on the UI
 /// thread, remembered read grants, declarative UI publication, and background rendering.
 /// </summary>
-public sealed class DuComPluginHostEnvironment : IPluginHostEnvironment
+public sealed partial class DuComPluginHostEnvironment : IPluginHostEnvironment
 {
     private readonly Func<IEnumerable<SessionViewModel>> _sessionsProvider;
     private readonly Func<IEnumerable<PortItemViewModel>> _portsProvider;

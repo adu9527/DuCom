@@ -83,6 +83,7 @@ public sealed record PluginManagerRow
         "com.ducom.crc" => "CRC 离线计算：Hex / ASCII 输入、文件校验、21 种常见模型及自定义 1–32 位参数。支持 Hex / Bin 结果复制、参数说明和完整模型对照表。",
         "com.ducom.checksum" => "支持恒玄（需要接入，请查看下方内嵌接入文档）、杰理、蓝讯的固件校验码查询。支持 BIN / BES 压缩 OTA、FW / UFW、PRD / UPD；同时显示默认蓝牙名、芯片、时间和文件类型。",
         "com.ducom.production" => "HEX 耳机产测与产测仓模拟。支持独立双串口、命令序列、行内解析和 JSON 项目配置导入导出。",
+        "com.ducom.audio" => "微软在线语音合成：在线按需试听、语速/音调/音量调节、TXT/MD 导入、长文分块进度与 MP3/SRT 输出。需联网；支持系统或自定义代理，无需 Python 和 FFmpeg。",
         _ => "通过 DuCom 插件运行时提供扩展功能。",
     };
 
@@ -150,6 +151,7 @@ public sealed partial class PluginSystemService : IAsyncDisposable
         "com.ducom.checksum",
         "com.ducom.crc",
         "com.ducom.production",
+        "com.ducom.audio",
     ];
 
     public event Action<string>? ProgramLog;

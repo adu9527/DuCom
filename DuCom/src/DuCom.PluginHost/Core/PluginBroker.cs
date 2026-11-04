@@ -93,6 +93,7 @@ public sealed partial class PluginBroker : IDisposable
             PluginOps.SerialLeaseRead => Json(ReadLeasedPort(Require<SerialLeaseIoRequest>(data))),
             PluginOps.SerialLeaseWrite => Json(WriteLeasedPort(Require<SerialLeaseIoRequest>(data))),
             "production.record" => Json(RecordProduction(Require<ProductionRecordRequest>(data))),
+            "speech.voices" or "speech.chunk" or "speech.preview" or "speech.stop" => await ExecuteSpeechAsync(operation, data, cancellationToken),
             PluginOps.LogsList => Json(LogsList()),
             PluginOps.LogsSnapshot => await SnapshotLogsAsync(Require<LogsSnapshotRequest>(data), cancellationToken),
             PluginOps.LogsRead => Json(await ReadLogChunkAsync(Require<LogsReadRequest>(data))),
@@ -113,6 +114,7 @@ public sealed partial class PluginBroker : IDisposable
     public void Dispose()
     {
         DisposeLeasedPorts();
+        DisposeSpeech();
         _helperTasks.Dispose();
         // An unconfirmed helper may still own the physical port. Keep its lease quarantined
         // instead of making the port available to the host or another plugin activation.

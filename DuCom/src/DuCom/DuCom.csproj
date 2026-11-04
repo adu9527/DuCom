@@ -10,6 +10,7 @@
     <ProjectReference Include="..\DuCom.Plugins.Checksum\DuCom.Plugins.Checksum.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DuCom.Plugins.Crc\DuCom.Plugins.Crc.csproj" />
     <ProjectReference Include="..\DuCom.Plugins.Production\DuCom.Plugins.Production.csproj" />
+    <ProjectReference Include="..\DuCom.Plugins.Audio\DuCom.Plugins.Audio.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -64,7 +65,12 @@
     <MSBuild Projects="..\DuCom.Plugins.Checksum\DuCom.Plugins.Checksum.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
     <MSBuild Projects="..\DuCom.Plugins.Crc\DuCom.Plugins.Crc.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
     <MSBuild Projects="..\DuCom.Plugins.Production\DuCom.Plugins.Production.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
+    <MSBuild Projects="..\DuCom.Plugins.Audio\DuCom.Plugins.Audio.csproj" Targets="Build" Properties="Configuration=$(Configuration);RuntimeIdentifier=" />
     <ItemGroup>
+      <AudioPackFile Include="..\DuCom.Plugins.Audio\bin\$(Configuration)\net10.0\DuCom.Plugins.Audio.dll;..\DuCom.Plugins.Audio\bin\$(Configuration)\net10.0\DuCom.Plugin.Sdk.dll;..\DuCom.Plugins.Audio\bin\$(Configuration)\net10.0\plugin.manifest.json;..\DuCom.Plugins.Audio\bin\$(Configuration)\net10.0\THIRD-PARTY-NOTICES.txt" />
+      <EmbeddedResource Include="@(AudioPackFile)">
+        <LogicalName>DuCom.Factory.com.ducom.audio/1.0.0/%(Filename)%(Extension)</LogicalName>
+      </EmbeddedResource>
       <BackgroundPackFile Include="..\DuCom.Plugins.BackgroundImage\bin\$(Configuration)\net10.0\**\*.*"
                           Exclude="..\DuCom.Plugins.BackgroundImage\bin\$(Configuration)\net10.0\*.pdb" />
       <LogPackFile Include="..\DuCom.Plugins.LogPackage\bin\$(Configuration)\net10.0\**\*.*"

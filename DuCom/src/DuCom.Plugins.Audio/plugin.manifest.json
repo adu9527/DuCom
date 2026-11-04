@@ -1,0 +1,16 @@
+{
+  "manifestVersion": 1,
+  "id": "com.ducom.audio",
+  "name": "语音合成",
+  "version": "1.0.0",
+  "protocolVersion": "1.0",
+  "minHostVersion": "0.0.0",
+  "entryAssembly": "DuCom.Plugins.Audio.dll",
+  "entryType": "DuCom.Plugins.Audio.Plugin",
+  "runtime": { "framework": "net10.0", "rid": "win-x64" },
+  "capabilities": [ "menu", "tool-page" ],
+  "permissions": [ "storage.own", "files.user-selected.read", "files.user-selected.write", "speech.online" ],
+  "defaultCulture": "zh-CN",
+  "description": "微软在线语音合成：在线按需试听、语速/音调/音量调节、长文分块进度、MP3 与 SRT 导出。无需 Python、模型或 FFmpeg。需联网，默认跟随系统代理；支持自定义 HTTP/SOCKS5 代理。",
+  "author": "DuCom"
+}

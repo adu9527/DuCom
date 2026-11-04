@@ -116,6 +116,7 @@ public sealed partial class PluginRuntimeController
         PluginOps.FilesSnapshot => TimeSpan.FromMinutes(5),
         PluginOps.HelperStart => TimeSpan.FromSeconds(30),
         PluginOps.HelperCancel => TimeSpan.FromSeconds(15),
+        "speech.voices" or "speech.chunk" or "speech.preview" => TimeSpan.FromSeconds(110),
         _ => TimeSpan.FromMilliseconds(_limits.CallTimeoutMs),
     };
 

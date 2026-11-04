@@ -17,6 +17,7 @@ internal static class OpTimeouts
         PluginOps.HelperStart or PluginOps.HelperCancel => Chunk,
         PluginOps.FilesRead or PluginOps.LogsRead => Chunk,
         PluginOps.FilesSnapshot => Chunk,
+        "speech.voices" or "speech.chunk" or "speech.preview" => Chunk,
         _ => Standard,
     };
 }
@@ -48,6 +49,20 @@ internal sealed class PluginApiFacades(IPluginRequestChannel channel) : IPluginH
     public IPluginUi Ui { get; } = new UiFacade(channel);
     public IPluginBackground Background { get; } = new BackgroundFacade(channel);
     public IPluginDiagnostics Diagnostics { get; } = new DiagnosticsFacade(channel);
+    public IPluginSpeech Speech { get; } = new SpeechFacade(channel);
+
+    private sealed class SpeechFacade(IPluginRequestChannel channel) : IPluginSpeech
+    {
+        public async Task<IReadOnlyList<SpeechVoice>> GetVoicesAsync(string proxy, CancellationToken cancellationToken = default) =>
+            await RequestTypedAsync<SpeechVoice[]>(channel, "speech.voices", new { Proxy = proxy }, cancellationToken) ?? [];
+        public async Task<SpeechResult> SynthesizeChunkAsync(SpeechRequest request, CancellationToken cancellationToken = default) =>
+            await RequestTypedAsync<SpeechResult>(channel, "speech.chunk", request, cancellationToken)
+                ?? throw new PluginHostException(PluginErrorCode.InternalError, "Missing speech response.");
+        public async Task PreviewAsync(SpeechRequest request, CancellationToken cancellationToken = default) =>
+            await RequestAsync(channel, "speech.preview", request, cancellationToken);
+        public async Task StopAsync(CancellationToken cancellationToken = default) =>
+            await RequestAsync(channel, "speech.stop", null, cancellationToken);
+    }
 
     internal ISerialEventSink SerialSink => (ISerialEventSink)Serial;
 
