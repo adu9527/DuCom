@@ -79,6 +79,7 @@
   <!-- Isolate the original tool from DuCom's implicit control styles. -->
   <Style TargetType="TextBlock"/>
   <Style TargetType="Border"/>
+  <Style TargetType="TextBox"/>
  </Window.Resources>
  <Grid>
   <Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="68"/><RowDefinition Height="*"/><RowDefinition Height="48"/></Grid.RowDefinitions>
@@ -118,9 +119,14 @@
        <StackPanel Orientation="Horizontal"><Path Data="M 5,3 L 13,3 L 13,13 L 5,13 Z M 2,10 L 2,0 L 10,0" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.1" Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,7,0"/><TextBlock Text="{Binding CopyText}" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" FontSize="12" VerticalAlignment="Center"/></StackPanel>
       </Button>
      </Grid>
-     <TextBlock x:Name="CrcText" Grid.Row="1" Text="{Binding FirmwareChecksum}" Foreground="{Binding ChecksumColor}" FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI" FontSize="32" FontWeight="Bold" Margin="0,8,0,12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
-      <TextBlock.Effect><DropShadowEffect Color="#22D3EE" BlurRadius="10" ShadowDepth="0" Opacity="{Binding ChecksumGlowOpacity}"/></TextBlock.Effect>
-     </TextBlock>
+     <TextBox x:Name="CrcText" Grid.Row="1" Text="{Binding FirmwareChecksum, Mode=OneWay}" Foreground="{Binding ChecksumColor}" FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI" FontSize="32" FontWeight="Bold" Margin="0,8,0,12" VerticalAlignment="Center"
+              IsReadOnly="True" IsReadOnlyCaretVisible="False" FocusVisualStyle="{x:Null}" Background="Transparent" BorderThickness="0" Padding="0" MinHeight="0"
+              TextWrapping="NoWrap" VerticalContentAlignment="Center" HorizontalContentAlignment="Left"
+              SelectionBrush="#22D3EE" SelectionOpacity="0.35" IsInactiveSelectionHighlightEnabled="True"
+              ScrollViewer.HorizontalScrollBarVisibility="Hidden" ScrollViewer.VerticalScrollBarVisibility="Hidden"
+              AutomationProperties.Name="固件校验码" AutomationProperties.HelpText="可拖选后按 Ctrl+C 复制">
+      <TextBox.Effect><DropShadowEffect Color="#22D3EE" BlurRadius="10" ShadowDepth="0" Opacity="{Binding ChecksumGlowOpacity}"/></TextBox.Effect>
+     </TextBox>
      <Border Grid.Row="2" Height="1" Background="#27272A" Margin="0,0,0,12"/>
      <Grid Grid.Row="3"><Grid.ColumnDefinitions><ColumnDefinition Width="72"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="*"/><RowDefinition Height="*"/><RowDefinition Height="*"/><RowDefinition Height="*"/></Grid.RowDefinitions>
       <TextBlock Text="蓝牙名" Style="{StaticResource LabelText}"/><TextBlock x:Name="BluetoothNameText" Grid.Column="1" Text="{Binding DeviceName}" Style="{StaticResource ValueText}" ToolTip="{Binding DeviceName}"/>

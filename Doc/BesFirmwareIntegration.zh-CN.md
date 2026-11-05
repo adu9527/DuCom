@@ -32,7 +32,11 @@ FIRMWARE_CODE 用于快速核对版本；本次真实 BUILD_DATE 改变时，版
 2. 找到 sys_build_info 字符串及现有 CHIP、KERNEL、BUILD_DATE、CRC32_OF_IMAGE。
 3. 从 ELF/map 确认 build_info 被链接保留，所在只读段及 Flash/RAM 占用。
 4. 找到产品主固件的正式构建入口、objcopy、地址填充、CRC、压缩与签名的顺序。
-5. 保存原始构建命令、产物及 map，用独立开发分支接入。
+5. 确认 CRC32_OF_IMAGE 的填值工具是否真的存在：部分 SDK 的打包脚本只写入占位
+   0x00000000（如 printf 'CRC32_OF_IMAGE=0x00000000\n'），负责计算填值的脚本
+   （如 generate_crc32_of_image.py）可能已缺失；缺则按 12.1 的范围补齐，
+   否则压缩 OTA 在本插件中会显示校验不一致。
+6. 保存原始构建命令、产物及 map，用独立开发分支接入。
 
 不要把生成头文件接入 PROGRAMMER、ROM、CP 或传感器等辅助镜像，除非单独验证。
 不要向 BIN 末尾追加字段；部分 BES 工具从文件最后 4 字节读取加载地址。
@@ -59,6 +63,14 @@ inputs 必须覆盖实际参与构建的链接脚本、预编译库、配置、�
 policy.json 自身也会计入摘要，toolchain.txt 会额外按原始字节计入。
 不要把时间、绝对路径、用户名、-j 并发数写入 effective_options。
 有效参数保持实际覆盖顺序，特别是重复的 -D/-I；不要为了稳定而随意排序。
+
+SDK 里按芯片切换的目录常用软链实现（如 bthost、multimedia/algorithms 指向
+bthost_best1307p、algorithms_best1307p 一类真实目录）。inputs 应直接列出软链
+指向的真实目录，并在 exclude 中排除软链名与未参与构建的同名变体
+（*_best1307ph、*_generic），避免修改未参与构建的目录也改变版本码。
+WSL 下用 find <目录> -type l 排查软链；Windows 侧 PowerShell 对 LX 软链不可见，
+不要用它确认软链是否存在。另外 /mnt/c 上的 NTFS 大小写不敏感，
+仅大小写不同的两个文件名是同一个文件。
 
 ## 5. 完整 Python 生成脚本
 
@@ -201,6 +213,12 @@ if __name__ == "__main__":
 Windows 可使用对应工具的 --version 与 Get-FileHash；不要把带绝对路径的输出直接计入身份。
 SDK 若使用包装器，还需记录包装器、实际编译器、链接器及相关插件，不能只记录 GCC 首行版本。
 
+建议把清单生成固化成 tools/fw_identity/gen_toolchain.sh（遍历 gcc/g++/ld/objcopy/
+ar/nm/objdump/size，各记录 --version 首行与 sha256），在 WSL 登录 shell 中执行
+（wsl -e bash -lc ...，工具链 PATH 常只存在于登录环境，非登录 shell 会找不到编译器）。
+清单不含机器路径，同一工具链跨机器生成结果一致，可以提交版本库：新环境开箱即可构建；
+工具链升级时清单内容变化随提交留痕，版本码随之变化是预期而非异常。
+
 ## 7. 在原 build_info 中加入字段
 
 先让 build_info.c 能 include SDK 根目录 generated/fw_identity.h。
@@ -242,6 +260,27 @@ sys_build_info 应仍为单一 NUL 结尾的信息块；不要在扩展中写入
 IDENTITY_TARGET 和对应的全镜像 SHA 链，本最小版本没有宣称实现那套格式。
 不要修改原 BUILD_DATE 的格式，不设置全局 SOURCE_DATE_EPOCH/TZ 来“稳定校验码”。
 
+插入位置的实测结论：多数 BES SDK 的 CRC32_OF_IMAGE 不在块尾而在块中部，
+其后还有 HW_VERSION、BUILD_DATE、REV_INFO、SW_VERSION 等字段。此时应把
+DUCOM_IDENTITY_LINES 追加在信息块末尾（最后一个字段之后、结束换行之前），
+使原有字段偏移完全不变；若照上方示例插在 CRC 之前，SW_VERSION 等字段会被
+推出块首 512 字节读取窗口。实测（best1307p）：追加 173 字节后 CRC 关键字距
+文件尾从约 120B 变为约 286B，仍在设备端尾部窗口内（见第 8 节）。
+
+若 SDK 可能自带 BT_NAME 字段（如 BESUI 构建传 BTLE_NAME_FIXED_EN=1 时输出
+"BT_NAME=" BESUI_BT_NAME），需用宏守卫让 DUCOM 的 BT_NAME 行仅在 SDK 未输出时
+出现，保证字段唯一：
+
+```c
+#if defined(DUCOM_FW_IDENTITY) && !defined(BTLE_NAME_FIXED_EN)
+    NEW_LINE_STR "BT_NAME=" DUCOM_FW_BT_NAME
+#endif
+```
+
+注意 BES Makefile 惯例只有变量值为 1 时才追加 -D（ifeq ($(VAR),1) 模式），
+传 VAR=0 不定义宏，因此源码里 #if defined(X) 为真即代表 X=1；
+build_info.c 中原有的 defined() 判断都遵循这一语义，守卫宏要保持一致。
+
 ## 8. 必须检查首尾 512 字节与只读容量
 
 新增字段长度固定为 173 字节（BUILD_SHA256 78 + FIRMWARE_CODE 23 + BT_NAME 72）。
@@ -251,6 +290,18 @@ IDENTITY_TARGET 和对应的全镜像 SHA 链，本最小版本没有宣称实�
 - 如果从 sys_build_info 开头扫描 512 字节，原 CHIP/BUILD_DATE/CRC 等必需字段必须仍完整可见。
 - 如果从镜像末尾读取 512 字节搜索 CRC，CRC32_OF_IMAGE 及 8 个数字必须仍在范围内。
 - 原链接段、尾部加载地址、分区和 Flash 预算必须保持有效。
+
+实测（best1307p）的尾部消费者语义，供对照你的 SDK：
+- services/ota/cmse/tz_ota.c 的 cmse_ota_check_image_data_sanity_crc 读取窗口为
+  镜像末尾 512~1023 字节（起点按 (total-512)/512*512 向下对齐），关键字及 8 位
+  数字必须完整落在窗口内；插入字段后应实际计算关键字距文件尾的距离确认，
+  不要只看块内偏移。
+- utils/lzma/bes_lzma_utils.c 的解压循环按 15 字节前缀（strncmp 长度 15，
+  "CRC32_OF_IMAGE=" 不含后续 0x）判断容器结束；自写解析器按 16 字节比较会永远失配。
+- 固件 .rodata 内存在同名关键字常量（image_info_sanity_crc_key_word =
+  "CRC32_OF_IMAGE=0x"，tz_ota.c 与 bes_lzma_utils.c 各一份），全文件搜索该关键字
+  会得到 2~3 处；任何定位与校验逻辑必须先定位 "\nCHIP=" 信息块、再在块内查找，
+  不能按全文件唯一性查找。
 
 建议用以下脚本检查未压缩 BIN（保存为 check_layout.py）：
 
@@ -290,9 +341,16 @@ python3 tools/fw_identity/prepare.py --root . --policy tools/fw_identity/policy.
 make T=your_product_main clean
 make T=your_product_main DEBUG=0 BLE=1 -j8
 
+# 压缩前：填充镜像内层 CRC（范围=镜像开头至数字之前，见 12.1）
+python3 tools/fw_identity/fill_crc.py out/your_product_main/your_product_main.bin
+
 # 保留 SDK 原地址填充 → CRC → 组合/压缩 → 签名流程；本例不做链接后patch。
+# 压缩后：填充容器尾 CRC（范围=容器开头至尾行数字之前）
+python3 tools/fw_identity/fill_crc.py out/your_product_main/your_product_main_compressed.bin
+
 python3 tools/fw_identity/prepare.py --root . --policy tools/fw_identity/policy.json --verify
 python3 tools/fw_identity/check_layout.py out/your_product_main/your_product_main.bin
+python3 tools/fw_identity/verify_image.py out/your_product_main/your_product_main.bin generated/fw_identity.json
 ```
 
 必须让 C 依赖追踪认识生成头文件；改变它后 build_info.o 要正确重编译。
@@ -336,6 +394,19 @@ python3 tools/fw_identity/verify_image.py \
 构建中输入发生变化时停止发布，不能把上一轮 BIN 配成本轮新清单。
 归档完整输入清单、工具链、有效选项、ELF/map、最终 BIN/OTA 和各自 SHA-256。
 
+fill_crc 类填值工具的定位规则（实测踩坑，缺一不可）：
+- 镜像内定位必须先找 "\nCHIP=" 信息块、再在块内找关键字（第 8 节 rodata 常量坑），
+  不能按全文件唯一性查找；
+- 判断压缩容器不能依赖文件头：实测未压缩 BIN 前 4 字节也可能是 FF FF FF FF，
+  应按尾部 26 字节 "CRC32_OF_IMAGE=0x[8位十六进制]\n" 格式判别；
+- 填充幂等：CRC 数字本身在覆盖范围之外，重复执行结果不变。
+
+verify_ota 类压缩 OTA 校验应做三件事：容器结构解析（头、逐块长度、尾行格式）、
+逐块 LZMA 解压后与未压缩 BIN 逐字节比对（直接证明"解压后版本码与 BIN 相同"，
+同时证明压缩流无损坏、重组无错位）、内外两层 CRC 分别重算比对。
+构建脚本串接时注意：./build.sh | tail 这类管道会用 tail 的退出码掩盖构建失败，
+自动化应把输出重定向到日志文件后显式传递脚本退出码。
+
 ## 10. 在 DuCom 中验证
 
 1. 进入“插件管理”，启用“校验码查询工具”，点击“打开功能”，或从工具菜单打开。
@@ -344,6 +415,9 @@ python3 tools/fw_identity/verify_image.py \
 4. 再查询 SDK 生成的受支持分块 LZMA OTA：解压后的版本码应与 BIN 相同。
 5. 如果只嵌入本例的最小字段，状态为“已读取校验码；未完成整文件完整性验证”，这是预期。
 6. 原厂 CRC 不一致时应显示校验不一致；不要删除 CRC 行或取消校验来绕过错误。
+7. 压缩 OTA 显示“校验不一致”时，多数是容器尾 CRC 或镜像内层 CRC 仍是占位
+   0x00000000（填值工具缺失是常见根因）：插件会分别重算两层 CRC，占位值必然
+   不匹配。正确修复是按 12.1 的范围真实填充两层 CRC，而不是删除 CRC 行绕过。
 
 本例不生成 IMAGE_SHA256，不提供来源签名。原厂 CRC 的范围以 SDK 定义为准。
 加密或签名容器需要对应的合法处理流程，不要修改已签名镜像后继续交付。
@@ -362,6 +436,14 @@ map：只读容量增加在预算内，RAM/线程/NV/初始化逻辑无额外变
 - 显示未嵌入：宏未启用、生成头文件未被引用、build_info.o 没重编译或选择了旧固件。
 - 版本码与构建标识不匹配：字段被单独改动、使用旧生成头文件或填入了 OTA CRC。
 - 原 CRC 不匹配：核对原 CRC owner、地址填充和打包顺序；不要在最终 CRC/签名后修改内容。
+- 压缩 OTA 校验不一致：两层 CRC32_OF_IMAGE 均可能为占位 0x00000000，填值脚本缺失
+  是常见根因；按 12.1 的范围真实填充，占位值被插件判为不一致是正确行为。
+- 全文件多处 CRC32_OF_IMAGE：.rodata 关键字常量与信息块字段同名，定位必须在
+  CHIP 信息块内进行（见第 8 节）。
+- 接入调试期间每次构建版本码都变：工具脚本与策略本身也是身份输入，改它们变码
+  是预期；接入稳定后相同输入同码，交付文件名的短码随之更新。
+- BT_NAME 未输出或重复：BES Makefile 只有变量=1 才定义宏；SDK 自带固定 BT_NAME
+  （如 BTLE_NAME_FIXED_EN=1）时需用宏守卫避免 DUCOM 重复输出（见第 7 节）。
 - 蓝牙名不同：本工具读取固件默认名称，不读取耳机 NV 或 APP 修改后的实时名称。
 - 杰理/蓝讯时间附“文件修改时间”：当前受支持格式没有可靠产品编译时间，因此明确使用文件时间兜底。
 
@@ -386,6 +468,17 @@ map：只读容量增加在预算内，RAM/线程/NV/初始化逻辑无额外变
 正确解压只能证明压缩流可解码，不能代替容器 CRC；修改 LZMA 属性后仍可解压的包也可能已损坏。
 解析器更新前后，应同时验证当前格式、旧格式、错误尾码、截断、块长度越界和可解压容器篡改。
 不要为满足查看工具而取消设备端校验、改用版本短码或改写已签名容器。
+
+实测补充（best1307p SDK）：
+- SDK 的常态可能是两层都只写占位 0x00000000：build_compressed_ota.sh 用 printf
+  写占位尾行，镜像内层填值脚本 generate_crc32_of_image.py 缺失。此时压缩 OTA 在
+  本插件显示“校验不一致”（容器 CRC 不匹配），设备端 tz_ota 的尾部窗口校验若执行
+  也会失败。正确修复是把填值工具补回构建链：内层在压缩前、容器尾在压缩后填充，
+  覆盖范围与上表一致（标准 CRC-32/zlib 变体，8 位大写十六进制数字，幂等可重复执行）。
+- 设备端 bes_lzma_utils 的解压循环把容器尾行字节纳入接收 CRC 累计，接收端对收到
+  的字节重算，因此填充真值不改变设备端行为。
+- 两层 CRC 数值互不相等是正常的；工具与人都不要拿两个文本字段互相比较，
+  应各自按自己的范围重算。
 
 ### 12.2 生成头文件与 Makefile 赋值顺序
 
@@ -430,6 +523,11 @@ generated 可作为可删除的自动生成目录，但统一入口必须先重�
 BT_NAME 应来自已确认的受控默认配置；未知时留空或显示未识别，不套用其它产品的名称。
 固定容量名称可用空格填充，显示时去除填充；设备 NV/APP 动态改名不属于静态文件信息。
 
+版本库约定（SVN 与 .gitignore 同理）：generated 与 out 用 svn:ignore 忽略，
+属性修改本身要提交后才对团队生效；toolchain.txt 建议入库（见第 6 节）；
+policy.json 与构建入口脚本必须同一次提交，否则他人构建出的版本码
+会与实际生效参数不一致。
+
 ### 12.6 交付文件命名和历史文件清理
 
 可采用以下名称，末尾短码取本轮已验证的 FIRMWARE_CODE，而不是 OTA CRC：
@@ -445,6 +543,20 @@ product_main_compressed_12AB34CD.bin
 先成功生成本轮副本，再按严格命名规则清理同一 target、同一构建变体的历史短码文件；
 不要使用目录级“*.bin”删除，也不要跨 target、跨 nores/硬件变体、跨日志或归档目录清理。
 短码文件集合应有界，不随成功构建次数增长；保留交付清单记录本轮文件名及 SHA-256。
+
+实测清理命令（bash，本轮两个文件名除外；-print 让清理动作在日志可见）：
+
+```sh
+find out/<target> -maxdepth 1 -type f -regextype posix-extended \
+    -regex ".*/<target>(_compressed)?_[0-9A-F]{8}\.bin" \
+    ! -name "<target>_<本轮短码>.bin" \
+    ! -name "<target>_compressed_<本轮短码>.bin" \
+    -print -delete
+```
+
+交付清单可写 out/<target>/fw_delivery.txt（target、本轮 firmware_code、两个副本的
+SHA-256）。接入时应预埋几个伪造历史短码文件与无关命名文件实测清理逻辑，
+确认旧短码被删、固定名产物与其他命名文件不被误删。
 
 ### 12.7 联合验收
 

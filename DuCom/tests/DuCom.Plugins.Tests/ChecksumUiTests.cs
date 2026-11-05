@@ -42,9 +42,13 @@ public sealed class ChecksumUiTests
                 type.GetMethod("UpdateState", BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(window,
                     [new UiNode[] { new UiTextNode { FieldId = "native-state", Text = payload, ReadOnly = true } }]);
                 Capture(window, "checksum-original-loaded-700.png");
-                TextBlock code = (TextBlock)window.FindName("CrcText");
+                TextBox code = (TextBox)window.FindName("CrcText");
                 Assert.Equal("DB27CCE3_B0FAB3A8", code.Text);
                 Assert.Equal(32, code.FontSize);
+                Assert.True(code.IsReadOnly);
+                code.Focus();
+                code.SelectAll();
+                Assert.Equal("DB27CCE3_B0FAB3A8", code.SelectedText);
                 Assert.Equal("AB571X（系列）", ((TextBlock)window.FindName("ChipText")).Text);
                 Assert.Equal("复制", Descendants<TextBlock>((DependencyObject)window.FindName("CopyButton")).Last().Text);
                 Assert.DoesNotContain(Descendants<TextBlock>((DependencyObject)window.Content), text => text.Text.Contains("支持恒玄", StringComparison.Ordinal) || text.Text.Contains("文件大小", StringComparison.Ordinal) || text.Text == "校验详情");
