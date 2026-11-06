@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using DuCom.PluginHost;
 using DuCom.PluginHost.Core;
 using DuCom.Services.Plugins;
-using System.Runtime;
 
 namespace DuCom.ViewModels;
 
@@ -56,18 +55,21 @@ public partial class MainViewModel
 
     private static void CompactReleasedDisplayMemory()
     {
-        // Pressure transition has just evicted large bounded histories. One compacting
-        // collection returns those released pages; this is transition-only, never periodic.
-        GCLargeObjectHeapCompactionMode previous = GCSettings.LargeObjectHeapCompactionMode;
+        // Display-history eviction has already released the memory. A blocking, compacting
+        // large-object-heap collection here adds a peak of its own: moving the heap asks the
+        // runtime for fresh segments before the old ones go back, and the budget governor
+        // samples that peak one second later. That is how healthy plugins used to get stopped
+        // for a host spike. Release pages in the background and leave defragmentation out;
+        // fragmentation is not the incident being handled.
         try
         {
-            GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
-            GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
-            Program.DiagnosticLog?.Information("Memory pressure compaction completed after display-history eviction.");
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: false, compacting: false);
+            Program.DiagnosticLog?.Information(
+                "Memory pressure background collection requested after display-history eviction.");
         }
-        finally
+        catch (Exception exception)
         {
-            GCSettings.LargeObjectHeapCompactionMode = previous;
+            Program.DiagnosticLog?.Warning("Memory pressure background collection failed.", exception);
         }
     }
 

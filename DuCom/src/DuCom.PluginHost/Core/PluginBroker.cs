@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
+using DuCom.Core.Logging;
 using DuCom.Core.Persistence;
 using DuCom.Plugin;
 using DuCom.Plugin.Dto;
@@ -326,7 +327,7 @@ public sealed partial class PluginBroker : IDisposable
     private HostPathsResult HostPaths()
     {
         RequirePermission(Permission.FilesUserSelectedWrite);
-        return new HostPathsResult { LogDirectory = _environment.GetLogDirectory() };
+        return new HostPathsResult { LogDirectory = _environment.GetPluginLogDirectory(_scope.Manifest.Id) };
     }
 
     private FilesPickResult CreateWriteTarget(FilesCreateWriteTargetRequest request)
@@ -338,13 +339,15 @@ public sealed partial class PluginBroker : IDisposable
         }
 
         string directory;
-        if (string.IsNullOrWhiteSpace(request.Directory))
+        string requestedDirectory = request.Directory ?? string.Empty;
+        bool hostManagedDirectory = string.IsNullOrWhiteSpace(requestedDirectory);
+        if (hostManagedDirectory)
         {
-            directory = _environment.GetLogDirectory();
+            directory = _environment.GetPluginLogDirectory(_scope.Manifest.Id);
         }
         else
         {
-            string? resolved = _environment.TryResolveRememberedReadPath(_scope.Manifest.Id, request.Directory);
+            string? resolved = _environment.TryResolveRememberedReadPath(_scope.Manifest.Id, requestedDirectory);
             if (resolved is null)
             {
                 throw new PluginScopeException(PermissionDeniedCode, "This directory was never granted by the user.");
@@ -358,6 +361,13 @@ public sealed partial class PluginBroker : IDisposable
         RejectReparsePoints(directory);
         string targetPath = GetAvailableOutputPath(directory, SanitizeTargetName(request.SuggestName));
         string token = _scope.CreateFileGrant(targetPath, isDirectory: false, write: true);
+        // Only the host-managed plugin folder is ours to prune. A user-chosen output folder
+        // can contain unrelated files and must never be touched.
+        if (hostManagedDirectory)
+        {
+            TryEnforcePluginFolderQuota(directory, targetPath);
+        }
+
         return new FilesPickResult
         {
             Token = token,
@@ -366,6 +376,24 @@ public sealed partial class PluginBroker : IDisposable
             Entries = [],
             Remembered = false,
         };
+    }
+
+    /// <summary>
+    /// Each plugin folder is capped independently. The scan is throttled because a plugin may
+    /// create output files in bursts and the folder rarely changes size between them.
+    /// </summary>
+    private static void TryEnforcePluginFolderQuota(string directory, string activePath)
+    {
+        if (!LogFolderQuota.TryBeginCheck(directory, TimeSpan.FromMinutes(5)))
+        {
+            return;
+        }
+
+        LogFolderQuota.Enforce(
+            directory,
+            LogFolderQuota.DefaultQuotaBytes,
+            LogFolderQuota.IsPluginArtifactFile,
+            [activePath]);
     }
 
     private static string SanitizeTargetName(string value)

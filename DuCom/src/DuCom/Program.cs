@@ -48,6 +48,7 @@ public static class Program
         DiagnosticFileLog.PruneDirectory(logDirectory);
         string logFileName = $"ducom-{DateTime.Now:yyyyMMdd-HHmmss}-{Environment.ProcessId}.log";
         _log = new DiagnosticFileLog(logDirectory, logFileName);
+        SystemLogAccess.EnforceQuota(_log.FilePath);
 
         try
         {

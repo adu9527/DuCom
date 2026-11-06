@@ -128,9 +128,10 @@ public sealed class SessionLogWriterTests
 
         string[] files = Directory.GetFiles(directory.Path, "*.txt", SearchOption.AllDirectories);
         string file = Assert.Single(files);
-        string folder = Path.GetFileName(Path.GetDirectoryName(file))!;
-        string beforeFolder = $"{before.Year}-{before.Month}M-{before.Day}D";
-        string afterFolder = $"{after.Year}-{after.Month}M-{after.Day}D";
+        Assert.Equal(LogFolderLayout.SerialFolderName, Path.GetFileName(Path.GetDirectoryName(file)));
+        string folder = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(file)!)!)!;
+        string beforeFolder = $"{before.Year:D4}-{before.Month:D2}-{before.Day:D2}";
+        string afterFolder = $"{after.Year:D4}-{after.Month:D2}-{after.Day:D2}";
         Assert.True(folder == beforeFolder || folder == afterFolder, $"Unexpected date folder: {folder}");
     }
 

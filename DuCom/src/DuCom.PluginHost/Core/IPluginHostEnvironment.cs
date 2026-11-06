@@ -109,6 +109,14 @@ public interface IPluginHostEnvironment
     /// <summary>The application's current log directory (the built-in default lives beside the executable).</summary>
     string GetLogDirectory();
 
+    /// <summary>
+    /// The default output folder for one plugin: <c>{logRoot}/{yyyy-MM-dd}/plugins/{pluginId}</c>.
+    /// Plugins that pass no directory to file creation land here instead of the log root, so
+    /// the root never collects a mix of every plugin's artifacts. The default implementation
+    /// keeps the log root for hosts that do not manage a per-plugin layout.
+    /// </summary>
+    string GetPluginLogDirectory(string pluginId) => GetLogDirectory();
+
     /// <summary>Returns true only after the notice is displayed, never merely queued. Failure or shutdown leaves it pending.</summary>
     Task<bool> ShowNoticeAsync(HostPluginNotice notice);
 

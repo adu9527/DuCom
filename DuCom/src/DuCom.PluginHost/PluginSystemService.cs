@@ -134,6 +134,7 @@ public sealed partial class PluginSystemService : IAsyncDisposable
         _hostTempLedger = new HostTempResourceLedger(paths.TempRoot, _registry.HostRunId, _hostTempDiskBudget);
         _isOfficialNamespace = isOfficialNamespace ?? (id => id.StartsWith("com.ducom.", StringComparison.Ordinal) && FactoryIds.Contains(id));
         _budget.Warning += LogBudgetWarning;
+        _budget.HostPressure += LogHostPressure;
         _budget.EmergencyStop += request => _ = HandleBudgetStopAsync(request);
         // Budget stops are protective, not faults: once memory recovers below the warning
         // line, quietly restart the plugins that were stopped so features come back alive
@@ -203,8 +204,32 @@ public sealed partial class PluginSystemService : IAsyncDisposable
         ProgramLog?.Invoke(FormatBudgetSample("Plugin budget recovered", sample));
     }
 
+    /// <summary>
+    /// The tool is over budget because the host itself is above its core reserve and growing
+    /// no slower than the plugins. Stopping a healthy worker would only remove a feature, so
+    /// the incident is reported and the host is expected to shed its own caches.
+    /// </summary>
+    private void LogHostPressure(PluginBudgetSample sample)
+    {
+        const long minimumGrowthBytes = 32L * 1024 * 1024;
+        long now = Stopwatch.GetTimestamp();
+        long previousTimestamp = Volatile.Read(ref _lastBudgetWarningLogTimestamp);
+        long previousBytes = Volatile.Read(ref _lastBudgetWarningLoggedBytes);
+        if (previousTimestamp != 0 &&
+            now - previousTimestamp < 30L * Stopwatch.Frequency &&
+            sample.TotalPrivateBytes - previousBytes < minimumGrowthBytes)
+        {
+            return;
+        }
+
+        Volatile.Write(ref _lastBudgetWarningLogTimestamp, now);
+        Volatile.Write(ref _lastBudgetWarningLoggedBytes, sample.TotalPrivateBytes);
+        ProgramLog?.Invoke(FormatBudgetSample("Plugin budget: host pressure, plugins left running", sample));
+    }
+
     private static string FormatBudgetSample(string prefix, PluginBudgetSample sample) =>
         $"{prefix}: total={sample.TotalPrivateBytes:N0} host={sample.HostPrivateBytes:N0} " +
+        $"bes={sample.BesPluginBytes:N0} standard={sample.StandardPluginBytes:N0} " +
         $"managed={sample.ManagedHeapBytes:N0} heap={sample.ManagedHeapSizeBytes:N0} fragmented={sample.ManagedFragmentedBytes:N0} " +
         $"threads={sample.ProcessThreadCount} poolThreads={sample.ThreadPoolThreadCount} pendingWork={sample.ThreadPoolPendingWorkItemCount:N0}";
 

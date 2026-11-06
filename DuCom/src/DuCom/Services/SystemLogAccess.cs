@@ -1,12 +1,15 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using DuCom.Core.Logging;
 
 namespace DuCom.Services;
 
 internal static class SystemLogAccess
 {
-    public static string DirectoryPath => Path.Combine(AppContext.BaseDirectory, "Logs", "System_log");
+    private static string LogRoot => Path.Combine(AppContext.BaseDirectory, "Logs");
+
+    public static string DirectoryPath => LogFolderLayout.System(LogRoot, DateTimeOffset.Now);
 
     public static void OpenCurrent()
     {
@@ -29,4 +32,12 @@ internal static class SystemLogAccess
 
         Process.Start(new ProcessStartInfo(DirectoryPath) { UseShellExecute = true });
     }
+
+    /// <summary>Keeps today's system log folder under the same per-folder quota as everything else.</summary>
+    public static void EnforceQuota(string? activeFilePath)
+        => LogFolderQuota.Enforce(
+            DirectoryPath,
+            LogFolderQuota.DefaultQuotaBytes,
+            LogFolderQuota.IsSystemLogFile,
+            activeFilePath is null ? null : [activeFilePath]);
 }

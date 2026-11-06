@@ -16,12 +16,13 @@ public sealed partial class PluginBroker
         {
             if (request.Action == "begin")
             {
-                string directory = _environment.GetLogDirectory();
+                string directory = _environment.GetPluginLogDirectory(_scope.Manifest.Id);
                 Directory.CreateDirectory(directory);
                 string name = string.Concat(request.Project.Take(80).Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
                 _productionRecordBase = Path.Combine(directory, $"Production-{name}-{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid().ToString("N")[..6]}");
                 File.WriteAllText(_productionRecordBase + ".log", $"项目：{request.Project}  开始：{DateTime.Now:O}{Environment.NewLine}", new UTF8Encoding(true));
                 File.WriteAllText(_productionRecordBase + ".csv", "时间,轮次,通道,测试项,结果,状态,本轮结果" + Environment.NewLine, new UTF8Encoding(true));
+                TryEnforcePluginFolderQuota(directory, _productionRecordBase + ".log");
             }
             if (_productionRecordBase is null) throw new IOException("测试记录尚未创建");
             if (request.Logs.Length > 1000 || request.CsvRows.Length > 1000 || request.Logs.Sum(s => s.Length) + request.CsvRows.Sum(s => s.Length) > 512 * 1024)

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using DuCom.Plugin;
+using DuCom.PluginHost;
 using DuCom.PluginHost.Core;
 using DuCom.PluginHost.Packages;
 using DuCom.PluginHost.Registry;
@@ -257,6 +258,8 @@ public sealed class BudgetGovernorTests
         {
             TotalBudgetBytes = 300_000_000,
             WarningThresholdBytes = 240_000_000,
+            BesPluginQuotaBytes = 100_000_000,
+            StandardPluginPoolBytes = 100_000_000,
             SampleIntervalMilliseconds = 3600_000,
         });
         BudgetStopRequest? request = null;
@@ -284,4 +287,271 @@ public sealed class BudgetGovernorTests
         Assert.True(governor.CanActivatePlugins());
         governor.Dispose();
     }
+
+    private const long Megabyte = 1024 * 1024;
+
+    private static BudgetStopDecision? Decide(
+        long hostBytes,
+        (string PluginId, uint Pid, long PrivateBytes)[] workers,
+        Dictionary<uint, long> previous,
+        long hostGrowthBytes,
+        bool requireEvidence = false,
+        long hostBudgetBytes = 800_000_000,
+        long besQuotaBytes = 200_000_000,
+        long standardPoolBytes = 250_000_000)
+        => BudgetGovernor.DecideEmergencyStop(
+            hostBytes,
+            workers,
+            previous,
+            hostGrowthBytes,
+            new BudgetLimits(
+                hostBudgetBytes,
+                PerPluginQuotaBytes: 250_000_000,
+                besQuotaBytes,
+                standardPoolBytes,
+                PluginPoolBytes: besQuotaBytes + standardPoolBytes,
+                GrowthEvidenceBytes: 32 * Megabyte,
+                BesPluginId: "internal.ducom.bes-download"),
+            requireEvidence);
+
+    [Fact]
+    public void HostSpikeNeverSacrificesHealthyPlugins()
+    {
+        // The 2026-11-06 logs: host jumped 188 MB in one second while every plugin moved by
+        // a few MB. Killing the two largest workers removed features without fixing pressure.
+        (string, uint, long)[] workers =
+        [
+            ("com.ducom.production", 57716, 58_449_920),
+            ("internal.ducom.bes-download", 46440, 61_239_296),
+        ];
+        Dictionary<uint, long> previous = new()
+        {
+            [57716] = 57_000_000,
+            [46440] = 59_000_000,
+        };
+
+        BudgetStopDecision? decision = Decide(
+            hostBytes: 627_150_848,
+            workers,
+            previous,
+            hostGrowthBytes: 188_000_000);
+
+        Assert.Null(decision);
+    }
+
+    [Fact]
+    public void HostAboveItsOwnBudgetLeavesPluginsRunning()
+    {
+        (string, uint, long)[] workers =
+        [
+            ("com.ducom.timer", 81, 120_000_000),
+            ("internal.ducom.bes-download", 82, 190_000_000),
+        ];
+        Dictionary<uint, long> previous = new()
+        {
+            [81] = 118_000_000,
+            [82] = 188_000_000,
+        };
+
+        BudgetStopDecision? decision = Decide(
+            hostBytes: 860_000_000,
+            workers,
+            previous,
+            hostGrowthBytes: 120_000_000);
+
+        Assert.Null(decision);
+    }
+
+    [Fact]
+    public void BesQuotaExceededStopsTheBesPlugin()
+    {
+        (string, uint, long)[] workers =
+        [
+            ("internal.ducom.bes-download", 90, 210_000_000),
+            ("com.ducom.timer", 91, 60_000_000),
+        ];
+        Dictionary<uint, long> previous = new()
+        {
+            [90] = 190_000_000,
+            [91] = 60_000_000,
+        };
+
+        BudgetStopDecision? decision = Decide(
+            hostBytes: 600_000_000,
+            workers,
+            previous,
+            hostGrowthBytes: 10_000_000);
+
+        Assert.NotNull(decision);
+        Assert.Equal(90u, decision.Value.Pid);
+        Assert.Equal(BudgetStopReason.QuotaExceeded, decision.Value.Reason);
+    }
+
+    [Fact]
+    public void StandardGroupOverItsPoolStopsTheLargestOrdinaryPlugin()
+    {
+        (string, uint, long)[] workers =
+        [
+            ("com.ducom.checksum", 100, 100_000_000),
+            ("com.ducom.crc", 101, 90_000_000),
+            ("com.ducom.audio", 102, 80_000_000),
+            ("internal.ducom.bes-download", 103, 50_000_000),
+        ];
+        Dictionary<uint, long> previous = new()
+        {
+            [100] = 99_000_000,
+            [101] = 89_000_000,
+            [102] = 79_000_000,
+            [103] = 50_000_000,
+        };
+
+        BudgetStopDecision? decision = Decide(
+            hostBytes: 500_000_000,
+            workers,
+            previous,
+            hostGrowthBytes: 5_000_000);
+
+        Assert.NotNull(decision);
+        Assert.Equal(100u, decision.Value.Pid);
+        Assert.Equal(BudgetStopReason.GroupQuotaExceeded, decision.Value.Reason);
+    }
+
+    [Fact]
+    public void BesPluginDoesNotConsumeTheStandardPool()
+    {
+        (string, uint, long)[] workers =
+        [
+            ("internal.ducom.bes-download", 110, 190_000_000),
+            ("com.ducom.timer", 111, 200_000_000),
+        ];
+        Dictionary<uint, long> previous = new()
+        {
+            [110] = 188_000_000,
+            [111] = 198_000_000,
+        };
+
+        BudgetStopDecision? decision = Decide(
+            hostBytes: 600_000_000,
+            workers,
+            previous,
+            hostGrowthBytes: 4_000_000);
+
+        Assert.Null(decision);
+    }
+
+    [Fact]
+    public void QuotaViolationOutranksHostPressure()
+    {
+        (string, uint, long)[] workers =
+        [
+            ("com.ducom.leak", 10, 300_000_000),
+            ("com.ducom.ok", 20, 60_000_000),
+        ];
+        Dictionary<uint, long> previous = new()
+        {
+            [10] = 290_000_000,
+            [20] = 60_000_000,
+        };
+
+        BudgetStopDecision? decision = Decide(
+            hostBytes: 620_000_000,
+            workers,
+            previous,
+            hostGrowthBytes: 150_000_000,
+            requireEvidence: true);
+
+        Assert.NotNull(decision);
+        Assert.Equal(10u, decision.Value.Pid);
+        Assert.Equal(BudgetStopReason.QuotaExceeded, decision.Value.Reason);
+    }
+
+    [Fact]
+    public void AbnormalGrowthOutranksHostAttribution()
+    {
+        (string, uint, long)[] workers =
+        [
+            ("com.ducom.spike", 30, 120_000_000),
+        ];
+        Dictionary<uint, long> previous = new()
+        {
+            [30] = 60_000_000,
+        };
+
+        BudgetStopDecision? decision = Decide(
+            hostBytes: 610_000_000,
+            workers,
+            previous,
+            hostGrowthBytes: 40_000_000);
+
+        Assert.NotNull(decision);
+        Assert.Equal(30u, decision.Value.Pid);
+        Assert.Equal(60_000_000, decision.Value.GrowthBytes);
+        Assert.Equal(BudgetStopReason.AbnormalGrowth, decision.Value.Reason);
+    }
+
+    [Fact]
+    public void LargestWorkerIsChosenWhenPluginsDriveGrowth()
+    {
+        (string, uint, long)[] workers =
+        [
+            ("com.ducom.large", 40, 180_000_000),
+            ("com.ducom.small", 50, 60_000_000),
+        ];
+        Dictionary<uint, long> previous = new()
+        {
+            [40] = 150_000_000,
+            [50] = 60_000_000,
+        };
+
+        BudgetStopDecision? decision = Decide(
+            hostBytes: 300_000_000,
+            workers,
+            previous,
+            hostGrowthBytes: 5_000_000);
+
+        Assert.NotNull(decision);
+        Assert.Equal(40u, decision.Value.Pid);
+        Assert.Equal(BudgetStopReason.LargestWorker, decision.Value.Reason);
+    }
+
+    [Fact]
+    public void FollowUpSamplesRequireExplicitEvidence()
+    {
+        (string, uint, long)[] workers =
+        [
+            ("com.ducom.large", 60, 180_000_000),
+            ("com.ducom.small", 70, 60_000_000),
+        ];
+        Dictionary<uint, long> previous = new()
+        {
+            [60] = 178_000_000,
+            [70] = 59_000_000,
+        };
+
+        Assert.NotNull(Decide(hostBytes: 300_000_000, workers, previous, hostGrowthBytes: 2_000_000));
+        Assert.Null(Decide(hostBytes: 300_000_000, workers, previous, hostGrowthBytes: 2_000_000, requireEvidence: true));
+    }
+
+    [Fact]
+    public void EmptyWorkerSetNeverStopsAnything()
+    {
+        Assert.Null(Decide(hostBytes: 900_000_000, [], new Dictionary<uint, long>(), hostGrowthBytes: 0));
+    }
+}
+
+public sealed class PluginDefaultActivationTests
+{
+    [Theory]
+    [InlineData("com.ducom.background-image", true)]
+    [InlineData("com.ducom.timer", true)]
+    [InlineData("com.ducom.log-package", false)]
+    [InlineData("com.ducom.checksum", false)]
+    [InlineData("com.ducom.production", false)]
+    [InlineData("com.ducom.crc", false)]
+    [InlineData("com.ducom.audio", false)]
+    [InlineData("org.example.third-party", true)]
+    public void FirstInstallOnlyKeepsWorkspacePluginsOnWithoutChangingThirdPartyDefaults(
+        string pluginId,
+        bool expected)
+        => Assert.Equal(expected, PluginSystemService.IsEnabledOnFirstInstall(pluginId));
 }

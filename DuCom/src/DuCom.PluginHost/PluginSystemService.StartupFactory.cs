@@ -251,6 +251,13 @@ public sealed partial class PluginSystemService
                     InstalledVersions = versions,
                     SelectedVersion = entry.SelectedVersion.Length == 0 ? pack.Version : entry.SelectedVersion,
                     BuiltIn = true,
+                    // Built-in plugins are installed for everyone but only the ones that shape
+                    // the main window start on their own. The rest wait for an explicit opt-in,
+                    // both to keep the idle memory baseline low and to make the cost of each
+                    // plugin a conscious choice. Existing entries keep whatever the user chose.
+                    Enabled = entry.InstalledVersions.Count == 0
+                        ? IsEnabledOnFirstInstall(pack.PluginId)
+                        : entry.Enabled,
                     // An empty grant list is an explicit valid decision. Only a newly created
                     // factory entry receives the version's factory-approved initial grants.
                     ApprovedPermissions = entry.InstalledVersions.Count == 0 ? [.. result.Manifest.Permissions] : entry.ApprovedPermissions,
@@ -285,4 +292,17 @@ public sealed partial class PluginSystemService
             }
         }
     }
+
+    /// <summary>
+    /// Built-in plugins that stay installed but off on first run. The background image and
+    /// the stopwatch define the empty workspace and start on their own; these five are
+    /// opt-in so the idle baseline stays small and their memory cost is a conscious choice.
+    /// Any other factory or third-party pack keeps the historical default-on behavior.
+    /// </summary>
+    internal static bool IsEnabledOnFirstInstall(string pluginId) =>
+        pluginId is not ("com.ducom.log-package"
+            or "com.ducom.checksum"
+            or "com.ducom.production"
+            or "com.ducom.crc"
+            or "com.ducom.audio");
 }

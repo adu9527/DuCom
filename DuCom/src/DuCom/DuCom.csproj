@@ -27,7 +27,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <Version>0.0.0.8</Version>
+    <Version>0.0.0.9</Version>
     <DuComDistribution Condition="'$(DuComDistribution)' == ''">PortableFull</DuComDistribution>
     <ApplicationIcon>..\..\..\Image\DuCom_256x256.ico</ApplicationIcon>
     <StartupObject>DuCom.Program</StartupObject>

@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using DuCom.PluginHost;
 using DuCom.PluginHost.Core;
+using DuCom.Core.Logging;
 using DuCom.Core.Sessions;
 using DuCom.ViewModels;
 using Microsoft.Win32;
@@ -543,6 +544,14 @@ public sealed partial class DuComPluginHostEnvironment : IPluginHostEnvironment
 
         return Path.Combine(AppContext.BaseDirectory, "Logs");
     }
+
+    /// <summary>
+    /// Each plugin gets its own folder inside today's date directory. Plugins that create
+    /// output without naming a directory land here, keeping the log root free of a mixed pile
+    /// of task files, audio and archives.
+    /// </summary>
+    public string GetPluginLogDirectory(string pluginId) =>
+        LogFolderLayout.Plugin(GetLogDirectory(), pluginId, DateTimeOffset.Now);
 
     public Task<bool> ShowNoticeAsync(HostPluginNotice notice)
     {

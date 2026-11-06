@@ -31,9 +31,10 @@ public sealed partial class PluginSystemService
             return false;
         }
 
-        if (!_budget.CanActivatePlugins())
+        if (!_budget.CanActivatePlugins(pluginId))
         {
-            ProgramLog?.Invoke($"Budget warning active; '{pluginId}' activation deferred.");
+            ProgramLog?.Invoke(
+                $"Tool memory budget exhausted for '{pluginId}' group; activation deferred.");
             return false;
         }
 
@@ -148,7 +149,12 @@ public sealed partial class PluginSystemService
         if (controller is not null)
         {
             _budgetRecoveryPending.Add(controller.Manifest.Id);
-            ProgramLog?.Invoke($"Budget emergency: stopping '{controller.Manifest.Id}' (pid {request.Pid}, {request.PrivateBytes:N0} bytes).");
+            ProgramLog?.Invoke(
+                $"Budget emergency: stopping '{controller.Manifest.Id}' " +
+                $"(pid {request.Pid}, {request.PrivateBytes:N0} bytes, reason={request.Reason}, " +
+                $"growth={request.GrowthBytes:N0}, host={request.Sample.HostPrivateBytes:N0}, " +
+                $"bes={request.Sample.BesPluginBytes:N0}, standard={request.Sample.StandardPluginBytes:N0}, " +
+                $"total={request.Sample.TotalPrivateBytes:N0}).");
             await controller.StopForBudgetAsync(request.Sample).ConfigureAwait(false);
             Changed?.Invoke();
             if (_budget.CanRecoverPlugins())
@@ -159,6 +165,11 @@ public sealed partial class PluginSystemService
     }
 
     private int _budgetRecoveryScheduled;
+
+    // Bring stopped plugins back one at a time instead of refilling the whole pool within two
+    // sample ticks; the point of the stop is to leave headroom, not to oscillate around it.
+    private const int BudgetRecoveryCooldownSeconds = 5;
+    private long _nextBudgetRecoveryTimestamp;
 
     private void OnBudgetSampled(PluginBudgetSample sample)
     {
@@ -190,6 +201,12 @@ public sealed partial class PluginSystemService
                     return;
                 }
 
+                long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (now < Volatile.Read(ref _nextBudgetRecoveryTimestamp))
+                {
+                    return;
+                }
+
                 foreach (string pluginId in _budgetRecoveryPending.Order(StringComparer.Ordinal).ToArray())
                 {
                     PluginRegistryEntry? entry = _registry.Current.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? found) ? found : null;
@@ -200,12 +217,19 @@ public sealed partial class PluginSystemService
                     }
 
                     PluginRuntimeController? controller = GetOrCreateController(pluginId);
-                    if (controller?.State == PluginRuntimeState.FaultDisabled)
+                    if (controller is null
+                        || controller.State is PluginRuntimeState.FaultDisabled
+                            or PluginRuntimeState.Disabled
+                            or PluginRuntimeState.Rejected
+                            or PluginRuntimeState.Active
+                            or PluginRuntimeState.Activating)
                     {
+                        // The plugin was uninstalled, refused, turned off by the user, or is
+                        // already running again: nothing left to recover for this entry.
                         _budgetRecoveryPending.Remove(pluginId);
                         continue;
                     }
-                    if (controller?.State != PluginRuntimeState.StoppedByBudget)
+                    if (controller.State != PluginRuntimeState.StoppedByBudget)
                     {
                         continue;
                     }
@@ -214,6 +238,10 @@ public sealed partial class PluginSystemService
                     if (await StartRegisteredLockedAsync(pluginId).ConfigureAwait(false))
                     {
                         _budgetRecoveryPending.Remove(pluginId);
+                        Volatile.Write(
+                            ref _nextBudgetRecoveryTimestamp,
+                            System.Diagnostics.Stopwatch.GetTimestamp()
+                                + (long)(BudgetRecoveryCooldownSeconds * System.Diagnostics.Stopwatch.Frequency));
                         Changed?.Invoke();
                     }
                     return;
@@ -302,7 +330,7 @@ public sealed partial class PluginSystemService
             _paths,
             _launcher,
             _environment,
-            new PluginLimits { ProcessMemoryLimitBytes = _budget.Configuration.PerPluginQuotaBytes },
+            new PluginLimits { ProcessMemoryLimitBytes = _budget.GetPluginQuota(pluginId) },
             new PluginDiagnosticsLog(_paths.GetDiagnosticsFilePath(pluginId), pluginId),
             _budget,
             _registry,
@@ -315,6 +343,16 @@ public sealed partial class PluginSystemService
         {
             try
             {
+                // Protective budget stops are not faults. Persisting them would clear a real
+                // pending notice for the same plugin and make the manager look like the plugin
+                // crashed, so they only get a diagnostic line and a state refresh.
+                if (notice.BudgetProtective)
+                {
+                    ProgramLog?.Invoke(
+                        $"Plugin '{notice.PluginId}' stopped to protect the tool-wide memory budget; no fault recorded.");
+                    return;
+                }
+
                 await HandleFaultNoticeAsync(notice).ConfigureAwait(false);
             }
             catch (Exception exception)

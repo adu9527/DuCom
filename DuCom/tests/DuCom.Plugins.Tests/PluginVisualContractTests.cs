@@ -45,9 +45,11 @@ public sealed class PluginVisualContractTests
     public void BesDensityIsScopedAndUsesReadableCompactDimensions()
     {
         XDocument styles = XDocument.Load(Path.Combine(PluginDirectory(), "BesCompactStyles.xaml"));
-        Assert.Contains(styles.Descendants(), element => (string?)element.Attribute("Property") == "FontSize" && (string?)element.Attribute("Value") == "13");
-        Assert.Contains(styles.Descendants(), element => (string?)element.Attribute("Width") == "16" && (string?)element.Attribute("Height") == "16");
-        Assert.DoesNotContain(styles.Descendants(), element => (string?)element.Attribute("Width") == "21");
+        // Current readable baseline: 18 px body text and a 21 px checkbox marker. The old
+        // 13/16 baseline was unreadable on the production floor and is deliberately gone.
+        Assert.Contains(styles.Descendants(), element => (string?)element.Attribute("Property") == "FontSize" && (string?)element.Attribute("Value") == "18");
+        Assert.Contains(styles.Descendants(), element => (string?)element.Attribute("Width") == "21" && (string?)element.Attribute("Height") == "21");
+        Assert.DoesNotContain(styles.Descendants(), element => (string?)element.Attribute("Width") == "16");
         string adapter = File.ReadAllText(Path.Combine(PluginDirectory(), "BesCompactPresentation.cs"));
         Assert.Contains("internal.ducom.bes-download", adapter, StringComparison.Ordinal);
         Assert.Contains("LogicalTreeHelper.GetParent", adapter, StringComparison.Ordinal);

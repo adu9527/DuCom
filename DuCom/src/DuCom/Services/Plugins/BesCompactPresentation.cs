@@ -36,7 +36,8 @@ internal static class BesCompactPresentation
                         foreach (UIElement control in child.Children.Cast<UIElement>().ToArray())
                         {
                             child.Children.Remove(control);
-                            if (control is Panel { Width: 80 } spacer) spacer.Width = 20;
+                            // 状态提示与三个按钮拉开 120px，避免"配置已更新。"紧贴"停止烧录"。
+                            if (control is Panel { Width: 80 } spacer) spacer.Width = 120;
                             row.Children.Add(control);
                         }
                         panel.Children.RemoveAt(index);
@@ -143,8 +144,9 @@ internal static class BesCompactPresentation
         for (int index = 0; index < controls.Length; index++) Attach(row, controls[index], index);
         if (controls[2] is TextBlock path)
         {
-            // 路径文字左移 30px（10 → −20），并比界面小一号（18 → 14）。
-            path.Margin = new Thickness(-20, 0, 0, 0);
+            // 不再用负边距硬挤：路径从按钮右侧正常开始，只把右端内缩 24px。
+            // 负边距会让长路径直接压在“更换固件”按钮文字上，窄窗口下尤其明显。
+            path.Margin = new Thickness(0, 0, 24, 0);
             path.FontSize = 14;
             path.Tag = BesFirmwarePathTag;
             path.TextTrimming = TextTrimming.CharacterEllipsis;

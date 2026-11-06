@@ -68,7 +68,10 @@ internal static class Program
             {
                 string scenario = $"{(error ? "error" : "normal")}-{ports}ports-{(expanded ? "expanded" : "collapsed")}";
                 if (Option(args, "--scenario") is { } filter && !scenario.Equals(filter, StringComparison.OrdinalIgnoreCase)) continue;
-                foreach (int width in new[] { 1100, 900 })
+                int[] widths = Option(args, "--width") is { } widthOption
+                    ? [int.Parse(widthOption, CultureInfo.InvariantCulture)]
+                    : [1100, 900];
+                foreach (int width in widths)
                 foreach (int scale in new[] { 100, 125, 150, 200 })
                 {
                     bool filtered = args.Any(argument => argument is "--scenario" or "--width" or "--scale");

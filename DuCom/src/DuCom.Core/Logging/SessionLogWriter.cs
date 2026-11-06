@@ -36,7 +36,8 @@ public sealed record SessionLogWriterOptions(
     string FileNameFormat = "{Port}-{yyyy}-{MM}-{dd} {HH}-{mm}-{ss}.{fff}",
     bool RotationEnabled = true,
     TimeSpan? FlushInterval = null,
-    bool UseDateSubdirectory = false)
+    bool UseDateSubdirectory = false,
+    long FolderQuotaBytes = LogFolderQuota.DefaultQuotaBytes)
 {
     public void Validate()
     {
@@ -58,8 +59,7 @@ public sealed record SessionLogWriterOptions(
             return DirectoryPath;
         }
 
-        string folderName = $"{now.Year}-{now.Month}M-{now.Day}D";
-        return Path.Combine(DirectoryPath, folderName);
+        return LogFolderLayout.Serial(DirectoryPath, now);
     }
 }
 
@@ -380,6 +380,13 @@ public sealed class SessionLogWriter : IAsyncDisposable
                     Volatile.Write(ref _currentFilePath, path);
                     _createdFilePaths.Add(path);
                     currentBytes = 0;
+                    // Keep the serial folder under its quota. Rotation is the only moment a
+                    // new file appears, so this scan is naturally infrequent.
+                    LogFolderQuota.Enforce(
+                        outputDirectory,
+                        _options.FolderQuotaBytes,
+                        LogFolderQuota.IsSerialLogFile,
+                        [path]);
                 }
 
                 pending.Append(record.Text);
