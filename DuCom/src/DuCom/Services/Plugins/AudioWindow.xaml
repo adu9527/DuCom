@@ -7,9 +7,9 @@
  Title="DuAudio · 语音合成工作台" Icon="/DuCom;component/Assets/DuCom.ico" Width="1180" Height="900" MinWidth="800" MinHeight="720"
  WindowStartupLocation="CenterScreen" ExtendsContentIntoTitleBar="True"
  Background="{DynamicResource Audio.Bg}" Foreground="{DynamicResource Audio.Text}"
- FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="13"
- UseLayoutRounding="True" SnapsToDevicePixels="True"
- TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
+ FontFamily="Segoe UI, Microsoft YaHei UI" FontSize="14"
+ UseLayoutRounding="True" SnapsToDevicePixels="False"
+ TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="Auto">
  <ui:FluentWindow.Resources>
   <SolidColorBrush x:Key="Audio.Bg" Color="#101216"/>
   <SolidColorBrush x:Key="Audio.Panel" Color="#191C22"/>
@@ -36,14 +36,14 @@
   </Style>
   <Style x:Key="Audio.Card" TargetType="Border">
    <Setter Property="Background" Value="{DynamicResource Audio.Panel}"/><Setter Property="BorderBrush" Value="{DynamicResource Audio.Border}"/>
-   <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="16"/><Setter Property="Padding" Value="21,18,21,21"/>
+   <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="12"/><Setter Property="Padding" Value="21,18,21,21"/>
    <Setter Property="Margin" Value="0,0,0,20"/><Setter Property="SnapsToDevicePixels" Value="True"/>
   </Style>
   <Style x:Key="Audio.Button" TargetType="Button">
    <Setter Property="Background" Value="{DynamicResource Audio.Panel}"/><Setter Property="Foreground" Value="{DynamicResource Audio.Secondary}"/>
    <Setter Property="BorderBrush" Value="{DynamicResource Audio.Border}"/><Setter Property="BorderThickness" Value="1"/>
    <Setter Property="Padding" Value="12,6"/><Setter Property="MinHeight" Value="32"/><Setter Property="Cursor" Value="Hand"/>
-   <Setter Property="FontSize" Value="12"/><Setter Property="HorizontalContentAlignment" Value="Center"/>
+   <Setter Property="FontSize" Value="14"/><Setter Property="HorizontalContentAlignment" Value="Center"/>
    <Setter Property="VerticalContentAlignment" Value="Center"/>
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
     <Border x:Name="Chrome" CornerRadius="8" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
@@ -60,7 +60,7 @@
   <Style TargetType="Button" BasedOn="{StaticResource Audio.Button}"/>
   <Style x:Key="Audio.PrimaryButton" TargetType="Button" BasedOn="{StaticResource Audio.Button}">
    <Setter Property="Background" Value="{DynamicResource Audio.Accent}"/><Setter Property="Foreground" Value="White"/>
-   <Setter Property="BorderBrush" Value="{DynamicResource Audio.Accent}"/><Setter Property="Height" Value="44"/><Setter Property="FontWeight" Value="SemiBold"/>
+   <Setter Property="BorderBrush" Value="{DynamicResource Audio.Accent}"/><Setter Property="Height" Value="44"/><Setter Property="FontWeight" Value="Normal"/>
   </Style>
   <Style x:Key="Audio.Mini" TargetType="Button" BasedOn="{StaticResource Audio.Button}">
    <Setter Property="MinHeight" Value="26"/><Setter Property="Padding" Value="9,3"/><Setter Property="FontSize" Value="11"/>
@@ -136,7 +136,7 @@
   <DataTemplate x:Key="Audio.VoiceTemplate">
    <Grid Margin="9,9" MinHeight="40">
     <Grid.ColumnDefinitions><ColumnDefinition Width="35"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-    <Border Width="28" Height="32" CornerRadius="8" VerticalAlignment="Center" Background="{Binding AvatarBrush}"><TextBlock Text="{Binding Initial}" FontSize="12" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+    <Border Width="28" Height="32" CornerRadius="8" VerticalAlignment="Center" Background="{Binding AvatarBrush}"><TextBlock Text="{Binding Initial}" FontSize="12" FontWeight="SemiBold" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="2,0,5,0">
      <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
      <TextBlock Text="{Binding Meta}" Foreground="{DynamicResource Audio.Muted}" FontSize="11" Margin="0,3,0,0" TextTrimming="CharacterEllipsis"/>
@@ -168,7 +168,7 @@
      <Border Width="40" Height="40" CornerRadius="12" Background="{DynamicResource Audio.Soft}" BorderBrush="{DynamicResource Audio.Border}" BorderThickness="1" VerticalAlignment="Center">
       <Path Data="M3,12 L3,10 C3,0 21,0 21,10 L21,16 M3,13 L6,13 C8,13 8,20 6,20 L3,20 Z M21,13 L18,13 C16,13 16,20 18,20 L21,20 Z M21,18 C21,23 17,23 12,23" Stroke="{DynamicResource Audio.Primary}" StrokeThickness="1.8" Stretch="Uniform" Width="22" Height="23"/>
      </Border>
-      <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="12,0,8,0" FontSize="16" FontWeight="Bold" TextWrapping="Wrap" Foreground="{DynamicResource Audio.Text}"><Run Text="Du"/><Run Text="Audio" Foreground="{DynamicResource Audio.Primary}"/><Run Text=" · 语音合成工作台"/></TextBlock>
+      <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="12,0,8,0" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{DynamicResource Audio.Text}"><Run Text="Du"/><Run Text="Audio" Foreground="{DynamicResource Audio.Primary}"/><Run Text=" · 语音合成工作台"/></TextBlock>
      <Border Grid.Column="2" Background="{DynamicResource Audio.Inset}" BorderBrush="{DynamicResource Audio.Border}" BorderThickness="1" CornerRadius="11" Padding="3" VerticalAlignment="Center" Margin="8,0,12,0">
       <StackPanel Orientation="Horizontal"><RadioButton x:Name="LightTheme" Content="浅色" Style="{StaticResource Audio.Segment}" GroupName="theme" Checked="Theme_Changed"/><RadioButton x:Name="DarkTheme" Content="深色" Style="{StaticResource Audio.Segment}" GroupName="theme" Checked="Theme_Changed" IsChecked="True"/><RadioButton x:Name="SystemTheme" Content="系统" Style="{StaticResource Audio.Segment}" GroupName="theme" Checked="Theme_Changed"/></StackPanel>
      </Border>
@@ -223,7 +223,7 @@
        <DockPanel Margin="0,14,0,0"><StackPanel DockPanel.Dock="Right" Orientation="Horizontal"><Button Content="MP3" Click="RevealAudio_Click" Margin="8,0,0,0"/><Button x:Name="SubtitleButton" Content="SRT" Click="RevealSubtitle_Click" Margin="8,0,0,0"/></StackPanel><Button x:Name="PlayButton" DockPanel.Dock="Left" Width="40" Height="40" Style="{StaticResource Audio.PrimaryButton}" Padding="12" Click="Play_Click" AutomationProperties.Name="播放或暂停"><Path x:Name="PlayIcon" Data="M4,2 L18,12 4,22 Z" Fill="White" Width="13" Height="15" Stretch="Uniform"/></Button><TextBlock x:Name="PlaybackTime" Text="0:00 / 0:00" VerticalAlignment="Center" FontSize="12" FontFamily="Cascadia Code, Consolas" Margin="12,0"/><Slider x:Name="SeekInput" Minimum="0" Maximum="1" TickFrequency="0.01" IsSnapToTickEnabled="False" PreviewMouseLeftButtonUp="Seek_Changed" AutomationProperties.Name="播放进度"/></DockPanel>
       </StackPanel></Border>
       <Border x:Name="SubtitleCard" Style="{StaticResource Audio.Card}" Visibility="Collapsed"><StackPanel><DockPanel Margin="0,0,0,16"><TextBlock x:Name="SubtitleCount" DockPanel.Dock="Right" Style="{StaticResource Audio.Caption}"/><TextBlock Text="字幕预览" FontSize="14" FontWeight="SemiBold"/></DockPanel><ListBox x:Name="SubtitleList" MaxHeight="200" AutomationProperties.Name="字幕预览"><ListBox.ItemTemplate><DataTemplate><Grid Margin="12,7"><Grid.ColumnDefinitions><ColumnDefinition Width="26"/><ColumnDefinition Width="100"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Index}" Style="{StaticResource Audio.Caption}"/><TextBlock Grid.Column="1" Text="{Binding Time}" Style="{StaticResource Audio.Caption}" FontFamily="Cascadia Code, Consolas"/><TextBlock Grid.Column="2" Text="{Binding Text}" FontSize="13" TextWrapping="Wrap"/></Grid></DataTemplate></ListBox.ItemTemplate></ListBox></StackPanel></Border>
-      <Border Style="{StaticResource Audio.Card}"><StackPanel><DockPanel Margin="0,0,0,16"><TextBlock x:Name="HistoryCount" DockPanel.Dock="Right" Style="{StaticResource Audio.Caption}"/><TextBlock Text="历史产物" FontSize="14" FontWeight="SemiBold"/></DockPanel><TextBlock x:Name="HistoryEmpty" Text="暂无历史文件" Style="{StaticResource Audio.Caption}" FontSize="13" HorizontalAlignment="Center" Margin="0,25"/><ListBox x:Name="HistoryList" MaxHeight="260" BorderThickness="0" Background="Transparent" MouseDoubleClick="History_Play" Visibility="Collapsed" AutomationProperties.Name="本次历史产物"><ListBox.ItemTemplate><DataTemplate><Grid Margin="0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="46"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Border Width="34" Height="38" CornerRadius="8" HorizontalAlignment="Left" Background="{DynamicResource Audio.Soft}"><TextBlock Text="MP3" Foreground="{DynamicResource Audio.Primary}" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center"/></Border><StackPanel Grid.Column="1"><TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding Meta}" Style="{StaticResource Audio.Caption}" Margin="0,4,0,0"/></StackPanel><Button Grid.Column="2" Content="定位" Style="{StaticResource Audio.Mini}" Click="History_Reveal" Margin="10,0,0,0"/></Grid></DataTemplate></ListBox.ItemTemplate></ListBox></StackPanel></Border>
+      <Border Style="{StaticResource Audio.Card}"><StackPanel><DockPanel Margin="0,0,0,16"><TextBlock x:Name="HistoryCount" DockPanel.Dock="Right" Style="{StaticResource Audio.Caption}"/><TextBlock Text="历史产物" FontSize="14" FontWeight="SemiBold"/></DockPanel><TextBlock x:Name="HistoryEmpty" Text="暂无历史文件" Style="{StaticResource Audio.Caption}" FontSize="13" HorizontalAlignment="Center" Margin="0,25"/><ListBox x:Name="HistoryList" MaxHeight="260" BorderThickness="0" Background="Transparent" MouseDoubleClick="History_Play" Visibility="Collapsed" AutomationProperties.Name="本次历史产物"><ListBox.ItemTemplate><DataTemplate><Grid Margin="0,12"><Grid.ColumnDefinitions><ColumnDefinition Width="46"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Border Width="34" Height="38" CornerRadius="8" HorizontalAlignment="Left" Background="{DynamicResource Audio.Soft}"><TextBlock Text="MP3" Foreground="{DynamicResource Audio.Primary}" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"/></Border><StackPanel Grid.Column="1"><TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis"/><TextBlock Text="{Binding Meta}" Style="{StaticResource Audio.Caption}" Margin="0,4,0,0"/></StackPanel><Button Grid.Column="2" Content="定位" Style="{StaticResource Audio.Mini}" Click="History_Reveal" Margin="10,0,0,0"/></Grid></DataTemplate></ListBox.ItemTemplate></ListBox></StackPanel></Border>
      </StackPanel>
     </Grid>
    </StackPanel>

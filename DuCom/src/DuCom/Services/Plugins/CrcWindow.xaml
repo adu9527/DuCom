@@ -3,71 +3,32 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
   Title="CRC计算" Icon="/DuCom;component/Assets/DuCom.ico" Width="1040" Height="900" MinWidth="840" MinHeight="720"
- WindowStyle="None" ResizeMode="CanResize" Background="#09090B" Foreground="#F4F4F5"
- FontFamily="Segoe UI Variable Text, Microsoft YaHei UI" FontSize="14" WindowStartupLocation="CenterScreen">
+ WindowStyle="None" ResizeMode="CanResize" Background="{DynamicResource Brush.ShellSurface}" Foreground="{DynamicResource Brush.TextPrimary}"
+ FontFamily="Segoe UI, Microsoft YaHei UI" FontSize="14" WindowStartupLocation="CenterScreen">
  <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="0" GlassFrameThickness="0" ResizeBorderThickness="6" UseAeroCaptionButtons="False"/></shell:WindowChrome.WindowChrome>
- <Window.Resources>
-  <Style TargetType="TextBlock"><Setter Property="Foreground" Value="#A1A1AA"/><Setter Property="VerticalAlignment" Value="Center"/></Style>
-  <Style TargetType="Border"/>
-  <Style TargetType="Button">
-   <Setter Property="Background" Value="#27272A"/><Setter Property="Foreground" Value="#F4F4F5"/><Setter Property="Height" Value="34"/><Setter Property="Padding" Value="14,0"/><Setter Property="Cursor" Value="Hand"/>
-   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-    <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}" BorderBrush="#52525B" BorderThickness="0"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
-    <ControlTemplate.Triggers>
-     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#3F3F46"/></Trigger>
-     <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#52525B"/></Trigger>
-     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderThickness" Value="1"/></Trigger>
-     <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Chrome" Property="Opacity" Value="0.4"/></Trigger>
-    </ControlTemplate.Triggers>
-   </ControlTemplate></Setter.Value></Setter>
-  </Style>
-  <Style TargetType="TextBox">
-   <Setter Property="Background" Value="#121214"/><Setter Property="Foreground" Value="#F4F4F5"/><Setter Property="CaretBrush" Value="#22D3EE"/><Setter Property="SelectionBrush" Value="#155E75"/>
-   <Setter Property="BorderBrush" Value="#3F3F46"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="10,7"/><Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
-   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox"><Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6"><ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}"/></Border><ControlTemplate.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="#22D3EE"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
-  </Style>
-  <Style TargetType="CheckBox"><Setter Property="Foreground" Value="#E4E4E7"/><Setter Property="VerticalContentAlignment" Value="Center"/></Style>
-  <Style TargetType="RadioButton">
-   <Setter Property="Foreground" Value="#E4E4E7"/><Setter Property="VerticalContentAlignment" Value="Center"/>
-   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton"><StackPanel Orientation="Horizontal"><Grid Width="14" Height="14" Margin="0,0,6,0"><Ellipse x:Name="Ring" Stroke="#71717A" StrokeThickness="1"/><Ellipse x:Name="Dot" Fill="#22D3EE" Width="6" Height="6" Visibility="Collapsed"/></Grid><ContentPresenter VerticalAlignment="Center"/></StackPanel><ControlTemplate.Triggers><Trigger Property="IsChecked" Value="True"><Setter TargetName="Dot" Property="Visibility" Value="Visible"/><Setter TargetName="Ring" Property="Stroke" Value="#22D3EE"/></Trigger><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Ring" Property="StrokeThickness" Value="2"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
-  </Style>
-  <Style TargetType="ComboBox">
-   <Setter Property="Foreground" Value="#F4F4F5"/><Setter Property="Background" Value="#121214"/><Setter Property="MinHeight" Value="40"/><Setter Property="Padding" Value="12,8"/>
-   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBox">
-    <Grid>
-     <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="6"/>
-      <ContentPresenter x:Name="SelectionPresenter" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" Margin="12,8,34,8" VerticalAlignment="Center" IsHitTestVisible="False" TextElement.Foreground="#F4F4F5"/>
-      <ToggleButton x:Name="DropDownToggle" Style="{x:Null}" Focusable="False" ClickMode="Press" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"><ToggleButton.Template><ControlTemplate TargetType="ToggleButton"><Border Background="Transparent"><Path Data="M 0,0 L 4,4 L 8,0" Stroke="#A1A1AA" StrokeThickness="1.2" Width="8" Height="4" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,12,0"/></Border></ControlTemplate></ToggleButton.Template></ToggleButton>
-      <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True" Focusable="False"><Border Background="#18181B" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="6" MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="440"><ScrollViewer VerticalScrollBarVisibility="Auto"><ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/></ScrollViewer></Border></Popup>
-    </Grid>
-    <ControlTemplate.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="#22D3EE"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.65"/></Trigger></ControlTemplate.Triggers>
-   </ControlTemplate></Setter.Value></Setter>
-  </Style>
-   <Style TargetType="ComboBoxItem"><Setter Property="Foreground" Value="#F4F4F5"/><Setter Property="Padding" Value="12,9"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ComboBoxItem"><Border x:Name="Chrome" Background="#18181B" Padding="{TemplateBinding Padding}"><ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"/></Border><ControlTemplate.Triggers><Trigger Property="IsHighlighted" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#3F3F46"/></Trigger><Trigger Property="IsSelected" Value="True"><Setter Property="Foreground" Value="#22D3EE"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter></Style>
-  <Style TargetType="Expander"><Setter Property="Foreground" Value="#E4E4E7"/><Setter Property="Margin" Value="0,16,0,0"/></Style>
- </Window.Resources>
+ <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="PluginUiStyles.xaml"/></ResourceDictionary.MergedDictionaries></ResourceDictionary></Window.Resources>
  <Grid>
   <Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="*"/><RowDefinition Height="40"/></Grid.RowDefinitions>
-  <Border BorderBrush="#1A1A20" BorderThickness="0,0,0,1" Background="#09090B" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+  <Border BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="0,0,0,1" Background="{DynamicResource Brush.ShellSurface}" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
    <Grid Margin="24,0,16,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Path Data="M 2,2 L 18,2 L 18,18 L 2,18 Z M 6,6 L 14,6 M 6,10 L 14,10 M 6,14 L 10,14" Stroke="#22D3EE" StrokeThickness="1.5" Width="20" Height="20" Margin="0,0,10,0"/><TextBlock Text="CRC计算" Foreground="#E4E4E7" FontSize="14" FontWeight="Medium"/></StackPanel>
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Path Data="M 2,2 L 18,2 L 18,18 L 2,18 Z M 6,6 L 14,6 M 6,10 L 14,10 M 6,14 L 10,14" Stroke="{DynamicResource Brush.Accent}" StrokeThickness="1.5" Width="20" Height="20" Margin="0,0,10,0"/><TextBlock Text="CRC计算" Foreground="{DynamicResource Brush.TextPrimary}" FontSize="14" FontWeight="Normal"/></StackPanel>
     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
      <CheckBox Content="置顶" IsChecked="{Binding Topmost, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay}" Margin="0,0,16,0"/>
-     <Button Width="28" Height="28" Padding="0" Background="Transparent" Click="Minimize_Click" ToolTip="最小化" AutomationProperties.Name="最小化"><Path Data="M 0,5 L 10,5" Stroke="#A1A1AA" StrokeThickness="1.2" Width="10" Height="10"/></Button>
+     <Button Width="28" Height="28" Padding="0" Background="Transparent" Click="Minimize_Click" ToolTip="最小化" AutomationProperties.Name="最小化"><Path Data="M 0,5 L 10,5" Stroke="{DynamicResource Brush.TextSecondary}" StrokeThickness="1.2" Width="10" Height="10"/></Button>
      <Button x:Name="MaximizeButton" Width="28" Height="28" Padding="0" Background="Transparent" Click="Maximize_Click" ToolTip="最大化" AutomationProperties.Name="最大化">
-      <Path x:Name="MaximizeIcon" Data="M 0,0 L 10,0 L 10,10 L 0,10 Z" Stroke="#A1A1AA" StrokeThickness="1.2" Width="10" Height="10"/>
+      <Path x:Name="MaximizeIcon" Data="M 0,0 L 10,0 L 10,10 L 0,10 Z" Stroke="{DynamicResource Brush.TextSecondary}" StrokeThickness="1.2" Width="10" Height="10"/>
      </Button>
-     <Button Width="28" Height="28" Padding="0" Background="Transparent" Click="Close_Click" ToolTip="关闭" AutomationProperties.Name="关闭"><Path Data="M 0,0 L 9,9 M 9,0 L 0,9" Stroke="#A1A1AA" StrokeThickness="1.2" Width="10" Height="10"/></Button>
+     <Button Width="28" Height="28" Padding="0" Background="Transparent" Click="Close_Click" ToolTip="关闭" AutomationProperties.Name="关闭"><Path Data="M 0,0 L 9,9 M 9,0 L 0,9" Stroke="{DynamicResource Brush.TextSecondary}" StrokeThickness="1.2" Width="10" Height="10"/></Button>
     </StackPanel>
    </Grid>
   </Border>
   <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <StackPanel Margin="32,24,32,24">
     <Grid Margin="0,0,0,8"><TextBlock Text="需要校验的数据"/><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><RadioButton x:Name="HexMode" Content="Hex" GroupName="InputMode" IsChecked="True" Checked="Mode_Changed" Margin="0,0,16,0"/><RadioButton x:Name="AsciiMode" Content="ASCII" GroupName="InputMode" Checked="Mode_Changed"/></StackPanel></Grid>
-    <TextBox x:Name="DataInput" Height="150" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" TextChanged="Input_Changed" AutomationProperties.Name="需要校验的数据"/>
+    <TextBox x:Name="DataInput" FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI" Height="150" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" TextChanged="Input_Changed" AutomationProperties.Name="需要校验的数据"/>
     <TextBlock x:Name="InputHint" Text="Hex：31 32 33 34，也支持连续字节和 0x 前缀。" FontSize="12" Margin="0,6,0,16" TextWrapping="Wrap"/>
     <Grid Margin="0,0,0,20"><Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Text="参数模型 NAME"/><ComboBox x:Name="ModelSelect" Grid.Column="1" SelectionChanged="Model_Changed" AutomationProperties.Name="参数模型">
-     <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" Foreground="#F4F4F5" FontSize="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate>
+     <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" Foreground="{DynamicResource Brush.TextPrimary}" FontSize="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/></DataTemplate></ComboBox.ItemTemplate>
     </ComboBox></Grid>
     <Grid x:Name="ParameterFields"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/><ColumnDefinition Width="16"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
      <StackPanel><TextBlock Text="宽度 WIDTH" Margin="0,0,0,6"/><ComboBox x:Name="WidthInput" SelectionChanged="Parameter_Changed" AutomationProperties.Name="宽度 WIDTH"/></StackPanel>
@@ -77,15 +38,15 @@
     </Grid>
     <StackPanel Orientation="Horizontal" Margin="0,20,0,24"><CheckBox x:Name="RefInInput" Content="输入反转 REFIN" Click="Input_Changed" Margin="0,0,36,0"/><CheckBox x:Name="RefOutInput" Content="输出反转 REFOUT" Click="Input_Changed"/></StackPanel>
     <Grid Margin="0,0,0,16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-     <StackPanel Orientation="Horizontal"><Button x:Name="CalculateButton" Content="计算 CRC" Foreground="#22D3EE" Click="Calculate_Click" ToolTip="Ctrl+Enter"/><Button x:Name="FileButton" Content="校验文件…" Click="File_Click" Margin="8,0,0,0" ToolTip="按当前参数计算文件原始字节，最大 64 MiB"/></StackPanel>
+     <StackPanel Orientation="Horizontal"><Button x:Name="CalculateButton" Style="{StaticResource PluginUi.PrimaryButton}" Content="计算 CRC" Click="Calculate_Click" ToolTip="Ctrl+Enter"/><Button x:Name="FileButton" Content="校验文件…" Click="File_Click" Margin="8,0,0,0" ToolTip="按当前参数计算文件原始字节，最大 64 MiB"/></StackPanel>
      <StackPanel Grid.Column="1" Orientation="Horizontal"><Button Content="示例" Click="Example_Click" Background="Transparent"/><Button Content="清空" Click="Clear_Click" Background="Transparent"/></StackPanel>
     </Grid>
-    <Border Background="#18181B" BorderBrush="#27272A" BorderThickness="1" CornerRadius="12" Padding="24,20">
+    <Border Background="{DynamicResource Brush.PanelSurface}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1" CornerRadius="12" Padding="24,20">
      <StackPanel>
       <Grid><TextBlock Text="校验结果 · Hex"/><Button x:Name="CopyHexButton" Content="复制 Hex" HorizontalAlignment="Right" Height="26" Background="Transparent" Click="CopyHex_Click" IsEnabled="False"/></Grid>
-      <TextBox x:Name="HexResult" Text="—" IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="#22D3EE" FontSize="30" FontWeight="Bold" Padding="0,6" AutomationProperties.Name="Hex 结果"/>
+      <TextBox x:Name="HexResult" Text="—" IsReadOnly="True" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource Brush.Accent}" FontSize="30" FontWeight="SemiBold" Padding="0,6" AutomationProperties.Name="Hex 结果"/>
       <TextBlock Text="高位在左、低位在右；协议的字节发送顺序请按实际要求处理。" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,12"/>
-      <Border Background="#27272A" Height="1"/>
+      <Border Background="{DynamicResource Brush.PanelBorder}" Height="1"/>
       <Grid Margin="0,10,0,0"><TextBlock Text="校验结果 · Bin"/><Button x:Name="CopyBinButton" Content="复制 Bin" HorizontalAlignment="Right" Height="26" Background="Transparent" Click="CopyBin_Click" IsEnabled="False"/></Grid>
       <TextBox x:Name="BinResult" Text="—" IsReadOnly="True" BorderThickness="0" Background="Transparent" Padding="0,5" TextWrapping="Wrap" AutomationProperties.Name="Bin 结果"/>
      </StackPanel>
@@ -93,15 +54,15 @@
     <Expander Header="CRC 知识与参数说明"><TextBlock x:Name="HelpText" TextWrapping="Wrap" LineHeight="23" Margin="0,10,0,0"/></Expander>
     <Expander Header="常见 CRC 参数模型（21 种）">
      <StackPanel Margin="0,10,0,0"><TextBlock Text="双击模型可应用；横向滚动查看完整参数及多项式公式。" Margin="0,0,0,8"/>
-      <DataGrid x:Name="ModelTable" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False" CanUserReorderColumns="False" HeadersVisibility="Column" Height="280" Background="#121214" Foreground="#E4E4E7" RowBackground="#18181B" AlternatingRowBackground="#202023" BorderBrush="#3F3F46" GridLinesVisibility="None" MouseDoubleClick="ModelTable_DoubleClick" SelectionMode="Single">
-       <DataGrid.Resources><Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#27272A"/><Setter Property="Foreground" Value="#E4E4E7"/><Setter Property="Padding" Value="8"/></Style><Style TargetType="DataGridCell"><Setter Property="Padding" Value="8,5"/></Style></DataGrid.Resources>
+      <DataGrid x:Name="ModelTable" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserDeleteRows="False" CanUserReorderColumns="False" HeadersVisibility="Column" Height="280" Background="{DynamicResource Brush.ControlSurface}" Foreground="{DynamicResource Brush.TextPrimary}" RowBackground="{DynamicResource Brush.PanelSurface}" AlternatingRowBackground="#202023" BorderBrush="{DynamicResource Brush.ControlHover}" GridLinesVisibility="None" MouseDoubleClick="ModelTable_DoubleClick" SelectionMode="Single">
+       <DataGrid.Resources><Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="{DynamicResource Brush.PanelBorder}"/><Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}"/><Setter Property="Padding" Value="8"/></Style><Style TargetType="DataGridCell"><Setter Property="Padding" Value="8,5"/></Style></DataGrid.Resources>
        <DataGrid.Columns><DataGridTextColumn Header="模型" Binding="{Binding Name}" Width="170"/><DataGridTextColumn Header="宽度" Binding="{Binding Width}"/><DataGridTextColumn Header="POLY" Binding="{Binding PolyHex}"/><DataGridTextColumn Header="INIT" Binding="{Binding InitHex}"/><DataGridTextColumn Header="XOROUT" Binding="{Binding XorHex}"/><DataGridTextColumn Header="REFIN" Binding="{Binding RefIn}"/><DataGridTextColumn Header="REFOUT" Binding="{Binding RefOut}"/><DataGridTextColumn Header="多项式公式" Binding="{Binding Formula}" Width="520"/></DataGrid.Columns>
       </DataGrid>
      </StackPanel>
     </Expander>
-    <TextBlock Margin="0,16,0,0" FontSize="12" TextWrapping="Wrap">参考：<Hyperlink NavigateUri="https://www.ip33.com/crc.html" RequestNavigate="Reference_Navigate" Foreground="#22D3EE">ip33.com CRC 计算</Hyperlink>　相关工具：<Hyperlink NavigateUri="https://www.ip33.com/lrc.html" RequestNavigate="Reference_Navigate" Foreground="#22D3EE">LRC</Hyperlink> / <Hyperlink NavigateUri="https://www.ip33.com/bcc.html" RequestNavigate="Reference_Navigate" Foreground="#22D3EE">BCC</Hyperlink></TextBlock>
+    <TextBlock Margin="0,16,0,0" FontSize="12" TextWrapping="Wrap">参考：<Hyperlink NavigateUri="https://www.ip33.com/crc.html" RequestNavigate="Reference_Navigate" Foreground="{DynamicResource Brush.Accent}">ip33.com CRC 计算</Hyperlink>　相关工具：<Hyperlink NavigateUri="https://www.ip33.com/lrc.html" RequestNavigate="Reference_Navigate" Foreground="{DynamicResource Brush.Accent}">LRC</Hyperlink> / <Hyperlink NavigateUri="https://www.ip33.com/bcc.html" RequestNavigate="Reference_Navigate" Foreground="{DynamicResource Brush.Accent}">BCC</Hyperlink></TextBlock>
    </StackPanel>
   </ScrollViewer>
-  <Border Grid.Row="2" BorderBrush="#1A1A20" BorderThickness="0,1,0,0" Padding="24,0"><TextBlock x:Name="StatusText" Text="输入数据或打开文件，选择模型后计算。" FontSize="12" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/></Border>
+  <Border Grid.Row="2" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="0,1,0,0" Padding="24,0"><TextBlock x:Name="StatusText" Text="输入数据或打开文件，选择模型后计算。" FontSize="12" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/></Border>
  </Grid>
 </Window>

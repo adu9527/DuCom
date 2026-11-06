@@ -10,7 +10,7 @@ namespace DuCom;
 
 public partial class App
 {
-    private void RunShellSmokeTest(Window window)
+    private async void RunShellSmokeTest(Window window)
     {
         try
         {
@@ -27,6 +27,7 @@ public partial class App
             string layoutResults = shellWindow.ValidateShellLayouts();
             DiagnosticLog?.Information(
                 $"Shell smoke test passed. ResizeMode={window.ResizeMode}; Layouts={layoutResults}.");
+            await PrepareShutdownAsync();
             Shutdown(0);
         }
         catch (Exception exception)

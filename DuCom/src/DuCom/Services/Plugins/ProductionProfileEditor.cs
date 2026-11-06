@@ -14,7 +14,7 @@ public sealed class ProductionProfileEditor : Window
 {
     public ProductionProfile Profile { get; }
     private readonly DataGrid _table = new();
-    private readonly TextBlock _status = new() { Foreground = Brushes.Salmon };
+    private readonly TextBlock _status = new() { Foreground = (Brush)Application.Current.FindResource("Brush.Danger") };
     public ProductionProfileEditor(ProductionProfile profile)
     {
         Profile = profile;
@@ -22,6 +22,7 @@ public sealed class ProductionProfileEditor : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = new SolidColorBrush(Color.FromRgb(9, 9, 11)); Foreground = Brushes.WhiteSmoke; FontSize = 13;
         Resources.MergedDictionaries.Add(new() { Source = new Uri("/DuCom;component/Services/Plugins/ProductionStyles.xaml", UriKind.Relative) });
+        PluginVisualTheme.Apply(this);
         Grid root = new() { Margin = new Thickness(24) };
         foreach (var height in new[] { GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto }) root.RowDefinitions.Add(new() { Height = height });
         WrapPanel settings = new() { Margin = new Thickness(0, 0, 0, 16) };
@@ -111,7 +112,7 @@ public sealed class ProductionProfileEditor : Window
     internal static TextBox AddInput(Panel panel, string label, object source, string property, double width = 180)
     {
         StackPanel field = new() { Margin = new Thickness(0, 0, 16, 10) };
-        field.Children.Add(new TextBlock { Text = label, Foreground = Brushes.LightGray, Margin = new Thickness(0, 0, 0, 6) });
+        field.Children.Add(new TextBlock { Text = label, Margin = new Thickness(0, 0, 0, 6) });
         TextBox box = new() { Width = width, HorizontalAlignment = HorizontalAlignment.Left };
         box.SetBinding(TextBox.TextProperty, new Binding(property) { Source = source, Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged, ValidatesOnExceptions = true });
         field.Children.Add(box); panel.Children.Add(field); return box;

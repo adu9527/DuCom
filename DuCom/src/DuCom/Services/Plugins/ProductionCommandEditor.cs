@@ -12,7 +12,7 @@ public sealed class ProductionCommandEditor : Window
     private readonly ProtocolSettings _project;
     private readonly DataGrid _fields = new();
     private readonly TextBox _preview = new() { IsReadOnly = true, AcceptsReturn = true, Height = 82, FontFamily = new FontFamily("Consolas"), TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock _error = new() { Foreground = Brushes.Salmon, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _error = new() { Foreground = (Brush)Application.Current.FindResource("Brush.Danger"), TextWrapping = TextWrapping.Wrap };
     private readonly TextBox _txLength;
     private readonly TextBox _rxLength;
     public ProductionCommandEditor(ProductionCommand command, ProtocolSettings project, IReadOnlyList<ProductionCommand>? previousSteps = null)
@@ -21,6 +21,7 @@ public sealed class ProductionCommandEditor : Window
         Title = "命令详情"; Width = 850; Height = 800; MinWidth = 780; MinHeight = 650;
         WindowStartupLocation = WindowStartupLocation.CenterOwner; Background = new SolidColorBrush(Color.FromRgb(9, 9, 11)); Foreground = Brushes.WhiteSmoke;
         Resources.MergedDictionaries.Add(new() { Source = new Uri("/DuCom;component/Services/Plugins/ProductionStyles.xaml", UriKind.Relative) });
+        PluginVisualTheme.Apply(this);
         Grid root = new() { Margin = new Thickness(24) }; root.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) }); root.RowDefinitions.Add(new() { Height = GridLength.Auto });
         StackPanel body = new();
         WrapPanel common = new();
@@ -57,7 +58,7 @@ public sealed class ProductionCommandEditor : Window
         _fields.Columns.Add(new DataGridCheckBoxColumn { Header = "小端", Binding = new Binding("LittleEndian"), Width = 50 });
         _fields.Columns.Add(new DataGridTextColumn { Header = "示例 HEX（仅计算用）", Binding = new Binding("Example"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
         Refresh(); body.Children.Add(_fields);
-        body.Children.Add(new TextBlock { Text = "MAC 固定 6 字节；整数长度由类型决定。多个 MAC 添加多行。示例为空按 00 计算。", Foreground = Brushes.LightGray, Margin = new Thickness(0, 8, 0, 12), TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new TextBlock { Text = "MAC 固定 6 字节；整数长度由类型决定。多个 MAC 添加多行。示例为空按 00 计算。", Margin = new Thickness(0, 8, 0, 12), TextWrapping = TextWrapping.Wrap });
         body.Children.Add(ProductionProfileEditor.ActionButton("计算报文（不发送）", Calculate)); body.Children.Add(_preview);
         CheckBox wait = new() { Content = "等待回复", Margin = new Thickness(0, 12, 0, 0) }; wait.SetBinding(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, new Binding("WaitResponse") { Source = command, Mode = BindingMode.TwoWay }); body.Children.Add(wait);
         if (previousSteps is not null)

@@ -6,7 +6,6 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using DuCom.Plugin;
 using Microsoft.Win32;
 
@@ -16,7 +15,6 @@ public partial class ChecksumWindow : Window
 {
     private readonly Func<string, Task<bool>> _load;
     private int _copyGeneration;
-    private bool _animated;
     internal ChecksumWindowState ViewModel { get; } = new();
 
     [DllImport("dwmapi.dll", ExactSpelling = true)]
@@ -26,6 +24,7 @@ public partial class ChecksumWindow : Window
     {
         _load = load;
         InitializeComponent();
+        PluginVisualTheme.Apply(this);
         DataContext = ViewModel;
         Topmost = PluginToolWindowPreferencesService.Load().Topmost;
         CommandBindings.Add(new CommandBinding(ApplicationCommands.Open, (_, _) => SelectFile(), (_, e) => e.CanExecute = ViewModel.CanOpen));
@@ -126,19 +125,6 @@ public partial class ChecksumWindow : Window
             int result = DwmSetWindowAttribute(new WindowInteropHelper(this).Handle, 20, ref dark, sizeof(int));
             if (result < 0) System.Diagnostics.Debug.WriteLine($"DWM dark preference failed: {result:X8}");
         }
-    }
-
-    protected override void OnContentRendered(EventArgs e)
-    {
-        base.OnContentRendered(e);
-        if (_animated || !SystemParameters.ClientAreaAnimation) return;
-        _animated = true;
-        var duration = TimeSpan.FromMilliseconds(900);
-        DoubleAnimation opacity = new(1, 0.6, duration) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(2), FillBehavior = FillBehavior.Stop, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } };
-        DoubleAnimation scale = new(1, 1.08, duration) { AutoReverse = true, RepeatBehavior = new RepeatBehavior(2), FillBehavior = FillBehavior.Stop, EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut } };
-        TitleIcon.BeginAnimation(OpacityProperty, opacity);
-        TitleIconScale.BeginAnimation(ScaleTransform.ScaleXProperty, scale);
-        TitleIconScale.BeginAnimation(ScaleTransform.ScaleYProperty, scale.Clone());
     }
 
     protected override void OnClosed(EventArgs e)

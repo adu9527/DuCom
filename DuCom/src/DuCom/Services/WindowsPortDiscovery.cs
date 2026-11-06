@@ -52,19 +52,14 @@ internal sealed class WindowsPortDiscovery : IPortDiscovery, IPortDetailsProvide
     public IReadOnlyDictionary<string, DiscoveredPort> GetPortDetails()
     {
         Dictionary<string, DiscoveredPort> ports = new(StringComparer.OrdinalIgnoreCase);
-        Dictionary<string, PnPDeviceInfo> pnpDevices = QueryPnPDevices(out bool pnpQuerySucceeded);
-
-        // A successful PnP query is authoritative for device presence. SerialPort may return
-        // stale SERIALCOMM registry mappings after a virtual-port driver/device is removed.
-        IEnumerable<string> runtimePorts = SerialPort.GetPortNames().Distinct(StringComparer.OrdinalIgnoreCase);
-        foreach (string portName in runtimePorts)
+        // Take the presence snapshot after WMI: WMI is slow and can lag an arrival/removal.
+        // Its caption-based metadata must not decide which ports currently exist.
+        Dictionary<string, PnPDeviceInfo> pnpDevices = QueryPnPDevices();
+        IReadOnlyCollection<string>? presentPorts = WindowsPresentPortEnumerator.GetPortNames();
+        IEnumerable<string> portNames = SelectPortNames(presentPorts,
+            presentPorts is null ? ReadRuntimePortNames() : [], pnpDevices.Keys);
+        foreach (string portName in portNames)
         {
-            if (pnpQuerySucceeded && !pnpDevices.ContainsKey(portName))
-            {
-                Program.DiagnosticLog?.Information($"Ignoring stale serial-port mapping. Port={portName}");
-                continue;
-            }
-
             ports[portName] = new DiscoveredPort(
                 portName,
                 DiscoveredPortType.Serial,
@@ -80,6 +75,11 @@ internal sealed class WindowsPortDiscovery : IPortDiscovery, IPortDetailsProvide
         // Resolve PnP device metadata for each port, then enrich the seed entries.
         foreach ((string portName, PnPDeviceInfo info) in pnpDevices)
         {
+            if (!ports.ContainsKey(portName))
+            {
+                continue; // Never resurrect a removed port from cached metadata.
+            }
+
             string description = TrimComSuffix(info.Caption);
             ports[portName] = new DiscoveredPort(
                 portName,
@@ -96,15 +96,36 @@ internal sealed class WindowsPortDiscovery : IPortDiscovery, IPortDetailsProvide
         return ports;
     }
 
-    private static Dictionary<string, PnPDeviceInfo> QueryPnPDevices(out bool succeeded)
+    internal static string[] SelectPortNames(
+        IReadOnlyCollection<string>? presentPorts,
+        IEnumerable<string> runtimePorts,
+        IEnumerable<string> metadataPorts) =>
+        (presentPorts is not null ? presentPorts : runtimePorts.Concat(metadataPorts))
+            .Where(Com0ComService.IsValidPortName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static string[] ReadRuntimePortNames()
+    {
+        try
+        {
+            return SerialPort.GetPortNames();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            Program.DiagnosticLog?.Warning("Failed to read fallback serial-port mappings.", exception);
+            return [];
+        }
+    }
+
+    private static Dictionary<string, PnPDeviceInfo> QueryPnPDevices()
     {
         Dictionary<string, PnPDeviceInfo> byPort = new(StringComparer.OrdinalIgnoreCase);
-        succeeded = false;
         try
         {
             using var searcher = new ManagementObjectSearcher(PortInfoSelectSql);
             using ManagementObjectCollection results = searcher.Get();
-            succeeded = true;
             foreach (ManagementBaseObject p in results)
             {
                 string caption = Safe(p["Caption"]);

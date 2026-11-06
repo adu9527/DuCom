@@ -44,6 +44,7 @@ public static partial class PluginUiRenderer
 
         commands.FormRoot = root;
         ApplyTheme(root);
+        if (BesCompactPresentation.Matches(pluginId)) BesCompactPresentation.Apply(root);
         return root;
     }
 }

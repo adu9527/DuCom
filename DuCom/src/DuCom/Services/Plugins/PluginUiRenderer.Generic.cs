@@ -7,7 +7,14 @@ namespace DuCom.Services.Plugins;
 
 public static partial class PluginUiRenderer
 {
+    [ThreadStatic]
     private static Style? _pluginExpanderStyle;
+    [ThreadStatic]
+    private static ResourceDictionary? _pluginStyles;
+    private static ResourceDictionary PluginStyles => _pluginStyles ??= new ResourceDictionary
+    {
+        Source = new Uri("/DuCom;component/Services/Plugins/PluginUiStyles.xaml", UriKind.Relative),
+    };
 
     /// <summary>
     /// Animation-free expander style for plugin pages: progress-driven page refreshes rebuild
@@ -24,7 +31,7 @@ public static partial class PluginUiRenderer
             RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
             Converter = new ExpandedGlyphConverter(),
         });
-        chevron.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 28d);
+        chevron.SetValue(System.Windows.Controls.TextBlock.FontSizeProperty, 14d);
         chevron.SetValue(FrameworkElement.MarginProperty, new Thickness(0, 0, 8, 0));
         chevron.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
 
@@ -48,7 +55,7 @@ public static partial class PluginUiRenderer
         });
         headerToggle.SetValue(Control.BackgroundProperty, System.Windows.Media.Brushes.Transparent);
         headerToggle.SetValue(Control.BorderThicknessProperty, new Thickness(0));
-        headerToggle.SetValue(Control.PaddingProperty, new Thickness(6, 4, 6, 4));
+        headerToggle.SetValue(Control.PaddingProperty, new Thickness(2, 4, 6, 4));
         headerToggle.SetValue(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Left);
         headerToggle.SetValue(FrameworkElement.CursorProperty, System.Windows.Input.Cursors.Hand);
         headerToggle.AppendChild(headerPanel);
@@ -63,7 +70,7 @@ public static partial class PluginUiRenderer
             RelativeSource = new RelativeSource(RelativeSourceMode.TemplatedParent),
             Converter = new System.Windows.Controls.BooleanToVisibilityConverter(),
         });
-        expandSite.SetValue(FrameworkElement.MarginProperty, new Thickness(2, 4, 2, 0));
+        expandSite.SetValue(FrameworkElement.MarginProperty, new Thickness(16, 6, 2, 4));
 
         FrameworkElementFactory root = new(typeof(StackPanel));
         root.AppendChild(headerToggle);
@@ -92,11 +99,17 @@ public static partial class PluginUiRenderer
 
     internal static void ApplyTheme(FrameworkElement root)
     {
+        root.UseLayoutRounding = true;
+        System.Windows.Media.TextOptions.SetTextFormattingMode(root, System.Windows.Media.TextFormattingMode.Display);
+        System.Windows.Media.TextOptions.SetTextRenderingMode(root, System.Windows.Media.TextRenderingMode.Auto);
         if (root is TextBlock text)
         {
             string brush = "Brush.TextPrimary";
             if (text.Tag is UiTextStyle.Success) brush = "Brush.Success";
             else if (text.Tag is UiTextStyle.Running) brush = "Brush.Warning";
+            else if (text.Tag is UiTextStyle.Caption) brush = "Brush.TextSecondary";
+            else if (text.Tag is UiTextStyle.Accent) brush = "Brush.Accent";
+            else if (text.Tag is UiTextStyle.Warning) brush = "Brush.Danger";
             else if (text.Style is { } style)
             {
                 if (style == Application.Current.TryFindResource("Style.MutedText") || style == Application.Current.TryFindResource("PluginUi.Caption")) brush = "Brush.TextSecondary";
@@ -108,12 +121,13 @@ public static partial class PluginUiRenderer
         }
         if (root is Control control)
         {
-            // ProgressBar foreground is its fill color, set by the progress state below.
-            if (control is not ProgressBar)
+            // Button templates own normal/accent, hover, pressed and disabled colors.
+            // Rebinding them here erased every plugin's primary action treatment.
+            if (control is not ProgressBar and not Button)
                 control.SetResourceReference(Control.ForegroundProperty, "Brush.TextPrimary");
-            if (control is TextBox or ComboBox or ComboBoxItem or ListBox or ListBoxItem or Button)
+            if (control is TextBox or ComboBox or ComboBoxItem or ListBox or ListBoxItem)
             {
-                control.SetResourceReference(Control.BackgroundProperty, "Brush.PanelRaised");
+                control.SetResourceReference(Control.BackgroundProperty, "Brush.ControlSurface");
                 control.SetResourceReference(Control.BorderBrushProperty, "Brush.PanelBorder");
             }
         }
@@ -230,9 +244,9 @@ public static partial class PluginUiRenderer
                     TextWrapping = label.Wrap ? TextWrapping.Wrap : TextWrapping.NoWrap,
                     Style = label.Style switch
                     {
-                        UiTextStyle.Heading => (Style)Application.Current.TryFindResource("PluginUi.Heading") ?? new Style(typeof(TextBlock)),
-                        UiTextStyle.Caption => (Style)Application.Current.TryFindResource("PluginUi.Caption") ?? new Style(typeof(TextBlock)),
-                        UiTextStyle.Accent => (Style)Application.Current.TryFindResource("PluginUi.Accent") ?? new Style(typeof(TextBlock)),
+                        UiTextStyle.Heading => (Style)PluginStyles["PluginUi.Heading"],
+                        UiTextStyle.Caption => (Style)PluginStyles["PluginUi.Caption"],
+                        UiTextStyle.Accent => (Style)PluginStyles["PluginUi.Accent"],
                         UiTextStyle.Running => RunningTextStyle(),
                         UiTextStyle.Success => SuccessTextStyle(),
                         UiTextStyle.Warning => (Style)Application.Current.TryFindResource("PluginUi.Warning") ?? new Style(typeof(TextBlock)),
@@ -254,15 +268,12 @@ public static partial class PluginUiRenderer
                 System.Windows.Controls.Button control = new()
                 {
                     Content = button.Text,
-                    Margin = new Thickness(2),
-                    Padding = new Thickness(10, 4, 10, 4),
+                    Margin = new Thickness(0, 0, 10, 2),
                     MinWidth = 80,
                     IsEnabled = button.IsEnabled,
                 };
-                if (button.Accent && Application.Current.TryFindResource("PluginUi.AccentButton") is Style accentStyle)
-                {
-                    control.Style = accentStyle;
-                }
+                ResourceDictionary pluginStyles = PluginStyles;
+                control.Style = (Style)pluginStyles[button.Accent ? "PluginUi.PrimaryButton" : "PluginUi.Button"];
 
                 bool submit = button.SubmitForm;
                 string commandId = button.CommandId;
@@ -293,10 +304,14 @@ public static partial class PluginUiRenderer
                     Tag = text.FieldId,
                     IsReadOnly = text.ReadOnly,
                     IsEnabled = text.IsEnabled,
+                    // 不设 Height/MinHeight（局部值会盖掉样式里的下限）；
+                    // 高度交由隐式样式的 MinHeight 兜底，VerticalAlignment=Center 防止被容器压扁。
+                    VerticalAlignment = VerticalAlignment.Center,
+                    VerticalContentAlignment = VerticalAlignment.Center,
                 };
                 if (text.Width is { } textWidth)
                 {
-                    input.Width = textWidth;
+                    input.Width = Math.Max(textWidth, 240);
                     input.MinWidth = 0;
                 }
                 if (text.Multiline)
@@ -334,7 +349,7 @@ public static partial class PluginUiRenderer
                     Content = checkbox.Label,
                     IsChecked = checkbox.IsChecked,
                     Tag = checkbox.FieldId,
-                    Margin = new Thickness(2),
+                    Margin = new Thickness(0, 0, 14, 2),
                     IsEnabled = checkbox.IsEnabled,
                 };
                 if (!string.IsNullOrWhiteSpace(checkbox.CommandId))

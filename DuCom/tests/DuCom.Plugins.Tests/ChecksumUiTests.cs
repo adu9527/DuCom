@@ -86,9 +86,11 @@ public sealed class ChecksumUiTests
                 }
                 finally { File.Delete(path); }
                 window.Close();
-                typeof(App).Assembly.GetType("DuCom.Services.Plugins.PluginIntegrationGuide", true)!
-                    .GetMethod("Show", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [null]);
-                Window guide = app.Windows.Cast<Window>().Single(item => item.Title.StartsWith("恒玄接入文档", StringComparison.Ordinal));
+                // UI tests have separate STA threads; Application.Windows belongs to the
+                // first test's dispatcher. Inspect the returned window on its own dispatcher.
+                Window guide = (Window)typeof(App).Assembly.GetType("DuCom.Services.Plugins.PluginIntegrationGuide", true)!
+                    .GetMethod("Show", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [null])!;
+                Assert.StartsWith("恒玄接入文档", guide.Title);
                 guide.Close();
             }
             catch (Exception exception) { failure = exception; }

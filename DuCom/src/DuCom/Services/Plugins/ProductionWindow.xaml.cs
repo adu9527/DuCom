@@ -23,7 +23,7 @@ public partial class ProductionWindow : Window
     private static string ProfilesDirectory => Path.Combine(AppContext.BaseDirectory, "profiles");
     public ProductionWindow(Func<string, IReadOnlyDictionary<string, string>, Task<bool>> invoke)
     {
-        _invoke = invoke; InitializeComponent(); DataContext = this; RefreshPorts(); Closing += OnClosing;
+        _invoke = invoke; InitializeComponent(); PluginVisualTheme.Apply(this); DataContext = this; RefreshPorts(); Closing += OnClosing;
         LeftPort.PreviewMouseLeftButtonDown += PreparePortDropdown; RightPort.PreviewMouseLeftButtonDown += PreparePortDropdown;
         ResultsGrid.PreviewMouseWheel += (_, _) => { if (_running) FollowExecution.IsChecked = false; };
     }
@@ -38,7 +38,7 @@ public partial class ProductionWindow : Window
             if (!_initialized || profile.ToJson() != _profile.ToJson()) { _profile = profile; Rebuild(); RefreshProfiles(); _initialized = true; }
             _running = state.GetProperty("Running").GetBoolean(); _left = state.GetProperty("LeftConnected").GetBoolean(); _right = state.GetProperty("RightConnected").GetBoolean();
             LeftState.Text = _left ? "已连接" : "未连接"; RightState.Text = _right ? "已连接" : "未连接";
-            LeftState.Foreground = _left ? Brushes.MediumAquamarine : Brushes.LightGray; RightState.Foreground = _right ? Brushes.MediumAquamarine : Brushes.LightGray;
+            LeftState.SetResourceReference(TextBlock.ForegroundProperty, _left ? "Brush.Success" : "Brush.TextSecondary"); RightState.SetResourceReference(TextBlock.ForegroundProperty, _right ? "Brush.Success" : "Brush.TextSecondary");
             LeftConnect.Content = _left ? "断开" : "连接"; RightConnect.Content = _right ? "断开" : "连接";
             StatusText.Text = state.GetProperty("Status").GetString(); StatusText.ToolTip = state.TryGetProperty("RecordPath", out var path) ? path.GetString() : StatusText.Text;
             foreach (var row in Rows)
@@ -175,8 +175,8 @@ public partial class ProductionWindow : Window
         bool failed = state.Contains("不通过", StringComparison.Ordinal) || state.Contains("异常", StringComparison.Ordinal);
         bool passed = state == "执行完成 · 通过";
         text.Text = side + " · " + state;
-        text.Foreground = failed ? Brushes.Salmon : passed ? Brushes.MediumAquamarine : state == "执行中" ? Brushes.LightSkyBlue : Brushes.LightGray;
-        box.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(failed ? "#321F24" : passed ? "#12332C" : state == "执行中" ? "#172B3A" : "#18181B"));
+        text.SetResourceReference(TextBlock.ForegroundProperty, failed ? "Brush.Danger" : passed ? "Brush.Success" : state == "执行中" ? "Brush.Accent" : "Brush.TextSecondary");
+        box.SetResourceReference(Border.BackgroundProperty, failed ? "Brush.DangerSoft" : passed ? "Brush.SuccessSoft" : state == "执行中" ? "Brush.AccentSoft" : "Brush.PanelSurface");
     }
     private void Result_Click(object sender, MouseButtonEventArgs e)
     {
@@ -186,6 +186,7 @@ public partial class ProductionWindow : Window
             Background = new SolidColorBrush(Color.FromRgb(9, 9, 11)), Foreground = Brushes.WhiteSmoke };
         detail.Resources.MergedDictionaries.Add(new() { Source = new Uri("/DuCom;component/Services/Plugins/ProductionStyles.xaml", UriKind.Relative) });
         detail.Content = new TextBox { Text = result, IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(20), VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        PluginVisualTheme.Apply(detail);
         detail.ShowDialog();
     }
     private void Minimize_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;

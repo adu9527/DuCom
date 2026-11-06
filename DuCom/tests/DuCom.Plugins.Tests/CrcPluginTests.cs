@@ -88,6 +88,11 @@ public sealed class CrcPluginTests
                 app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
                 IReadOnlyDictionary<string, string>? submitted = null;
                 CrcWindow window = new((command, values) => { submitted = values; return Task.FromResult(true); });
+                // The production host supplies these dynamic tokens; isolate them to this test window.
+                window.Resources.MergedDictionaries.Add(new ResourceDictionary
+                {
+                    Source = new Uri("/DuCom;component/Resources/DesignTokens.Colors.Dark.xaml", UriKind.Relative),
+                });
                 try
                 {
                     window.Show();
@@ -173,8 +178,18 @@ public sealed class CrcPluginTests
     {
         element.BringIntoView();
         element.UpdateLayout();
+        // BringIntoView queues popup scrolling. Let the dispatcher settle before converting
+        // coordinates, otherwise short/high-DPI popup viewports click the old offscreen row.
+        DispatcherFrame layoutFrame = new();
+        element.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => layoutFrame.Continue = false);
+        Dispatcher.PushFrame(layoutFrame);
         Point screen = element.PointToScreen(point);
         Assert.True(SetCursorPos((int)screen.X, (int)screen.Y));
+        // Deliver WM_MOUSEMOVE before the button events: popup capture routes using
+        // Mouse.DirectlyOver, which otherwise still points at the combo's old position.
+        DispatcherFrame pointerFrame = new();
+        element.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => pointerFrame.Continue = false);
+        Dispatcher.PushFrame(pointerFrame);
         mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
         mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
         DispatcherFrame frame = new();

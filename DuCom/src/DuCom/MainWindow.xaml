@@ -18,6 +18,8 @@
                   MinWidth="960"
                  MinHeight="640"
                   ExtendsContentIntoTitleBar="True"
+                 UseLayoutRounding="True"
+                 SnapsToDevicePixels="False"
                  PreviewKeyDown="Window_PreviewKeyDown"
                  ResizeMode="CanResize"
                   WindowBackdropType="Mica"
@@ -224,13 +226,13 @@
                         <StackPanel Orientation="Horizontal">
                             <StackPanel Orientation="Horizontal" ToolTip="{Binding ElementName=ProcessMemoryTooltip, Path=Text}">
                                 <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="#1D9E75" />
-                                <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12"
+                                <TextBlock Margin="6,0,0,0" VerticalAlignment="Center" FontSize="{DynamicResource Fs.Small}"
                                            Foreground="{DynamicResource Brush.TextPrimary}"
                                            Text="{DynamicResource MemoryMonitor.TotalLabel}" />
                                 <TextBlock x:Name="ProcessMemoryText"
                                            Margin="6,0,0,0"
                                            VerticalAlignment="Center"
-                                           FontSize="12"
+                                           FontSize="{DynamicResource Fs.Small}"
                                            FontWeight="Medium"
                                            Foreground="{DynamicResource Brush.TextPrimary}"
                                            Text="-- MB" />
@@ -250,7 +252,7 @@
                                 <TextBlock x:Name="SystemMemoryText"
                                            Margin="6,0,0,0"
                                            VerticalAlignment="Center"
-                                           FontSize="12"
+                                           FontSize="{DynamicResource Fs.Small}"
                                            FontWeight="Medium"
                                            Foreground="{DynamicResource Brush.Success}"
                                            Text="--%" />
@@ -264,7 +266,7 @@
             </ui:TitleBar.TrailingContent>
         </ui:TitleBar>
 
-        <Grid Grid.Row="1" Margin="6,0,6,6">
+        <Grid Grid.Row="1" Margin="8,0,8,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="ConnectionColumn">
                     <ColumnDefinition.Style>
@@ -299,9 +301,9 @@
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <Border Height="32"
-                            Margin="-8,-8,-8,0"
-                            Padding="2,2,4,2"
+                    <Border Height="38"
+                            Margin="-10,-10,-10,0"
+                            Padding="3,4,5,4"
                             Background="{DynamicResource Brush.PanelRaised}"
                             BorderBrush="{DynamicResource Brush.PanelBorder}"
                             BorderThickness="0,0,0,1"
@@ -333,7 +335,7 @@
                                 Padding="8,0"
                                 Click="ToolbarMenuButton_Click"
                                 Content="{DynamicResource Connection.ViewButton}"
-                                FontSize="12"
+                                FontSize="{DynamicResource Fs.Small}"
                                 Style="{StaticResource Style.ToolbarButton}"
                                 ToolTip="{DynamicResource Connection.ShowHidden}">
                             <Button.ContextMenu>
@@ -361,7 +363,7 @@
                                 Padding="8,0"
                                 Click="ToolbarMenuButton_Click"
                                 Content="{DynamicResource Connection.SortButton}"
-                                FontSize="12"
+                                FontSize="{DynamicResource Fs.Small}"
                                 Style="{StaticResource Style.ToolbarButton}"
                                 ToolTip="{DynamicResource Connection.Sort}">
                             <Button.ContextMenu>
@@ -441,7 +443,7 @@
                                                     Padding="12,10">
                                                 <StackPanel>
                                                     <TextBlock Margin="0,0,0,8"
-                                                               FontSize="12"
+                                                               FontSize="{DynamicResource Fs.Small}"
                                                                FontWeight="SemiBold"
                                                                Foreground="{DynamicResource Brush.TextPrimary}"
                                                                Text="{Binding PortName}" />
@@ -510,7 +512,7 @@
                                         <!-- Port name + type chip + device details -->
                                         <StackPanel Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center">
                                             <StackPanel Orientation="Horizontal">
-                                                <TextBlock FontSize="13"
+                                                <TextBlock FontSize="{DynamicResource Fs.Body}"
                                                            FontWeight="SemiBold"
                                                            VerticalAlignment="Center"
                                                            Text="{Binding PortName}" />
@@ -558,7 +560,7 @@
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                         <Setter Property="Margin" Value="0,3,0,0" />
-                                                        <Setter Property="FontSize" Value="11" />
+                                                        <Setter Property="FontSize" Value="{DynamicResource Fs.Xs}" />
                                                         <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding DataContext.ShowPortType, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
@@ -610,8 +612,8 @@
                     </Grid>
                     <Button x:Name="DuComMenuButton"
                             Grid.Row="2"
-                             Height="34"
-                             Margin="-8,4,-8,-8"
+                             Height="38"
+                             Margin="-10,4,-10,-10"
                              Padding="12,0"
                              HorizontalContentAlignment="Stretch"
                             Click="DuComMenu_Click"
@@ -623,7 +625,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock VerticalAlignment="Center"
-                                           FontSize="13"
+                                           FontSize="{DynamicResource Fs.Body}"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource Brush.TextPrimary}"
                                            Text="DuCom" />
@@ -809,7 +811,7 @@
                                                    Style="{StaticResource Style.SessionCloseButton}"
                                                   ToolTip="{DynamicResource Shortcut.CloseSelectedSession}"
                                                   AutomationProperties.Name="{DynamicResource Shortcut.CloseSelectedSession}">
-                                            <ui:SymbolIcon FontSize="12" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Symbol="Dismiss24" />
+                                            <ui:SymbolIcon FontSize="{DynamicResource Fs.Small}" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Symbol="Dismiss24" />
                                         </Button>
                                     </Grid>
                                 </DataTemplate>
@@ -888,7 +890,7 @@
                                                    Style="{StaticResource Style.SessionCloseButton}"
                                                    ToolTip="{DynamicResource Layout.CloseRightSession}"
                                                    AutomationProperties.Name="{DynamicResource Layout.CloseRightSession}">
-                                            <ui:SymbolIcon FontSize="12" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Symbol="Dismiss24" />
+                                            <ui:SymbolIcon FontSize="{DynamicResource Fs.Small}" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Symbol="Dismiss24" />
                                         </Button>
                                     </Grid>
                                 </DataTemplate>
@@ -1268,7 +1270,7 @@
                                 </Canvas>
 
                                 <StackPanel Canvas.Left="40" Canvas.Top="458" Orientation="Horizontal">
-                                    <TextBlock FontFamily="Consolas" FontSize="11" Foreground="#486176" Text="SYS://SERIAL_LINK" />
+                                    <TextBlock FontFamily="Consolas" FontSize="{DynamicResource Fs.Xs}" Foreground="#486176" Text="SYS://SERIAL_LINK" />
                                     <Rectangle Width="8" Height="12" Margin="8,0,0,0" Fill="#42A5F5">
                                         <Rectangle.Style>
                                             <Style TargetType="Rectangle">
@@ -1293,7 +1295,7 @@
                                         </Rectangle.Style>
                                     </Rectangle>
                                 </StackPanel>
-                                <TextBlock Canvas.Right="40" Canvas.Top="458" FontFamily="Consolas" FontSize="11" Foreground="#486176" Text="READY  8N1  TX/RX" />
+                                <TextBlock Canvas.Right="40" Canvas.Top="458" FontFamily="Consolas" FontSize="{DynamicResource Fs.Xs}" Foreground="#486176" Text="READY  8N1  TX/RX" />
                             </Canvas>
                         </Viewbox>
                     </Grid>

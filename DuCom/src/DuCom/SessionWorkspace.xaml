@@ -107,7 +107,7 @@
                         <Border Width="52" Height="52" HorizontalAlignment="Center" Background="{DynamicResource Brush.DangerSoft}" CornerRadius="26">
                             <ui:SymbolIcon HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="26" Foreground="{DynamicResource Brush.Danger}" Symbol="ErrorCircle24" />
                         </Border>
-                        <TextBlock Margin="0,14,0,0" HorizontalAlignment="Center" FontSize="20" FontWeight="SemiBold" Text="{DynamicResource Connection.OpenFailedTitle}" />
+                        <TextBlock Margin="0,14,0,0" HorizontalAlignment="Center" FontSize="{DynamicResource Fs.Title}" FontWeight="SemiBold" Text="{DynamicResource Connection.OpenFailedTitle}" />
                         <TextBlock Margin="0,6,0,0" HorizontalAlignment="Center" FontSize="15" FontWeight="SemiBold" Text="{Binding PortName}" />
                         <TextBlock Margin="0,10,0,0" HorizontalAlignment="Center" Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding FaultMessage}" TextAlignment="Center" TextWrapping="Wrap" />
                         <ui:Button Margin="0,18,0,0" MinWidth="120" HorizontalAlignment="Center" Appearance="Primary" Command="{Binding ToggleConnectionCommand}" Content="{DynamicResource Connection.Retry}" />
@@ -134,10 +134,10 @@
                 as the primary canvas.
             -->
             <Border Grid.Row="2"
-                    Padding="10,7"
-                    Background="{DynamicResource Brush.ToolbarSurface}"
-                    BorderBrush="{DynamicResource Brush.PanelBorder}"
-                    BorderThickness="0,1"
+                    Padding="2,2"
+                    Background="Transparent"
+                    BorderBrush="Transparent"
+                    BorderThickness="0"
                     CornerRadius="0">
                 <Border.Style>
                     <Style TargetType="Border">
@@ -158,7 +158,7 @@
                     <WrapPanel>
                         <!-- Connection (primary, compact) -->
                         <Button MinWidth="74"
-                                  Margin="0,0,6,4"
+                                  Margin="0,0,6,0"
                                   Command="{Binding ToggleConnectionCommand}"
                                   Click="ToggleConnection_Click"
                                   Style="{StaticResource Style.ToolbarPrimary}">
@@ -192,10 +192,10 @@
                                 </TextBlock>
                             </Button.ToolTip>
                         </Button>
-                        <Rectangle Margin="0,0,6,4" Style="{StaticResource Style.ToolbarSeparator}" />
+                        <Rectangle Margin="0,0,6,0" Style="{StaticResource Style.ToolbarSeparator}" />
 
                         <!-- Log view actions: Clear is icon+text, the rest are icon-only with Chinese tooltips -->
-                        <Button Margin="0,0,2,4"
+                        <Button Margin="0,0,2,0"
                                 Style="{StaticResource Style.ToolbarButton}"
                                 Command="{Binding ClearDisplayCommand}"
                                 ToolTip="{DynamicResource Log.Clear}"
@@ -206,7 +206,7 @@
                             </StackPanel>
                         </Button>
                         <ToggleButton x:Name="FollowEndToggle"
-                                      Margin="0,0,2,4"
+                                      Margin="0,0,2,0"
                                       Click="FollowEndToggle_Click"
                                       IsChecked="{Binding FollowEnd, Mode=OneWay}"
                                       Style="{StaticResource Style.ToolbarIconToggle}"
@@ -214,7 +214,7 @@
                                       AutomationProperties.Name="{DynamicResource Log.Follow}">
                             <ui:SymbolIcon FontSize="16" Symbol="ChevronDoubleDown16" />
                         </ToggleButton>
-                        <Button Margin="0,0,2,4"
+                        <Button Margin="0,0,2,0"
                                  Style="{StaticResource Style.ToolbarIconButton}"
                                  Command="{Binding DataContext.OpenLogFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                  CommandParameter="{Binding}"
@@ -222,7 +222,7 @@
                                 AutomationProperties.Name="{DynamicResource Log.OpenFolder.Tooltip}">
                             <ui:SymbolIcon FontSize="16" Symbol="FolderOpen24" />
                         </Button>
-                        <Button Margin="0,0,6,4"
+                        <Button Margin="0,0,6,0"
                                 Style="{StaticResource Style.ToolbarIconButton}"
                                 Command="{Binding DataContext.ShowLogFilterCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding}"
@@ -231,10 +231,10 @@
                             <ui:SymbolIcon FontSize="16" Symbol="Filter24" />
                         </Button>
 
-                        <Rectangle Margin="0,0,6,4" Style="{StaticResource Style.ToolbarSeparator}" />
+                        <Rectangle Margin="0,0,6,0" Style="{StaticResource Style.ToolbarSeparator}" />
 
                         <!-- Port + send-config -->
-                        <Button Margin="0,0,2,4"
+                        <Button Margin="0,0,2,0"
                                  Style="{StaticResource Style.ToolbarButton}"
                                  Command="{Binding DataContext.OpenSerialParametersCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                  CommandParameter="{Binding}"
@@ -247,7 +247,7 @@
                             </StackPanel>
                         </Button>
                         <ComboBox x:Name="BaudRateBox"
-                                  Margin="0,0,2,4"
+                                  Margin="0,0,2,0"
                                   MinWidth="104"
                                   Style="{StaticResource Style.ToolbarCombo}"
                                   ItemsSource="{Binding DataContext.BaudRates, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -257,7 +257,7 @@
                                    SelectionChanged="BaudRate_SelectionChanged" />
                         <Button x:Name="CommandMenuButton"
                                 MinWidth="112"
-                                Margin="0,0,0,4"
+                                Margin="0,0,0,0"
                                 Click="CommandMenuButton_Click"
                                 Style="{StaticResource Style.ToolbarButton}"
                                 ToolTip="{DynamicResource Commands.SelectGroup}">
@@ -282,7 +282,7 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <ui:SymbolIcon HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="12" Symbol="ChevronDown24" />
+                                <ui:SymbolIcon HorizontalAlignment="Right" VerticalAlignment="Center" FontSize="{DynamicResource Fs.Small}" Symbol="ChevronDown24" />
                             </Grid>
                             <Button.ContextMenu>
                                 <ContextMenu Placement="Bottom" />
@@ -298,7 +298,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Button Margin="0,0,6,4"
+                                <Button Margin="0,0,6,0"
                                         Padding="10,3"
                                         Command="{Binding DataContext.SendScriptCommandCommand, RelativeSource={RelativeSource AncestorType=local:SessionWorkspace}}"
                                         CommandParameter="{Binding}"

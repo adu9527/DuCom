@@ -13,7 +13,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="20" />
+            <RowDefinition Height="4" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -40,29 +40,21 @@
                 </Grid>
             </Border>
 
-            <Grid Margin="0,0,0,16">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <WrapPanel VerticalAlignment="Center">
-                    <Button Command="{Binding AddProjectCommand}" Content="{DynamicResource HighlightFilter.NewProject}" />
-                    <Button Margin="8,0,0,0" Command="{Binding CopyDefaultProjectCommand}" Content="{DynamicResource HighlightFilter.CopyDefaultProject}" />
-                    <Button Margin="8,0,0,0" Command="{Binding DeleteProjectCommand}" Content="{DynamicResource HighlightFilter.DeleteProject}" />
-                </WrapPanel>
-                <StackPanel Grid.Column="1" HorizontalAlignment="Right" Orientation="Horizontal">
-                    <Button Command="{Binding ResetCommand}" Content="{DynamicResource HighlightFilter.Reset}" />
-                    <Button Margin="8,0,0,0" Command="{Binding SaveCommand}" Content="{DynamicResource HighlightFilter.Save}" />
-                    <ui:Button Margin="8,0,0,0" Appearance="Primary" Command="{Binding ApplyCommand}" Content="{DynamicResource HighlightFilter.Apply}" />
-                </StackPanel>
-            </Grid>
+            <WrapPanel Margin="0,0,0,4">
+                <Button Margin="0,0,6,6" Command="{Binding AddProjectCommand}" Content="{DynamicResource HighlightFilter.NewProject}" />
+                <Button Margin="0,0,6,6" Command="{Binding CopyDefaultProjectCommand}" Content="{DynamicResource HighlightFilter.CopyDefaultProject}" />
+                <Button Margin="0,0,6,6" Command="{Binding DeleteProjectCommand}" Content="{DynamicResource HighlightFilter.DeleteProject}" />
+                <Button Margin="0,0,6,6" Command="{Binding ResetCommand}" Content="{DynamicResource HighlightFilter.Reset}" />
+                <Button Margin="0,0,6,6" Command="{Binding SaveCommand}" Content="{DynamicResource HighlightFilter.Save}" />
+                <Button Margin="0,0,6,6" Style="{StaticResource Style.ToolbarPrimary}" Command="{Binding ApplyCommand}" Content="{DynamicResource HighlightFilter.Apply}" />
+            </WrapPanel>
         </StackPanel>
 
         <!-- 主内容区 -->
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320" />
-                <ColumnDefinition Width="16" />
+                <ColumnDefinition Width="230" MinWidth="200" />
+                <ColumnDefinition Width="10" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
@@ -75,7 +67,7 @@
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="{DynamicResource HighlightFilter.RuleList}" />
+                    <TextBlock FontSize="{DynamicResource Fs.Body}" FontWeight="SemiBold" Text="{DynamicResource HighlightFilter.RuleList}" />
                     <ListBox Grid.Row="2"
                              ItemsSource="{Binding Rules}"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -93,7 +85,7 @@
                                     </Grid.ColumnDefinitions>
                                     <CheckBox VerticalAlignment="Center" Command="{Binding DataContext.ToggleRuleEnabledCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" IsChecked="{Binding IsEnabled, Mode=OneWay}" />
                                     <Ellipse Grid.Column="1" Width="9" Height="9" Margin="8,0" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{Binding Model, Converter={StaticResource RuleKindToBrushConverter}}" Visibility="{Binding Kind, Converter={StaticResource RuleKindToVisibilityConverter}}" />
-                                    <TextBlock Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center" Opacity="{Binding IsEnabled, Converter={StaticResource EnabledToOpacityConverter}}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center" Opacity="{Binding IsEnabled, Converter={StaticResource EnabledToOpacityConverter}}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
                                     <Button Grid.Column="2" Margin="4,0" Command="{Binding DataContext.DuplicateRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource Style.IconButton}" ToolTip="{DynamicResource HighlightFilter.DuplicateRule}">
                                         <ui:SymbolIcon FontSize="13" Symbol="Copy24" />
                                     </Button>
@@ -110,10 +102,10 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
                     <WrapPanel Grid.Row="3" Margin="0,10,0,0">
-                        <Button Padding="10,5" Command="{Binding AddRuleCommand}" Content="{DynamicResource HighlightFilter.AddRule}" />
-                        <Button Margin="8,0,0,0" Padding="10,5" Command="{Binding DeleteRuleCommand}" Content="{DynamicResource HighlightFilter.DeleteRule}" />
-                        <Button Margin="8,0,0,0" Padding="10,5" Command="{Binding MoveUpCommand}" Content="{DynamicResource HighlightFilter.MoveUp}" />
-                        <Button Margin="8,0,0,0" Padding="10,5" Command="{Binding MoveDownCommand}" Content="{DynamicResource HighlightFilter.MoveDown}" />
+                        <Button Margin="0,0,6,6" Padding="8,5" FontSize="{DynamicResource Fs.Small}" Command="{Binding AddRuleCommand}" Content="{DynamicResource HighlightFilter.AddRule}" />
+                        <Button Margin="0,0,6,6" Padding="8,5" FontSize="{DynamicResource Fs.Small}" Command="{Binding DeleteRuleCommand}" Content="{DynamicResource HighlightFilter.DeleteRule}" />
+                        <Button Margin="0,0,6,6" Padding="8,5" FontSize="{DynamicResource Fs.Small}" Command="{Binding MoveUpCommand}" Content="{DynamicResource HighlightFilter.MoveUp}" />
+                        <Button Margin="0,0,6,6" Padding="8,5" FontSize="{DynamicResource Fs.Small}" Command="{Binding MoveDownCommand}" Content="{DynamicResource HighlightFilter.MoveDown}" />
                     </WrapPanel>
                 </Grid>
             </Border>
@@ -122,7 +114,7 @@
             <Border Grid.Column="2" Padding="14,12" Style="{DynamicResource Style.SettingsCard}">
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="10" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                    <TextBlock FontSize="14" FontWeight="SemiBold" Text="{DynamicResource HighlightFilter.Editor}" />
+                    <TextBlock FontSize="{DynamicResource Fs.Body}" FontWeight="SemiBold" Text="{DynamicResource HighlightFilter.Editor}" />
                     <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" IsEnabled="{Binding IsRuleSelected}">
                         <StackPanel>
                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource HighlightFilter.Name}" />

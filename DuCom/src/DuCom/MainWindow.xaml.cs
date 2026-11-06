@@ -16,6 +16,7 @@ using Wpf.Ui.Controls;
 
 namespace DuCom;
 
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001:Types that own disposable fields should be disposable", Justification = "WPF window lifetime disposes serial-device notification registration in MainWindow_Closed.")]
 public partial class MainWindow : FluentWindow
 {
     private bool _shutdownCompleted;
@@ -24,6 +25,8 @@ public partial class MainWindow : FluentWindow
     private readonly ShortcutEngine _shortcutEngine;
     private readonly DispatcherTimer _deviceRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private HwndSource? _windowSource;
+    private Services.WindowsPortNotifications? _portNotifications;
+    private int _deviceRefreshPassesRemaining;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -83,13 +86,19 @@ public partial class MainWindow : FluentWindow
     {
         _windowSource = PresentationSource.FromVisual(this) as HwndSource;
         _windowSource?.AddHook(WindowMessageHook);
+        if (_windowSource is not null)
+        {
+            _portNotifications = new Services.WindowsPortNotifications(_windowSource.Handle);
+        }
     }
 
     private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        const int WmDeviceChange = 0x0219;
-        if (message == WmDeviceChange)
+        if (Services.WindowsPortNotifications.ShouldRefresh(message, wParam))
         {
+            // Drivers may publish the devnode before PortName/SERIALCOMM is ready.
+            // Keep a bounded settling pass even when no second message is broadcast.
+            _deviceRefreshPassesRemaining = 3;
             _deviceRefreshTimer.Stop();
             _deviceRefreshTimer.Start();
         }
@@ -99,8 +108,12 @@ public partial class MainWindow : FluentWindow
 
     private void DeviceRefreshTimer_Tick(object? sender, EventArgs e)
     {
-        _deviceRefreshTimer.Stop();
-        if (DataContext is MainViewModel viewModel && viewModel.RefreshPortsCommand.CanExecute(null))
+        if (--_deviceRefreshPassesRemaining <= 0)
+        {
+            _deviceRefreshTimer.Stop();
+        }
+
+        if (!_shutdownStarted && DataContext is MainViewModel viewModel && viewModel.RefreshPortsCommand.CanExecute(null))
         {
             viewModel.RefreshPortsCommand.Execute(null);
             Program.DiagnosticLog?.Information("Serial-port refresh requested after a Windows device-change notification.");
@@ -114,6 +127,8 @@ public partial class MainWindow : FluentWindow
         StopMemoryMonitor();
         _processMemoryTimer.Tick -= ProcessMemoryTimer_Tick;
         _systemMemoryTimer.Tick -= SystemMemoryTimer_Tick;
+        _portNotifications?.Dispose();
+        _portNotifications = null;
         _windowSource?.RemoveHook(WindowMessageHook);
         _windowSource = null;
         if (DataContext is MainViewModel viewModel)

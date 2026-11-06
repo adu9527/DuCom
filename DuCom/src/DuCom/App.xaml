@@ -1,4 +1,4 @@
-﻿<Application x:Class="DuCom.App"
+<Application x:Class="DuCom.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
@@ -8,9 +8,25 @@
             <ResourceDictionary.MergedDictionaries>
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
+                <ResourceDictionary Source="Resources/CommonControls.xaml" />
                 <ResourceDictionary Source="Resources/DesignTokens.xaml" />
                 <ResourceDictionary Source="Resources/DesignTokens.Colors.Dark.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- An implicit Window style alone does not match FluentWindow subclasses. -->
+            <Style x:Key="Style.ApplicationWindow" TargetType="Window">
+                <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI" />
+                <Setter Property="FontSize" Value="{DynamicResource Fs.Body}" />
+                <Setter Property="FontWeight" Value="Normal" />
+                <Setter Property="UseLayoutRounding" Value="True" />
+                <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+                <Setter Property="TextOptions.TextRenderingMode" Value="Auto" />
+                <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled" />
+            </Style>
+            <!-- Window styles are opt-in; WindowRenderingPolicy applies inherited rendering
+                 defaults without replacing a derived FluentWindow's library theme style. -->
+            <!-- FluentWindow roots specify rendering properties explicitly: replacing their
+                 implicit style can discard the library's window content presenter. -->
         </ResourceDictionary>
     </Application.Resources>
 </Application>

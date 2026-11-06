@@ -82,28 +82,37 @@ internal sealed class PortRefreshCoordinator
                     _requested = false;
                 }
 
-                Stopwatch stopwatch = Stopwatch.StartNew();
-                PortDiscoverySnapshot discovered = await _discoverAsync();
-                stopwatch.Stop();
-                if (stopwatch.Elapsed >= _slowOperationThreshold)
+                try
                 {
-                    _logSlowOperation(stopwatch.Elapsed, discovered.Names.Length);
-                }
-
-                lock (_sync)
-                {
-                    if (_requested)
+                    Stopwatch stopwatch = Stopwatch.StartNew();
+                    PortDiscoverySnapshot discovered = await _discoverAsync();
+                    stopwatch.Stop();
+                    if (stopwatch.Elapsed >= _slowOperationThreshold)
                     {
-                        continue;
+                        _logSlowOperation(stopwatch.Elapsed, discovered.Names.Length);
                     }
-                }
 
-                if (_isStopping())
+                    lock (_sync)
+                    {
+                        if (_requested)
+                        {
+                            continue;
+                        }
+                    }
+
+                    if (_isStopping())
+                    {
+                        break;
+                    }
+
+                    _apply(discovered);
+                }
+                catch (Exception exception)
                 {
-                    break;
+                    // A request merged while discovery was in flight still needs to run,
+                    // even if that discovery failed during a device transition.
+                    _logException(exception);
                 }
-
-                _apply(discovered);
 
                 lock (_sync)
                 {

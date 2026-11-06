@@ -22,6 +22,7 @@ public partial class App : Application, IDisposable
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        Services.WindowRenderingPolicy.Initialize();
         base.OnStartup(e);
         DiagnosticLog?.Information($"WPF startup entered. Arguments={string.Join(' ', e.Args)}");
         Services.TaskbarIconService.Initialize(Services.Updates.BuildDistribution.Current != Services.Updates.DistributionKind.Installed);
@@ -45,6 +46,14 @@ public partial class App : Application, IDisposable
             WindowBackdropType.Mica,
             updateAccent: true);
 
+        // Stable DIP typography; PerMonitorV2 handles each window's monitor scale.
+        // Apply before window construction so templates share the same type scale.
+        Services.DensityService.Apply(Resources);
+        DiagnosticLog?.Information(
+            $"Density applied. Mode={Services.DensityService.Mode}; "
+            + $"Screen={Services.DensityService.PhysicalWidth}x{Services.DensityService.PhysicalHeight}; "
+            + $"DpiScale={Services.DensityService.DpiScale:F2}; Factor={Services.DensityService.Factor:F2}");
+
         _compositionRoot = new CompositionRoot();
         DiagnosticLog?.Information("Creating main window.");
         MainWindow = _compositionRoot.CreateMainWindow();
@@ -54,7 +63,11 @@ public partial class App : Application, IDisposable
 
         InitializePluginSystem();
 
-        if (arguments.ContainsKey("smoke-test"))
+        if (arguments.TryGetValue("ui-review-smoke", out string? reviewOutput))
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => RunUiReviewSmokeTest(MainWindow, reviewOutput));
+        }
+        else if (arguments.ContainsKey("smoke-test"))
         {
             Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => RunShellSmokeTest(MainWindow));
         }

@@ -121,6 +121,47 @@ public sealed class PortRefreshCoordinatorTests
         Assert.True(coordinator.WaitForCurrentRefreshAsync().IsCompletedSuccessfully);
     }
 
+    [Fact]
+    public async Task RequestMergedDuringFailedDiscoveryIsNotLost()
+    {
+        TaskCompletionSource<PortDiscoverySnapshot> firstDiscovery = NewDiscoverySource();
+        int calls = 0;
+        List<string> applied = [];
+        List<Exception> errors = [];
+        PortRefreshCoordinator coordinator = CreateCoordinator(
+            () => ++calls == 1 ? firstDiscovery.Task : Task.FromResult(Snapshot("COM8")),
+            snapshot => applied.Add(snapshot.Names.Single()), errors.Add);
+
+        Task refresh = coordinator.RequestRefreshAsync();
+        Assert.Same(refresh, coordinator.RequestRefreshAsync());
+        firstDiscovery.SetException(new InvalidOperationException("device changed during enumeration"));
+        await refresh;
+
+        Assert.Equal(2, calls);
+        Assert.Single(errors);
+        Assert.Equal(["COM8"], applied);
+        Assert.Null(coordinator.CurrentTask);
+    }
+
+    [Fact]
+    public async Task RequestDuringApplyRunsAnotherPass()
+    {
+        PortRefreshCoordinator? coordinator = null;
+        int applied = 0;
+        int calls = 0;
+        coordinator = CreateCoordinator(
+            () => Task.FromResult(Snapshot($"COM{++calls}")),
+            snapshot =>
+            {
+                if (++applied == 1) _ = coordinator!.RequestRefreshAsync();
+            });
+
+        await coordinator.RequestRefreshAsync();
+
+        Assert.Equal(2, calls);
+        Assert.Equal(2, applied);
+    }
+
     private static PortRefreshCoordinator CreateCoordinator(
         Func<Task<PortDiscoverySnapshot>> discoverAsync,
         Action<PortDiscoverySnapshot>? apply = null,

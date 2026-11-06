@@ -42,9 +42,14 @@ public sealed class AudioUiTests
                 window.Show();
                 RadioButton light = (RadioButton)window.FindName("LightTheme");
                 light.IsChecked = true;
-                Assert.Equal(Color.FromRgb(243, 245, 249), ((SolidColorBrush)((Panel)window.Content).Background).Color);
+                Assert.Equal(Color.FromRgb(244, 244, 245), ((SolidColorBrush)((Panel)window.Content).Background).Color);
                 Assert.DoesNotContain(Descendants<TextBlock>((DependencyObject)window.Content), b => b.Text.Contains("让文字有声", StringComparison.Ordinal));
                 ((RadioButton)window.FindName("DarkTheme")).IsChecked = true;
+                // Populate templates before traversing: Show alone need not complete layout.
+                FrameworkElement content = (FrameworkElement)window.Content;
+                content.Measure(new Size(window.Width, window.Height));
+                content.Arrange(new Rect(0, 0, window.Width, window.Height));
+                content.UpdateLayout();
                 TextBox text = Descendants<TextBox>((DependencyObject)window.Content).Single(t => t.AcceptsReturn);
                 text.Text = "你好，欢迎使用 DuCom 语音合成。\n\n输入文本，选择语音，即可生成 MP3 音频和同步 SRT 字幕。\n\n支持在线按需试听，无需安装 Python 或 FFmpeg。";
                 Capture(window, "audio-default-dark.png");

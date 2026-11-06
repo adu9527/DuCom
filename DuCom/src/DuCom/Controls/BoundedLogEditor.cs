@@ -78,7 +78,11 @@ public sealed partial class BoundedLogEditor : TextEditor
     public BoundedLogEditor()
     {
         IsReadOnly = true;
-        FontFamily = new FontFamily("Cascadia Mono, Consolas");
+        FontFamily = new FontFamily("Cascadia Mono, Consolas, Microsoft YaHei UI");
+        UseLayoutRounding = true;
+        TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
+        TextOptions.SetTextRenderingMode(this, TextRenderingMode.Auto);
+        RenderOptions.SetClearTypeHint(TextArea.TextView, ClearTypeHint.Enabled);
         HorizontalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto;
         VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto;
         Options.EnableHyperlinks = false;

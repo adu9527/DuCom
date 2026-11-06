@@ -7,161 +7,115 @@
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:PluginRuntimeStateToStringConverter x:Key="PluginRuntimeStateToStringConverter" />
-        <Style x:Key="PluginStateSegment" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="MinHeight" Value="32" />
-            <Setter Property="MinWidth" Value="76" />
-            <Setter Property="Padding" Value="16,5" />
-            <Setter Property="HorizontalContentAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />
-            <Setter Property="Background" Value="{DynamicResource Brush.PanelRaised}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource Brush.PanelBorder}" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
+        <converters:PluginStringLabelConverter x:Key="PluginStringLabelConverter" />
     </UserControl.Resources>
-    <Grid Background="{DynamicResource Brush.PanelSurface}">
+    <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="260" />
-            <ColumnDefinition Width="1" />
+            <ColumnDefinition Width="210" MinWidth="180" />
+            <ColumnDefinition Width="10" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
-
-        <Border Padding="12">
+        <Border Style="{DynamicResource Style.Panel}" Padding="10">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" /><RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <TextBlock FontSize="18" FontWeight="SemiBold" Text="{DynamicResource Plugins.Installed}" />
-                <ListBox Grid.Row="1" Margin="0,10,0,0" ItemsSource="{Binding Plugins}" SelectedItem="{Binding SelectedPlugin}"
+                <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Plugins.Installed}" />
+                <StackPanel Grid.Row="1" Margin="0,4,0,10">
+                    <Button Style="{StaticResource Style.ToolbarPrimary}" Command="{Binding InstallPluginCommand}" Content="{DynamicResource Plugins.Install}" />
+                    <WrapPanel Margin="0,6,0,0">
+                        <Button Margin="0,0,6,4" Padding="8,4" FontSize="{DynamicResource Fs.Small}" Command="{Binding EnableAllPluginsCommand}" Content="{DynamicResource Plugins.Enable}" />
+                        <Button Margin="0,0,6,4" Padding="8,4" FontSize="{DynamicResource Fs.Small}" Command="{Binding DisableAllPluginsCommand}" Content="{DynamicResource Plugins.Disable}" />
+                        <Button Margin="0,0,0,4" Padding="8,4" FontSize="{DynamicResource Fs.Small}" Command="{Binding RefreshPluginsCommand}" Content="{DynamicResource Plugins.Refresh}" />
+                    </WrapPanel>
+                </StackPanel>
+                <ListBox Grid.Row="2" ItemsSource="{Binding Plugins}" SelectedItem="{Binding SelectedPlugin}"
+                         Background="Transparent" BorderThickness="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem" BasedOn="{StaticResource Style.EditorListItem}">
+                            <Setter Property="Padding" Value="8,10" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            <Setter Property="Padding" Value="10,9" />
                         </Style>
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="38" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <Border Width="32" Height="32" Background="{DynamicResource Brush.AccentSoft}" CornerRadius="6">
-                                    <ui:SymbolIcon HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource Brush.Accent}" Symbol="PuzzlePiece24" />
-                                </Border>
-                                <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                                    <TextBlock FontWeight="SemiBold" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock FontSize="11" Foreground="{DynamicResource Brush.TextSecondary}"
-                                               Text="{Binding State, Converter={StaticResource PluginRuntimeStateToStringConverter}}" />
-                                </StackPanel>
-                            </Grid>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                                <TextBlock Margin="0,4,0,0" FontSize="{DynamicResource Fs.Small}" Foreground="{DynamicResource Brush.TextSecondary}"
+                                           Text="{Binding State, Converter={StaticResource PluginRuntimeStateToStringConverter}}" />
+                            </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
-                <Expander Grid.Row="2" Margin="0,10,0,0" Header="{DynamicResource Plugins.Advanced}">
-                    <StackPanel>
-                        <CheckBox Content="{DynamicResource Plugins.SafeStart}" IsChecked="{Binding SafeStartAllPlugins, Mode=TwoWay}" />
-                        <Button Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding OpenPluginFolderCommand}" Content="{DynamicResource Plugins.OpenFolder}" />
+                <Expander Grid.Row="3" Margin="0,10,0,0" Header="{DynamicResource Plugins.Advanced}">
+                    <StackPanel Margin="0,8,0,0">
+                        <CheckBox IsChecked="{Binding SafeStartAllPlugins, Mode=TwoWay}">
+                            <TextBlock Text="{DynamicResource Plugins.SafeStart}" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <Button Margin="0,10,0,0" Command="{Binding OpenPluginFolderCommand}" Content="{DynamicResource Plugins.OpenFolder}" />
+                        <TextBlock Margin="0,8,0,0" FontSize="{DynamicResource Fs.Small}" Text="{Binding BudgetSummary}" TextWrapping="Wrap" Foreground="{DynamicResource Brush.TextSecondary}" />
                     </StackPanel>
                 </Expander>
             </Grid>
         </Border>
-
-        <Border Grid.Column="1" Background="{DynamicResource Brush.PanelBorder}" />
-
         <ScrollViewer Grid.Column="2" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="22,16,22,24">
-                <DockPanel>
-                    <Border DockPanel.Dock="Right" Padding="8,3" Background="{DynamicResource Brush.AccentSoft}" CornerRadius="8"
-                            Visibility="{Binding SelectedPlugin.IsBuiltIn, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TextBlock Foreground="{DynamicResource Brush.Accent}" Text="{DynamicResource Plugins.BuiltIn}" />
+            <StackPanel Margin="0,0,4,0">
+                <StackPanel Visibility="{Binding IsRowSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{Binding SelectedPlugin.Name}" TextWrapping="Wrap" />
+                    <WrapPanel Margin="0,4,0,10">
+                        <TextBlock x:Name="PluginVersionText" Margin="0,0,12,0" Foreground="{DynamicResource Brush.TextSecondary}" Text="{Binding SelectedPlugin.Version}" />
+                        <TextBlock Foreground="{DynamicResource Brush.Accent}" Text="{DynamicResource Plugins.BuiltIn}"
+                                   Visibility="{Binding SelectedPlugin.IsBuiltIn, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </WrapPanel>
+                    <TextBlock Margin="0,0,0,14" Style="{DynamicResource Style.MutedText}" Text="{Binding SelectedPlugin.Description}" />
+                    <WrapPanel Margin="0,0,0,8" IsEnabled="{Binding CanToggle}">
+                        <Button x:Name="EnablePluginButton" Margin="0,0,6,6" Command="{Binding EnablePluginCommand}" CommandParameter="{Binding SelectedPlugin}" Content="{DynamicResource Plugins.Enable}" />
+                        <Button x:Name="DisablePluginButton" Margin="0,0,6,6" Command="{Binding DisablePluginCommand}" CommandParameter="{Binding SelectedPlugin}" Content="{DynamicResource Plugins.Disable}" />
+                        <Button Margin="0,0,6,6" Command="{Binding RestartPluginCommand}" CommandParameter="{Binding SelectedPlugin}" Content="{DynamicResource Plugins.Restart}" />
+                        <Button Margin="0,0,6,6" Command="{Binding UninstallSelectedCommand}" IsEnabled="{Binding CanUninstall}" Content="{DynamicResource Plugins.Uninstall}" />
+                    </WrapPanel>
+                    <Button Margin="0,0,0,14" HorizontalAlignment="Left" Style="{StaticResource Style.ToolbarPrimary}"
+                            Command="{Binding OpenPluginCommand}" CommandParameter="{Binding SelectedPlugin}"
+                            IsEnabled="{Binding SelectedPlugin.IsActive}" Content="{DynamicResource Plugins.OpenFeature}" />
+                    <Border Style="{DynamicResource Style.SettingsCard}">
+                        <StackPanel>
+                            <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Plugins.RunState}" />
+                            <TextBlock Text="{Binding SelectedStateText}" Foreground="{DynamicResource Brush.Accent}" />
+                            <TextBlock Margin="0,8,0,0" Text="{Binding SelectedPlugin.FaultReason}" TextWrapping="Wrap" Foreground="{DynamicResource Brush.Danger}"
+                                       Visibility="{Binding SelectedPlugin.HasFaultReason, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <TextBlock Margin="0,8,0,0" Text="{DynamicResource Plugins.PendingRestart}" Foreground="{DynamicResource Brush.Caution}"
+                                       Visibility="{Binding SelectedPlugin.PendingUpdate, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </StackPanel>
                     </Border>
-                    <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding SelectedPlugin.Name}" />
-                </DockPanel>
-                <StackPanel Margin="0,8,0,0" Orientation="Horizontal"
-                            Visibility="{Binding IsRowSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <TextBlock Foreground="{DynamicResource Brush.TextSecondary}" Text="{DynamicResource Plugins.Column.Version}" />
-                    <TextBlock x:Name="PluginVersionText" Margin="8,0,0,0" FontWeight="SemiBold" Text="{Binding SelectedPlugin.Version}" />
-                </StackPanel>
-                <TextBlock Margin="0,6,0,0" Style="{DynamicResource Style.MutedText}" Text="{Binding SelectedPlugin.Description}" TextWrapping="Wrap" />
-                <TextBlock Margin="0,10,0,0" Visibility="{Binding SelectedPlugin.HasIntegrationGuide, Converter={StaticResource BooleanToVisibilityConverter}}">
-                    <Hyperlink Command="{Binding OpenIntegrationGuideCommand}">恒玄接入文档（内嵌流程、完整代码与验证指导）</Hyperlink>
-                </TextBlock>
-
-                <StackPanel Margin="0,18,0,0" Orientation="Horizontal">
-                    <Border Padding="3" HorizontalAlignment="Left" CornerRadius="8"
-                            Background="{DynamicResource Brush.PanelRaised}" BorderBrush="{DynamicResource Brush.PanelBorder}" BorderThickness="1"
-                            IsEnabled="{Binding CanToggle}">
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="4" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <Button Grid.Column="0"
-                                    Command="{Binding EnablePluginCommand}" CommandParameter="{Binding SelectedPlugin}">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource PluginStateSegment}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedPlugin.Enabled}" Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource Brush.SuccessSoft}" />
-                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.Success}" />
-                                                <Setter Property="Foreground" Value="{DynamicResource Brush.Success}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                                <TextBlock FontWeight="SemiBold" Text="ON" ToolTip="{DynamicResource Plugins.Enabled.Hint}" />
-                            </Button>
-                            <Button Grid.Column="2"
-                                    Command="{Binding DisablePluginCommand}" CommandParameter="{Binding SelectedPlugin}">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource PluginStateSegment}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedPlugin.IsDisabled}" Value="True">
-                                                <Setter Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
-                                                <Setter Property="BorderBrush" Value="{DynamicResource Brush.Accent}" />
-                                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                                <TextBlock FontWeight="SemiBold" Text="OFF" ToolTip="{DynamicResource Plugins.Disabled.Hint}" />
-                            </Button>
-                        </Grid>
+                    <Border Style="{DynamicResource Style.SettingsCard}">
+                        <StackPanel>
+                            <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Plugins.Info}" />
+                            <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Plugins.Id}" />
+                            <TextBlock Text="{Binding SelectedPlugin.Id}" TextWrapping="Wrap" />
+                            <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Plugins.WorkerPid}" />
+                            <TextBlock Text="{Binding SelectedPlugin.WorkerPid}" />
+                            <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Plugins.Capabilities}" />
+                            <ItemsControl ItemsSource="{Binding SelectedPlugin.Capabilities}">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate><DataTemplate><Border Margin="0,0,6,6" Padding="8,4" Background="{DynamicResource Brush.ControlSurface}" CornerRadius="4"><TextBlock Text="{Binding Path=., Converter={StaticResource PluginStringLabelConverter}}" FontSize="{DynamicResource Fs.Small}" /></Border></DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Margin="0,10,0,4" Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Plugins.Permissions}" />
+                            <ItemsControl ItemsSource="{Binding SelectedPlugin.Permissions}">
+                                <ItemsControl.ItemTemplate><DataTemplate><TextBlock Margin="0,0,0,6" Text="{Binding Path=., Converter={StaticResource PluginStringLabelConverter}}" TextWrapping="Wrap" FontSize="{DynamicResource Fs.Small}" /></DataTemplate></ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Margin="0,10,0,0" Visibility="{Binding SelectedPlugin.HasIntegrationGuide, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Hyperlink Command="{Binding OpenIntegrationGuideCommand}">BES / 恒玄接入文档</Hyperlink>
+                            </TextBlock>
+                        </StackPanel>
                     </Border>
-                    <Button Margin="10,0,0,0" VerticalAlignment="Center" MinWidth="96" Padding="14,7"
-                             Command="{Binding RestartPluginCommand}" CommandParameter="{Binding SelectedPlugin}"
-                             IsEnabled="{Binding CanToggle}" Content="{DynamicResource Plugins.Restart}" />
-                    <Button Margin="8,0,0,0" VerticalAlignment="Center" MinWidth="76" Padding="14,7"
-                            Command="{Binding UninstallSelectedCommand}" IsEnabled="{Binding CanUninstall}"
-                            Content="{DynamicResource Plugins.Uninstall}">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedPlugin.IsBuiltIn}" Value="True">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
                 </StackPanel>
-
-                <ui:Button Margin="0,16,0,0" HorizontalAlignment="Left" MinWidth="130" Padding="16,7" Appearance="Primary"
-                           Command="{Binding OpenPluginCommand}" CommandParameter="{Binding SelectedPlugin}"
-                           IsEnabled="{Binding SelectedPlugin.IsActive}" Content="{DynamicResource Plugins.OpenFeature}" />
-
-                <Border Margin="0,18,0,0" Style="{DynamicResource Style.SettingsCard}">
-                    <StackPanel>
-                        <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Plugins.Status}" />
-                        <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Text="{Binding SelectedStateText}" />
-                        <TextBlock Margin="0,6,0,0" Text="{Binding SelectedPlugin.FaultReason}" TextWrapping="Wrap"
-                                   Foreground="{DynamicResource Brush.Danger}" Visibility="{Binding SelectedPlugin.HasFaultReason, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                        <TextBlock Margin="0,6,0,0" Text="{Binding OperationMessage}" TextWrapping="Wrap" />
-                        <TextBlock Margin="0,6,0,0" FontWeight="SemiBold" Text="{DynamicResource Plugins.PendingRestart}"
-                                   Visibility="{Binding SelectedPlugin.PendingUpdate, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                    </StackPanel>
-                </Border>
-                <ui:Button Margin="0,14,0,0" HorizontalAlignment="Left" Appearance="Primary" Padding="16,7"
-                           Command="{Binding ApplyAndRestartCommand}" Content="{DynamicResource Plugins.ApplyRestart}"
-                           Visibility="{Binding HasPendingUpdates, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <!-- Keep feedback outside selection-dependent content: installs can fail before selection. -->
+                <TextBlock Margin="0,4,0,12" Text="{Binding OperationMessage}" TextWrapping="Wrap" Foreground="{DynamicResource Brush.TextSecondary}" />
+                <Button HorizontalAlignment="Left" Style="{StaticResource Style.ToolbarPrimary}"
+                        Command="{Binding ApplyAndRestartCommand}" Content="{DynamicResource Plugins.ApplyRestart}"
+                        Visibility="{Binding HasPendingUpdates, Converter={StaticResource BooleanToVisibilityConverter}}" />
             </StackPanel>
         </ScrollViewer>
     </Grid>

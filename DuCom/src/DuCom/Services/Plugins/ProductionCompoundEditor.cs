@@ -12,13 +12,14 @@ public sealed class ProductionCompoundEditor : Window
     private readonly ProtocolSettings _protocol;
     private readonly DataGrid _steps = new();
     private readonly ComboBox _output = new() { Width = 240, DisplayMemberPath = "Label", SelectedValuePath = "Id" };
-    private readonly TextBlock _error = new() { Foreground = Brushes.Salmon, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _error = new() { Foreground = (Brush)Application.Current.FindResource("Brush.Danger"), TextWrapping = TextWrapping.Wrap };
     public ProductionCompoundEditor(ProductionCommand group, ProtocolSettings protocol)
     {
         _group = group; _protocol = protocol;
         Title = "复合命令"; Width = 980; Height = 700; MinWidth = 850; MinHeight = 560;
         WindowStartupLocation = WindowStartupLocation.CenterOwner; Background = new SolidColorBrush(Color.FromRgb(9, 9, 11)); Foreground = Brushes.WhiteSmoke;
         Resources.MergedDictionaries.Add(new() { Source = new Uri("/DuCom;component/Services/Plugins/ProductionStyles.xaml", UriKind.Relative) });
+        PluginVisualTheme.Apply(this);
         Grid root = new() { Margin = new Thickness(24) };
         foreach (GridLength height in new[] { GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto, GridLength.Auto }) root.RowDefinitions.Add(new() { Height = height });
         WrapPanel basics = new(); ProductionProfileEditor.AddInput(basics, "复合命令名称", group, "Name", 240); ProductionProfileEditor.AddInput(basics, "完成后间隔 ms", group, "DelayMs", 120); root.Children.Add(basics);
@@ -49,7 +50,7 @@ public sealed class ProductionCompoundEditor : Window
         result.Children.Add(outputLine);
         ProductionProfileEditor.AddInput(result, "完成提示（留空则汇总各步骤结果）", group, "SuccessText", 450);
         group.Comparisons.Clear();
-        result.Children.Add(new TextBlock { Text = "按顺序执行子命令；每步可独立配置发送、回复、解析和时间。失败时显示具体步骤，左右结果分别输出。", Foreground = Brushes.LightGray, TextWrapping = TextWrapping.Wrap });
+        result.Children.Add(new TextBlock { Text = "按顺序执行子命令；每步可独立配置发送、回复、解析和时间。失败时显示具体步骤，左右结果分别输出。", TextWrapping = TextWrapping.Wrap });
         Grid.SetRow(result, 3); root.Children.Add(result);
         DockPanel footer = new() { Margin = new Thickness(0, 16, 0, 0) };
         Button save = ProductionProfileEditor.ActionButton("保存复合命令", () =>

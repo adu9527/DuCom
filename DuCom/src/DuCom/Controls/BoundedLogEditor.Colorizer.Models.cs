@@ -95,11 +95,8 @@ public sealed partial class BoundedLogEditor
                     {
                         element.BackgroundBrush = searchBackground;
                         element.TextRunProperties.SetForegroundBrush(searchForeground);
-                        element.TextRunProperties.SetTypeface(new Typeface(
-                            element.TextRunProperties.Typeface.FontFamily,
-                            element.TextRunProperties.Typeface.Style,
-                            FontWeights.SemiBold,
-                            element.TextRunProperties.Typeface.Stretch));
+                        // Background/foreground identify a match without changing glyph metrics
+                        // or overriding the user's explicit bold/italic highlight rule.
                     });
                 }
             }

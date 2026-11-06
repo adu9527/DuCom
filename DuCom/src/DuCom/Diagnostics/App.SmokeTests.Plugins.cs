@@ -107,6 +107,15 @@ public partial class App
                     VerifyMainWindowUnchanged(owner);
                     continue;
                 }
+                if (row.Id == "com.ducom.audio")
+                {
+                    // Audio uses its own native workbench, not the generic declarative shell.
+                    Services.Plugins.AudioWindow audio = Current.Windows.OfType<Services.Plugins.AudioWindow>().Single();
+                    await VerifyIndependentPluginWindowAsync(owner, audio);
+                    audio.CloseFromHost();
+                    VerifyMainWindowUnchanged(owner);
+                    continue;
+                }
                 Services.Plugins.PluginToolWindow window = Current.Windows.OfType<Services.Plugins.PluginToolWindow>().Single(item => item.PluginId == row.Id);
                 FeedbackWindow feedback = FeedbackWindow.ShowOrActivate();
                 if (!ReferenceEquals(feedback, FeedbackWindow.ShowOrActivate()))
@@ -158,6 +167,7 @@ public partial class App
         catch (Exception exception)
         {
             DiagnosticLog?.Error("Plugin UI smoke test failed.", exception);
+            await PrepareShutdownAsync();
             Shutdown(-12);
         }
     }

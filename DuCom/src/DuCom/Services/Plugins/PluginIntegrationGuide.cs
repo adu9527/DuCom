@@ -10,7 +10,7 @@ namespace DuCom.Services.Plugins;
 
 internal static class PluginIntegrationGuide
 {
-    internal static void Show(Window? owner)
+    internal static FluentWindow Show(Window? owner)
     {
         FluentWindow window = new()
         {
@@ -18,6 +18,7 @@ internal static class PluginIntegrationGuide
             MinWidth = 640, MinHeight = 480, Owner = owner,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, ExtendsContentIntoTitleBar = true,
         };
+        PluginVisualTheme.Apply(window);
         window.SetResourceReference(Control.BackgroundProperty, "Brush.ShellSurface");
         window.SetResourceReference(Control.ForegroundProperty, "Brush.TextPrimary");
         Grid shell = new();
@@ -42,5 +43,6 @@ internal static class PluginIntegrationGuide
         shell.Children.Add(document);
         window.Content = shell;
         window.Show();
+        return window;
     }
 }

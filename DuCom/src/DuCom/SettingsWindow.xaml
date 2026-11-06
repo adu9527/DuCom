@@ -29,6 +29,56 @@
             <Setter Property="TextElement.Foreground" Value="{DynamicResource Brush.TextPrimary}" />
             <Setter Property="ItemContainerStyle" Value="{StaticResource Style.SettingsComboBoxItem}" />
         </Style>
+
+        <!-- Settings navigation: the active page gets a quiet brand tint and an accent rail,
+             so the left rail reads as navigation instead of another list of buttons. -->
+        <Style x:Key="Style.SettingsNavItem" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource Brush.TextSecondary}" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Grid>
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="{DynamicResource Radius.Small}"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="False">
+                                <ContentPresenter VerticalAlignment="Center"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                            </Border>
+                            <Border x:Name="Rail"
+                                    Width="3"
+                                    Height="18"
+                                    Margin="-6,0,0,0"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Background="{DynamicResource Brush.Accent}"
+                                    CornerRadius="0,1,1,0"
+                                    Visibility="Collapsed" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.RowHover}" />
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Brush.AccentSoft}" />
+                                <Setter TargetName="Rail" Property="Visibility" Value="Visible" />
+                                <Setter Property="Foreground" Value="{DynamicResource Brush.TextPrimary}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </ui:FluentWindow.Resources>
 
     <Grid Background="{DynamicResource Brush.ShellSurface}">
@@ -40,7 +90,7 @@
             <ui:TitleBar.TrailingContent><controls:WindowCaptionButtons ShowMaximize="True" ShowMinimize="True" /></ui:TitleBar.TrailingContent>
         </ui:TitleBar>
 
-        <Grid Grid.Row="1" Margin="12,4,12,12">
+        <Grid Grid.Row="1" Margin="10,4,10,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="CategoryColumn" Width="{DynamicResource Size.SettingsNavigationColumn}" />
                 <ColumnDefinition x:Name="CategoryGapColumn" Width="{DynamicResource Size.SettingsColumnGap}" />
@@ -48,29 +98,82 @@
             </Grid.ColumnDefinitions>
 
             <Border Style="{DynamicResource Style.Panel}">
-                <ListBox x:Name="CategoryList" SelectedIndex="0">
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource Style.SidebarListItem}">
-                            <Setter Property="MinHeight" Value="36" />
-                             <Setter Property="Margin" Value="0" />
-                             <Setter Property="Padding" Value="10,0" />
-                            <Setter Property="VerticalContentAlignment" Value="Center" />
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-                    <ListBoxItem Content="{DynamicResource Settings.General}" />
-                    <ListBoxItem Content="{DynamicResource Settings.Transport}" />
-                    <ListBoxItem Content="{DynamicResource Settings.Receive}" />
-                    <ListBoxItem Content="{DynamicResource Settings.HighlightFilter}" />
-                    <ListBoxItem Content="{DynamicResource Menu.Tools.Plugins}" />
-                    <ListBoxItem Content="{DynamicResource Settings.Send}" />
-                    <ListBoxItem Content="{DynamicResource Settings.Appearance}" />
-                    <ListBoxItem Content="{DynamicResource Menu.Tools.Shortcuts}" />
-                    <ListBoxItem Content="{DynamicResource Settings.Tools}" />
-                    <ListBoxItem Content="{DynamicResource Settings.Update}" />
-                </ListBox>
+                <StackPanel>
+                    <TextBlock Margin="10,2,10,2" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Brush.TextPrimary}"
+                               Text="{DynamicResource Settings.Title}" />
+
+                    <ListBox x:Name="CategoryList" SelectedIndex="0" Background="Transparent" BorderThickness="0">
+                    <ListBox.Resources>
+                        <!-- 导航项是显式声明的 ListBoxItem，ItemContainerStyle 管不到它们，
+                             必须用隐式样式才能命中 -->
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource Style.SettingsNavItem}" />
+                    </ListBox.Resources>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Settings24" Margin="0,0,9,0" />
+                            <TextBlock Text="{DynamicResource Settings.General}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="PlugConnected24" Margin="0,0,9,0" />
+                            <TextBlock Text="{DynamicResource Settings.Transport}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Document24" Margin="0,0,9,0" />
+                            <TextBlock Text="{DynamicResource Settings.Receive}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Filter24" Margin="0,0,9,0" />
+                            <TextBlock Text="{DynamicResource Settings.HighlightFilter}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="PuzzlePiece24" Margin="0,0,9,0" />
+                            <TextBlock Text="{DynamicResource Menu.Tools.Plugins}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Send24" Margin="0,0,9,0" />
+                            <TextBlock Text="{DynamicResource Settings.Send}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Color24" Margin="0,0,9,0" />
+                            <TextBlock Text="{DynamicResource Settings.Appearance}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Keyboard24" Margin="0,0,9,0" />
+                            <TextBlock Text="{DynamicResource Menu.Tools.Shortcuts}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="Cube24" Margin="0,0,9,0" />
+                            <TextBlock Text="{DynamicResource Settings.Tools}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="ArrowSync24" Margin="0,0,9,0" />
+                            <TextBlock Text="{DynamicResource Settings.Update}" />
+                        </StackPanel>
+                    </ListBoxItem>
+                    </ListBox>
+                </StackPanel>
             </Border>
 
-            <Border Grid.Column="2" Padding="24,16" Style="{DynamicResource Style.Panel}">
+            <Border Grid.Column="2" Padding="2,0,6,0" Background="Transparent" BorderThickness="0">
                 <TabControl SelectedIndex="{Binding SelectedIndex, ElementName=CategoryList}">
                     <TabControl.ItemContainerStyle>
                         <Style TargetType="TabItem">
@@ -244,10 +347,10 @@
                                 <Border Style="{DynamicResource Style.SettingsCard}">
                                     <StackPanel>
                                         <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.CustomBaudRates}" />
-                                        <ItemsControl ItemsSource="{Binding BaudRates}">
+                                        <ItemsControl ItemsSource="{Binding BaudRates}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <DockPanel Margin="0,2">
+                                                    <DockPanel Width="132" Margin="0,0,10,8">
                                                         <Button DockPanel.Dock="Right"
                                                                 Command="{Binding DataContext.RemoveBaudRateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                          CommandParameter="{Binding}"
@@ -375,19 +478,7 @@
                         <Grid>
                             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                             <Grid Margin="0,0,0,12">
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                 <TextBlock Style="{DynamicResource Style.SettingsPageTitle}" Text="{DynamicResource Menu.Tools.Plugins}" />
-                                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <ui:Button Appearance="Primary" Padding="16,7"
-                                               Command="{Binding PluginManager.EnableAllPluginsCommand}"
-                                               Content="{DynamicResource Plugins.EnableAll}" />
-                                    <ui:Button Margin="8,0,0,0" Appearance="Primary" Padding="16,7"
-                                               Command="{Binding PluginManager.DisableAllPluginsCommand}"
-                                               Content="{DynamicResource Plugins.DisableAll}" />
-                                    <ui:Button Margin="8,0,0,0" Appearance="Primary" Padding="16,7"
-                                               Command="{Binding PluginManager.InstallPluginCommand}"
-                                               Content="{DynamicResource Plugins.Install}" />
-                                </StackPanel>
                             </Grid>
                             <local:PluginManagerControl Grid.Row="1"
                                                         HorizontalAlignment="Stretch"
@@ -404,12 +495,7 @@
                                  <Border Style="{DynamicResource Style.SettingsCard}">
                                     <StackPanel>
                                     <TextBlock Style="{DynamicResource Style.SectionTitle}" Text="{DynamicResource Settings.Section.SendDefaults}" />
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="16" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
+                                    <StackPanel>
                                         <StackPanel>
                                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.ModeLabel}" />
                                              <ComboBox SelectedValue="{Binding SerialParameters.SerialParameterSendMode}" SelectedValuePath="Tag">
@@ -417,17 +503,17 @@
                                                 <ComboBoxItem Content="{DynamicResource Send.ModeHex}" Tag="{x:Static sending:SendMode.Hex}" />
                                             </ComboBox>
                                         </StackPanel>
-                                        <StackPanel Grid.Column="2">
+                                        <StackPanel Margin="0,14,0,0">
                                             <TextBlock Style="{DynamicResource Style.FieldLabel}" Text="{DynamicResource Send.NewlineLabel}" />
                                             <TextBlock Margin="0,0,0,8" Style="{DynamicResource Style.MutedText}" Text="{DynamicResource Send.NewlineHint}" TextWrapping="Wrap" />
-                                            <StackPanel>
+                                            <WrapPanel>
                                                  <RadioButton Content="{DynamicResource Send.NewlineNone.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.None}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
                                                  <RadioButton Content="{DynamicResource Send.NewlineCr.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Cr}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
                                                  <RadioButton Content="{DynamicResource Send.NewlineLf.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.Lf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
                                                  <RadioButton Content="{DynamicResource Send.NewlineCrLf.Description}" GroupName="DefaultNewline" IsChecked="{Binding SerialParameters.SerialParameterNewline, Converter={StaticResource EqualityConverter}, ConverterParameter={x:Static sending:NewlinePolicy.CrLf}}" Style="{DynamicResource Style.SettingsChoiceRadio}" />
-                                            </StackPanel>
+                                            </WrapPanel>
                                         </StackPanel>
-                                    </Grid>
+                                    </StackPanel>
                                     </StackPanel>
                                 </Border>
                                 <Border Style="{DynamicResource Style.SettingsCard}">

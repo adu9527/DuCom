@@ -21,6 +21,7 @@ public partial class CrcWindow : Window
     {
         _invoke = invoke;
         InitializeComponent();
+        PluginVisualTheme.Apply(this);
         Topmost = PluginToolWindowPreferencesService.Load().Topmost;
         ModelSelect.ItemsSource = new[] { new CrcModel("自定义", 16, 0x8005, 0xFFFF, 0, true, true) }.Concat(CrcCalculator.Models);
         ModelTable.ItemsSource = CrcCalculator.Models;
@@ -126,7 +127,7 @@ public partial class CrcWindow : Window
         try { Clipboard.SetText(text); Status("已复制：" + text); }
         catch (Exception exception) { Status("复制失败：" + exception.Message, true); }
     }
-    private void Status(string text, bool error = false) { StatusText.Text = text; StatusText.Foreground = new SolidColorBrush(error ? Color.FromRgb(248, 113, 113) : Color.FromRgb(161, 161, 170)); }
+    private void Status(string text, bool error = false) { StatusText.Text = text; StatusText.SetResourceReference(TextBlock.ForegroundProperty, error ? "Brush.Danger" : "Brush.TextSecondary"); }
     private void ModelTable_DoubleClick(object sender, MouseButtonEventArgs e) { if (ModelTable.SelectedItem is CrcModel model) ModelSelect.SelectedItem = model; }
     private void Reference_Navigate(object sender, RequestNavigateEventArgs e)
     {

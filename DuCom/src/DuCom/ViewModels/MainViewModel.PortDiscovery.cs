@@ -9,18 +9,20 @@ public partial class MainViewModel
     [RelayCommand(AllowConcurrentExecutions = true)]
     private Task RefreshPortsAsync() => _portRefreshCoordinator.RequestRefreshAsync();
 
-    private Task<PortDiscoverySnapshot> DiscoverPortsAsync()
+    private Task<PortDiscoverySnapshot> DiscoverPortsAsync() => Task.Run(() => DiscoverPorts(_portDiscovery));
+
+    internal static PortDiscoverySnapshot DiscoverPorts(IPortDiscovery discovery)
     {
-        return Task.Run(() =>
+        if (discovery is IPortDetailsProvider provider)
         {
-            IReadOnlyDictionary<string, DiscoveredPort> details =
-                (_portDiscovery as IPortDetailsProvider)?.GetPortDetails()
-                ?? new Dictionary<string, DiscoveredPort>(StringComparer.OrdinalIgnoreCase);
-            string[] names = details.Count > 0
-                ? [.. details.Keys]
-                : [.. _portDiscovery.GetPortNames()];
-            return new PortDiscoverySnapshot(names, details);
-        });
+            // An empty details snapshot is a valid 'all devices removed' result, not
+            // a reason to enumerate again and combine two different moments in time.
+            IReadOnlyDictionary<string, DiscoveredPort> details = provider.GetPortDetails();
+            return new PortDiscoverySnapshot([.. details.Keys], details);
+        }
+
+        return new PortDiscoverySnapshot([.. discovery.GetPortNames()],
+            new Dictionary<string, DiscoveredPort>(StringComparer.OrdinalIgnoreCase));
     }
 
     private void ApplyDiscoveredPorts(PortDiscoverySnapshot discovered)

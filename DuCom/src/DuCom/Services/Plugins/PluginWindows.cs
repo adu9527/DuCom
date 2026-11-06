@@ -18,6 +18,7 @@ public partial class PluginToolWindow : FluentWindow
 
     public PluginToolWindow(string pluginId, ToolPageContribution page, string title, Func<string, IReadOnlyDictionary<string, string>, Task<bool>> commandInvoker)
     {
+        PluginVisualTheme.Apply(this);
         _commandInvoker = commandInvoker;
         PluginId = pluginId;
         ContributionId = page.ContributionId;
@@ -25,7 +26,19 @@ public partial class PluginToolWindow : FluentWindow
         Width = page.PreferredWidth ?? (pluginId == "com.ducom.log-package" ? 1080 : pluginId == "com.ducom.timer" ? 720 : 820);
         Height = page.PreferredHeight ?? (pluginId == "com.ducom.log-package" ? 900 : pluginId == "com.ducom.timer" ? 760 : 720);
         MinWidth = page.MinWidth ?? (pluginId == "com.ducom.log-package" ? 760 : pluginId == "com.ducom.timer" ? 560 : 640);
-        MinHeight = 560;
+        bool compactBes = BesCompactPresentation.Matches(pluginId);
+        if (compactBes)
+        {
+            // BES 是生产工具：字号 16、高度上限 800，避免内容挤在一起被裁。
+            FontSize = 18;
+            Height = Math.Min(Height, 800);
+        }
+        MinHeight = compactBes ? 700 : 560;
+        // 窗口永远不超过当前屏幕工作区，插件声明再大的高度也不会顶出屏幕。
+        MaxHeight = SystemParameters.WorkArea.Height - 24;
+        MaxWidth = SystemParameters.WorkArea.Width - 24;
+        Height = Math.Min(Height, MaxHeight);
+        Width = Math.Min(Width, MaxWidth);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ShowInTaskbar = true;
         Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/DuCom;component/Assets/DuCom.ico", UriKind.Absolute));
@@ -45,8 +58,10 @@ public partial class PluginToolWindow : FluentWindow
         shell.Children.Add(titleBar);
         ScrollViewer viewer = new()
         {
-            Margin = new Thickness(24, 16, 24, 12),
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Margin = compactBes ? new Thickness(16, 12, 16, 8) : new Thickness(24, 16, 24, 12),
+            // Declarative extensions may contain explicitly sized non-wrapping groups.
+            // Keep their last field/action reachable at the minimum window width.
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
         if (pluginId == "com.ducom.timer")
@@ -64,8 +79,8 @@ public partial class PluginToolWindow : FluentWindow
             {
                 Text = page.Watermark,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(0, -12, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0),
                 FontSize = Math.Max(1, FontSize + page.WatermarkFontSizeDelta),
                 FontWeight = FontWeights.SemiBold,
                 Opacity = 0.22,
@@ -81,7 +96,7 @@ public partial class PluginToolWindow : FluentWindow
         viewer.SizeChanged += (_, args) => ApplyViewportSize(viewer, args.NewSize.Width, args.NewSize.Height);
         Border footer = new()
         {
-            Padding = new Thickness(16, 10, 16, 10),
+            Padding = compactBes ? new Thickness(16, 8, 16, 8) : new Thickness(16, 10, 16, 10),
             Background = FindResource("Brush.PanelRaised") as System.Windows.Media.Brush,
             BorderBrush = FindResource("Brush.PanelBorder") as System.Windows.Media.Brush,
             BorderThickness = new Thickness(0, 1, 0, 0),
@@ -112,6 +127,11 @@ public partial class PluginToolWindow : FluentWindow
         footerPanel.Children.Add(close);
         PluginUiRenderer.ApplyTheme(footer);
         PluginUiRenderer.ApplyTheme(close);
+        if (compactBes)
+        {
+            close.Style = (Style)new ResourceDictionary { Source = new Uri("/DuCom;component/Services/Plugins/BesCompactStyles.xaml", UriKind.Relative) }["Bes.Button"];
+            close.MinWidth = 80;
+        }
         PluginUiRenderer.ApplyTheme(topmostToggle);
         footer.Child = footerPanel;
         Grid.SetRow(footer, 2);
@@ -342,6 +362,7 @@ public partial class PluginFaultNoticeWindow : FluentWindow
 {
     public PluginFaultNoticeWindow(ObservableCollection<HostFaultNotice> notices)
     {
+        PluginVisualTheme.Apply(this);
         Title = TryFindResource("Plugins.FaultNotice.Title") as string ?? "DuCom plugin notice";
         Width = 460;
         Height = 320;
@@ -394,7 +415,7 @@ public partial class PluginFaultNoticeWindow : FluentWindow
 
         FrameworkElementFactory title = new(typeof(System.Windows.Controls.TextBlock));
         title.SetBinding(System.Windows.Controls.TextBlock.TextProperty, new System.Windows.Data.Binding("PluginName"));
-        title.SetValue(System.Windows.Controls.TextBlock.FontWeightProperty, FontWeights.Bold);
+        title.SetValue(System.Windows.Controls.TextBlock.FontWeightProperty, FontWeights.SemiBold);
         title.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Brush.TextPrimary");
         title.SetValue(System.Windows.Controls.TextBlock.MarginProperty, new Thickness(0, 2, 0, 0));
         panel.AppendChild(title);

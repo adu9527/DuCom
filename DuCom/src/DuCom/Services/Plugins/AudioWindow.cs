@@ -276,8 +276,8 @@ public sealed partial class AudioWindow : FluentWindow
     {
         string[] keys = ["Bg","Panel","Inset","Raised","Border","Strong","Text","Secondary","Muted","Primary","Accent","Soft","Selected","Hover","Green","Error"];
         string[] colors = light
-            ? ["#F3F5F9","#FFFFFF","#F8F9FC","#FFFFFF","#E1E6EE","#C6CFDD","#202A3C","#52617A","#697890","#365EDC","#365EDC","#12365EDC","#EAF0FF","#F0F4FC","#187757","#C33752"]
-            : ["#101216","#191C22","#14171C","#242933","#2B303A","#414956","#EFF2F8","#BBC3D1","#909CAF","#82A6FF","#466FE5","#1A82A6FF","#26334C","#222A39","#71D8B0","#FF8295"];
+            ? ["#F4F4F5","#FFFFFF","#FAFAFA","#F4F4F5","#D4D4D8","#A1A1AA","#18181B","#52525B","#60606A","#2563EB","#2563EB","#122563EB","#DBEAFE","#E4E4E7","#047857","#B91C1C"]
+            : ["#09090B","#18181B","#121214","#27272A","#3F3F46","#52525B","#F4F4F5","#A1A1AA","#A1A1AA","#60A5FA","#2563EB","#1A60A5FA","#1E3A5F","#3F3F46","#6EE7B7","#F87171"];
         for (int i = 0; i < keys.Length; i++) Resources["Audio." + keys[i]] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colors[i]));
         // FluentWindow's theme service may own the window background; paint our client surface
         // explicitly as well, so a locally selected theme never exposes the host's dark chrome.

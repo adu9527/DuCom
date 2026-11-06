@@ -54,6 +54,7 @@ public partial class App
 
             generalSettings.Close();
             DiagnosticLog?.Information("Settings smoke test passed.");
+            await PrepareShutdownAsync();
             Shutdown(0);
         }
         catch (Exception exception)
@@ -205,6 +206,7 @@ public partial class App
 
             probe.Close();
             DiagnosticLog?.Information("AvalonEdit log smoke test passed.");
+            await PrepareShutdownAsync();
             Shutdown(0);
         }
         catch (Exception exception)
