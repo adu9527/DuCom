@@ -206,7 +206,8 @@ public partial class MainViewModel : ApplicationSettingsViewModel, IAsyncDisposa
     partial void OnSelectedPortItemChanged(PortItemViewModel? value)
     {
         OnPropertyChanged(nameof(LogFileNamePreview));
-        Workspace.SelectPort(value?.PortName);
+        // Refresh/filter selection changes are not a user request to create a tab.
+        if (!_rebuildingPortItems) Workspace.SelectPort(value?.PortName);
     }
 
     public async ValueTask DisposeAsync()
@@ -217,6 +218,12 @@ public partial class MainViewModel : ApplicationSettingsViewModel, IAsyncDisposa
         }
 
         _disposed = true;
+        long phaseStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        void Phase(string name)
+        {
+            Program.DiagnosticLog?.Information($"Dispose phase: {name}. ElapsedMs={System.Diagnostics.Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds:0}");
+            phaseStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        }
         SettingChanged -= OnApplicationSettingChanged;
         CompositionTarget.Rendering -= OnCompositionRendering;
         _settingsSaveTimer.Stop();
@@ -224,20 +231,26 @@ public partial class MainViewModel : ApplicationSettingsViewModel, IAsyncDisposa
         if (PluginSystem is { } pluginSystem)
         {
             await pluginSystem.Service.StopAllAsync();
+            Phase("stop-plugins");
         }
         if (!await SerialParameters.FlushAsync())
         {
             Program.DiagnosticLog?.Warning("Pending serial settings could not be flushed during shutdown.");
         }
+        Phase("flush-serial-parameters");
         SerialParameters.Dispose();
         SaveSettings();
+        Phase("save-settings");
         await CommandRunner.DisposeAsync();
+        Phase("command-runner");
         await Telnet.DisposeAsync();
+        Phase("telnet");
         _protocolDecoderWindow?.Close();
         _variablePlotWindow?.Close();
         Watchdog.Dispose();
         VariableMonitor.Dispose();
         SessionProbes.Dispose();
+        Phase("tool-windows");
         if (_privateMemoryMonitor is not null)
         {
             _privateMemoryMonitor.Sampled -= OnPrivateMemorySampled;
@@ -245,10 +258,13 @@ public partial class MainViewModel : ApplicationSettingsViewModel, IAsyncDisposa
             await _privateMemoryMonitor.DisposeAsync();
             _privateMemoryMonitor = null;
         }
+        Phase("memory-monitor");
         _floatSendWindows.CloseAll();
         _logFilterWindows.CloseAll();
         _logAnalyzerWindow?.Close();
+        Phase("log-windows");
         await Workspace.DisposeAsync();
+        Phase("workspace");
 
         GC.SuppressFinalize(this);
     }

@@ -66,6 +66,16 @@ public sealed record BackgroundApply
     public double? Opacity { get; init; }
 }
 
+/// <summary>Explicit high-trust consent for the exact installed package, not a sandbox grant.</summary>
+public sealed record HostNativeHelperConsent
+{
+    public required string PluginId { get; init; }
+    public required string PluginName { get; init; }
+    public required string Version { get; init; }
+    public required string PackageDigest { get; init; }
+    public required IReadOnlyList<string> HelperEntryPoints { get; init; }
+}
+
 public sealed record HostPluginNotice
 {
     public required string PluginId { get; init; }
@@ -105,6 +115,14 @@ public interface IPluginHostEnvironment
     Task<HostPickResult?> PickReadAsync(string pluginId, HostPickRequest request, CancellationToken cancellationToken);
 
     Task<HostPickResult?> PickWriteAsync(string pluginId, HostPickRequest request, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Must explicitly warn that helpers inherit the host user's file/network authority.
+    /// No UI, shutdown, dismissal, or unsupported hosts fail closed. Approval is package-bound
+    /// and lasts only for the current host process; it is not AppContainer isolation.
+    /// </summary>
+    Task<bool> ConfirmNativeHelperExecutionAsync(HostNativeHelperConsent request, CancellationToken cancellationToken)
+        => Task.FromResult(false);
 
     /// <summary>The application's current log directory (the built-in default lives beside the executable).</summary>
     string GetLogDirectory();

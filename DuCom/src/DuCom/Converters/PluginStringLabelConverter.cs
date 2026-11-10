@@ -18,7 +18,7 @@ public sealed class PluginStringLabelConverter : IValueConverter
         ["serial.lease"] = ("串口租用", "Lease serial ports"),
         ["files.user-selected.read"] = ("读取所选文件", "Read selected files"),
         ["files.user-selected.write"] = ("写入所选文件", "Write selected files"),
-        ["native-helpers.execute"] = ("启动本地辅助程序", "Run native helpers"),
+        ["native-helpers.execute"] = ("运行本地程序（完整用户权限，需额外确认）", "Run native programs (full user authority; extra approval)"),
         ["native-hosts.execute"] = ("启动本地辅助程序", "Run native hosts"),
         ["speech.online"] = ("在线语音", "Online speech"),
     };

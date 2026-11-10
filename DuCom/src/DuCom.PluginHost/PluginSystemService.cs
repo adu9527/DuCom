@@ -109,6 +109,8 @@ public sealed partial class PluginSystemService : IAsyncDisposable
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _startupRejections = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly HashSet<string> _budgetRecoveryPending = new(StringComparer.Ordinal);
+    // Never persist this high-trust exception: a new host or changed package asks again.
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _nativeHelperApprovals = new(StringComparer.Ordinal);
     private readonly string _hostExecutablePath;
     private readonly Func<string, bool> _isOfficialNamespace;
     private long _lastBudgetWarningLogTimestamp;
@@ -236,8 +238,12 @@ public sealed partial class PluginSystemService : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _budget.Sampled -= OnBudgetSampled;
+        long phaseStart = System.Diagnostics.Stopwatch.GetTimestamp();
         await CancelAutoRestartsAsync().ConfigureAwait(false);
+        PluginHostTrace.Info($"Service dispose phase: cancel-auto-restarts. ElapsedMs={System.Diagnostics.Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds:0}");
+        phaseStart = System.Diagnostics.Stopwatch.GetTimestamp();
         await StopAllAsync().ConfigureAwait(false);
+        PluginHostTrace.Info($"Service dispose phase: stop-all. ElapsedMs={System.Diagnostics.Stopwatch.GetElapsedTime(phaseStart).TotalMilliseconds:0}");
         _budget.Dispose();
         _launcher.Dispose();
         _hostTempLedger.Dispose();

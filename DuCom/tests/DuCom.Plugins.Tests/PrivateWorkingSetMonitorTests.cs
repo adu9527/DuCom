@@ -85,7 +85,7 @@ public sealed class PrivateWorkingSetMonitorTests
     {
         using BudgetGovernor budget = new(new());
         budget.RegisterWorker("test", 10);
-        budget.RegisterMemoryMonitorHelper(20);
+        budget.RegisterMemoryMonitorHelper("test", "activation", 20);
         uint[] snapshot = budget.GetMemoryMonitorProcessIds();
         Assert.Equal(new uint[] { 10, 20 }, snapshot.Order());
         budget.UnregisterWorker(10);

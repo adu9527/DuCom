@@ -27,7 +27,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <Version>0.0.0.9</Version>
+    <Version>0.0.1.0</Version>
     <DuComDistribution Condition="'$(DuComDistribution)' == ''">PortableFull</DuComDistribution>
     <ApplicationIcon>..\..\..\Image\DuCom_256x256.ico</ApplicationIcon>
     <StartupObject>DuCom.Program</StartupObject>
@@ -37,6 +37,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="DuCom.App.Tests" />
+    <InternalsVisibleTo Include="DuCom.Plugins.Tests" />
   </ItemGroup>
 
   <ItemGroup>
@@ -53,7 +54,8 @@
 
   <ItemGroup>
     <Resource Include="..\..\..\Image\DuCom_256x256.ico" Link="Assets\DuCom.ico" />
-    <Content Include="..\..\profiles\X8I_V1.json" Link="profiles\X8I_V1.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <EmbeddedResource Include="..\..\profiles\X8I_V1.json" LogicalName="DuCom.Bundled.X8I_V1.json" />
+    <EmbeddedResource Include="..\..\profiles\GenericTemplate.json" LogicalName="DuCom.Bundled.GenericTemplate.json" />
     <EmbeddedResource Include="..\..\..\Doc\BesFirmwareIntegration.zh-CN.md" LogicalName="DuCom.Docs.BesFirmwareIntegration" WithCulture="false" />
   </ItemGroup>
 
@@ -82,7 +84,7 @@
                          Exclude="..\DuCom.Plugins.Checksum\bin\$(Configuration)\net10.0\*.pdb" />
       <ProductionPackFile Include="..\DuCom.Plugins.Production\bin\$(Configuration)\net10.0\DuCom.Plugins.Production.dll;..\DuCom.Plugins.Production\bin\$(Configuration)\net10.0\DuCom.Plugin.Sdk.dll;..\DuCom.Plugins.Production\bin\$(Configuration)\net10.0\plugin.manifest.json" />
       <EmbeddedResource Include="@(ProductionPackFile)" Condition="'%(Extension)' == '.dll' Or '%(Extension)' == '.json'">
-        <LogicalName>DuCom.Factory.com.ducom.production/1.0.0/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
+        <LogicalName>DuCom.Factory.com.ducom.production/1.1.0/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>
       </EmbeddedResource>
       <EmbeddedResource Include="@(ChecksumPackFile)" Condition="'%(Extension)' == '.dll' Or '%(Extension)' == '.json'">
         <LogicalName>DuCom.Factory.com.ducom.checksum/1.0.2/%(RecursiveDir)%(Filename)%(Extension)</LogicalName>

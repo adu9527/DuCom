@@ -39,6 +39,24 @@ public sealed class PortListComposerTests
             isOpen ?? (_ => false));
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public void UnknownTypeWaitsWhenEitherCategoryIsFiltered(bool showSerial, bool showVirtual)
+    {
+        DiscoveredPort unknown = Serial("COM8") with { Type = DiscoveredPortType.Unknown };
+        Assert.Empty(Compose([unknown], showSerial: showSerial, showVirtual: showVirtual));
+        Assert.Single(Compose([unknown], showSerial: true, showVirtual: true));
+    }
+
+    [Fact]
+    public void VisibilityFilterDoesNotUseConnectionStateToCloseOrRevealSession()
+    {
+        Assert.Empty(Compose([Virtual("COM8")], showVirtual: false, isOpen: _ => true));
+        Assert.Empty(Compose([Serial("COM8")], hidden: ["COM8"], isOpen: _ => true));
+    }
+
     [Fact]
     public void SortsNamesAscendingCaseInsensitiveByDefault()
     {

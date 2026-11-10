@@ -1,1 +1,11 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="PluginUiStyles.xaml"/></ResourceDictionary.MergedDictionaries></ResourceDictionary>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="PluginUiStyles.xaml"/></ResourceDictionary.MergedDictionaries>
+ <!-- A 98-DIP table column needs its own density, not the form field's 14-DIP gutter. -->
+ <Style x:Key="Production.TimingInput" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+  <Setter Property="Margin" Value="0"/>
+  <Setter Property="MinHeight" Value="32"/>
+  <Setter Property="Height" Value="32"/>
+  <Setter Property="Padding" Value="6,3"/>
+  <Setter Property="FontSize" Value="13"/>
+ </Style>
+</ResourceDictionary>

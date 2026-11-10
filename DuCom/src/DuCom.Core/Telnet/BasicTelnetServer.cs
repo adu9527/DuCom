@@ -74,10 +74,16 @@ public sealed class BasicTelnetServer : IAsyncDisposable
                 return;
             }
 
-            _cancellation = new CancellationTokenSource();
-            _listener = new TcpListener(options.BindAddress, options.Port);
-            _listener.Start();
-            _acceptTask = Task.Run(() => AcceptLoopAsync(_listener, _cancellation.Token));
+            CancellationTokenSource cancellation = new();
+            TcpListener listener = new(options.BindAddress, options.Port);
+            try { listener.Start(); }
+            catch { cancellation.Dispose(); throw; }
+            _cancellation = cancellation;
+            _listener = listener;
+            // Capture this generation before scheduling: Stop may clear the fields and
+            // dispose the CTS before the thread-pool callback gets its first turn.
+            CancellationToken token = cancellation.Token;
+            _acceptTask = Task.Run(() => AcceptLoopAsync(listener, token));
             BridgeDiagnostic?.Invoke($"Telnet bridge listening on {options.BindAddress}:{options.Port}");
         }
 

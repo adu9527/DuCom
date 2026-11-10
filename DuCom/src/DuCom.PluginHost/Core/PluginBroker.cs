@@ -32,6 +32,7 @@ public sealed partial class PluginBroker : IDisposable
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Threading.Channels.Channel<bool>> _repeatedOutputGates = new(StringComparer.Ordinal);
     private readonly Dictionary<string, OutputCommitStatusResult> _commitResults = new(StringComparer.Ordinal);
     private readonly NativeHelperTaskManager _helperTasks;
+    private readonly bool _nativeHelpersApproved;
     private readonly Action<string, string>? _fileIoCheckpoint;
 
     public PluginBroker(ActivationScope scope, IPluginHostEnvironment environment, PluginDiagnosticsLog diagnostics, string? packageDirectory = null)
@@ -45,7 +46,8 @@ public sealed partial class PluginBroker : IDisposable
         PluginDiagnosticsLog diagnostics,
         string? packageDirectory,
         Action<string, string>? fileIoCheckpoint,
-        BudgetGovernor? memoryMonitor = null)
+        BudgetGovernor? memoryMonitor = null,
+        bool nativeHelpersApproved = false)
     {
         _scope = scope ?? throw new ArgumentNullException(nameof(scope));
         _environment = environment ?? throw new ArgumentNullException(nameof(environment));
@@ -55,7 +57,8 @@ public sealed partial class PluginBroker : IDisposable
         _storageRevisionPath = Path.Combine(scope.StorageDirectory, "config.revision");
         _storageMutexName = "Local\\DuCom.PluginStorage." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(_storageFilePath).ToUpperInvariant())));
         _diagAllowancePerMinute = Math.Max(scope.Limits.DiagMessagesPerMinute, 1);
-        _helperTasks = new NativeHelperTaskManager(scope.Manifest, packageDirectory ?? scope.TempDirectory, Path.Combine(scope.TempDirectory, "HelperTasks"), memoryMonitor);
+        _nativeHelpersApproved = nativeHelpersApproved;
+        _helperTasks = new NativeHelperTaskManager(scope.Manifest, packageDirectory ?? scope.TempDirectory, Path.Combine(scope.TempDirectory, "HelperTasks"), memoryMonitor, scope.ActivationId);
     }
 
     public event Action<string, string>? SerialSubscriptionAdded;

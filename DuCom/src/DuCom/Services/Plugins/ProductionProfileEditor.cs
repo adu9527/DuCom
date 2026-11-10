@@ -14,7 +14,7 @@ public sealed class ProductionProfileEditor : Window
 {
     public ProductionProfile Profile { get; }
     private readonly DataGrid _table = new();
-    private readonly TextBlock _status = new() { Foreground = (Brush)Application.Current.FindResource("Brush.Danger") };
+    private readonly TextBlock _status = new();
     public ProductionProfileEditor(ProductionProfile profile)
     {
         Profile = profile;
@@ -23,13 +23,15 @@ public sealed class ProductionProfileEditor : Window
         Background = new SolidColorBrush(Color.FromRgb(9, 9, 11)); Foreground = Brushes.WhiteSmoke; FontSize = 13;
         Resources.MergedDictionaries.Add(new() { Source = new Uri("/DuCom;component/Services/Plugins/ProductionStyles.xaml", UriKind.Relative) });
         PluginVisualTheme.Apply(this);
+        // Dynamic reference: the token dictionary may load after construction.
+        _status.SetResourceReference(TextBlock.ForegroundProperty, "Brush.Danger");
         Grid root = new() { Margin = new Thickness(24) };
         foreach (var height in new[] { GridLength.Auto, GridLength.Auto, new GridLength(1, GridUnitType.Star), GridLength.Auto }) root.RowDefinitions.Add(new() { Height = height });
         WrapPanel settings = new() { Margin = new Thickness(0, 0, 0, 16) };
-        AddInput(settings, "项目", Profile, "Name", 160);
-        AddInput(settings, "波特率", Profile.Protocol, "BaudRate", 85);
-        AddInput(settings, "每轮间隔 ms", Profile, "LoopIntervalMs", 70);
-        AddInput(settings, "取走检测超时 ms", Profile, "RemovalTimeoutMs", 90).ToolTip = "连续产测完成后的单侧检测超时；不影响正式命令超时。左右分别超时一次后复位。";
+        AddInput(settings, "项目", Profile, "Name", 180);
+        AddInput(settings, "波特率", Profile.Protocol, "BaudRate", 110);
+        AddInput(settings, "每轮间隔 ms", Profile, "LoopIntervalMs", 110);
+        AddInput(settings, "取走检测超时 ms", Profile, "RemovalTimeoutMs", 130).ToolTip = "连续产测完成后的单侧检测超时；不影响正式命令超时。左右分别超时一次后复位。";
         root.Children.Add(settings);
         WrapPanel tools = new() { Margin = new Thickness(0, 0, 0, 12) };
         tools.Children.Add(ActionButton("添加命令", () =>
@@ -37,14 +39,14 @@ public sealed class ProductionProfileEditor : Window
             ProductionCommand c = new() { Channel = EarChannel.Both, Frame = Clone(Profile.Protocol), Hex = "A6 01", ResponseMatch = "A6 02", Name = "打开ANC", DelayMs = 200 };
             if (new ProductionCommandEditor(c, Profile.Protocol) { Owner = this }.ShowDialog() == true) { Profile.Commands.Add(c); Refresh(); }
         }));
-        tools.Children.Add(ActionButton("删除", () => { if (_table.SelectedItem is ProductionCommand c) { Profile.Commands.Remove(c); Refresh(); } }));
         tools.Children.Add(ActionButton("添加复合命令", () =>
         {
             ProductionCommand c = new() { Name = "复合命令", Channel = EarChannel.Both, Steps = [new() { Name = "子命令1", Channel = EarChannel.Both }] };
             if (new ProductionCompoundEditor(c, Profile.Protocol) { Owner = this }.ShowDialog() == true) { Profile.Commands.Add(c); Refresh(); }
         }));
+        tools.Children.Add(ActionButton("删除", () => { if (_table.SelectedItem is ProductionCommand c) { Profile.Commands.Remove(c); Refresh(); } }));
         tools.Children.Add(ActionButton("上移", () => Move(-1))); tools.Children.Add(ActionButton("下移", () => Move(1)));
-        tools.Children.Add(ActionButton("导入项目", Import)); tools.Children.Add(ActionButton("导出项目", Export));
+        tools.Children.Add(ActionButton("导出项目", Export));
         Grid.SetRow(tools, 1); root.Children.Add(tools);
         FrameworkElementFactory enabled = new(typeof(CheckBox));
         enabled.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
@@ -91,8 +93,7 @@ public sealed class ProductionProfileEditor : Window
     private static DataGridTemplateColumn TimingColumn(string title, string property)
     {
         FrameworkElementFactory box = new(typeof(TextBox));
-        box.SetValue(FrameworkElement.HeightProperty, 32d);
-        box.SetValue(Control.PaddingProperty, new Thickness(6, 3, 6, 3));
+        box.SetResourceReference(FrameworkElement.StyleProperty, "Production.TimingInput");
         box.SetValue(AutomationProperties.NameProperty, title);
         box.SetBinding(TextBox.TextProperty, new Binding(property) { Mode = BindingMode.TwoWay, UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged, ValidatesOnExceptions = true });
         box.AddHandler(UIElement.GotKeyboardFocusEvent, new System.Windows.Input.KeyboardFocusChangedEventHandler((sender, _) => { if (sender is TextBox text) text.SelectAll(); }));
@@ -123,18 +124,6 @@ public sealed class ProductionProfileEditor : Window
         int from = _table.SelectedIndex, to = from + delta;
         if (from < 0 || to < 0 || to >= Profile.Commands.Count) return;
         (Profile.Commands[from], Profile.Commands[to]) = (Profile.Commands[to], Profile.Commands[from]); Refresh(); _table.SelectedIndex = to;
-    }
-    private void Import()
-    {
-        OpenFileDialog d = new() { Filter = "项目配置 (*.json)|*.json" }; if (d.ShowDialog(this) != true) return;
-        try
-        {
-            ProductionProfile p = ProductionProfile.FromJson(File.ReadAllText(d.FileName));
-            Profile.Name = p.Name; Profile.Protocol = p.Protocol; Profile.Commands = p.Commands; Profile.LoopIntervalMs = p.LoopIntervalMs; Profile.RemovalTimeoutMs = p.RemovalTimeoutMs;
-            // Reopen to refresh project-level bindings, retaining this dialog's result semantics.
-            ProductionProfileEditor next = new(Profile) { Owner = Owner }; if (next.ShowDialog() == true) DialogResult = true; else Refresh();
-        }
-        catch (Exception e) { _status.Text = e.Message; }
     }
     private void Export()
     {

@@ -23,10 +23,10 @@ public partial class MainWindow : FluentWindow
     private bool _shutdownStarted;
     private bool _forceExit;
     private readonly ShortcutEngine _shortcutEngine;
-    private readonly DispatcherTimer _deviceRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
+    private readonly DispatcherTimer _deviceRefreshTimer = new(DispatcherPriority.Background) { Interval = Services.PortRefreshSchedule.TickInterval };
+    private readonly Services.PortRefreshSchedule _portRefreshSchedule = new(DateTimeOffset.UtcNow);
     private HwndSource? _windowSource;
     private Services.WindowsPortNotifications? _portNotifications;
-    private int _deviceRefreshPassesRemaining;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -90,17 +90,19 @@ public partial class MainWindow : FluentWindow
         {
             _portNotifications = new Services.WindowsPortNotifications(_windowSource.Handle);
         }
+
+        // Some legacy/com0com drivers never publish COM interface broadcasts. Keep
+        // the lightweight presence watchdog even when notification registration fails.
+        _deviceRefreshTimer.Start();
     }
 
     private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (Services.WindowsPortNotifications.ShouldRefresh(message, wParam))
         {
-            // Drivers may publish the devnode before PortName/SERIALCOMM is ready.
-            // Keep a bounded settling pass even when no second message is broadcast.
-            _deviceRefreshPassesRemaining = 3;
-            _deviceRefreshTimer.Stop();
-            _deviceRefreshTimer.Start();
+            // Do not restart the timer for every DBT_DEVNODES_CHANGED: unrelated
+            // device storms must not indefinitely postpone serial-port discovery.
+            _portRefreshSchedule.Notify(DateTimeOffset.UtcNow);
         }
 
         return IntPtr.Zero;
@@ -108,15 +110,10 @@ public partial class MainWindow : FluentWindow
 
     private void DeviceRefreshTimer_Tick(object? sender, EventArgs e)
     {
-        if (--_deviceRefreshPassesRemaining <= 0)
-        {
-            _deviceRefreshTimer.Stop();
-        }
-
-        if (!_shutdownStarted && DataContext is MainViewModel viewModel && viewModel.RefreshPortsCommand.CanExecute(null))
+        if (!_shutdownStarted && _portRefreshSchedule.ShouldRefresh(DateTimeOffset.UtcNow)
+            && DataContext is MainViewModel viewModel && viewModel.RefreshPortsCommand.CanExecute(null))
         {
             viewModel.RefreshPortsCommand.Execute(null);
-            Program.DiagnosticLog?.Information("Serial-port refresh requested after a Windows device-change notification.");
         }
     }
 
@@ -212,6 +209,7 @@ public partial class MainWindow : FluentWindow
 
         _shutdownStarted = true;
         Program.BeginShutdown();
+        long shutdownStart = Stopwatch.GetTimestamp();
         Program.DiagnosticLog?.Information("Main window shutdown started.");
         IsEnabled = false;
         Hide();
@@ -220,10 +218,12 @@ public partial class MainWindow : FluentWindow
             if (DataContext is IAsyncDisposable disposable)
             {
                 await disposable.DisposeAsync();
+                Program.DiagnosticLog?.Information($"Shutdown phase: view-model disposed. ElapsedMs={Stopwatch.GetElapsedTime(shutdownStart).TotalMilliseconds:0}");
             }
             if (Application.Current is App app)
             {
                 await app.PrepareShutdownAsync();
+                Program.DiagnosticLog?.Information($"Shutdown phase: app prepared. ElapsedMs={Stopwatch.GetElapsedTime(shutdownStart).TotalMilliseconds:0}");
             }
         }
         catch (Exception exception)

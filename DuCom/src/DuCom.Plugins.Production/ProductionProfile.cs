@@ -30,8 +30,24 @@ public sealed class ProductionProfile
         if (json.Length > 128 * 1024) throw new InvalidDataException("配置超过 128 KiB");
         ProductionProfile profile = JsonSerializer.Deserialize<ProductionProfile>(json, JsonOptions)
             ?? throw new InvalidDataException("配置为空");
+        profile.MigrateLegacy();
         profile.Validate();
         return profile;
+    }
+
+    // The six SPP/HFP-only raw-frame commands shipped by the pre-embedded X8I template.
+    // They cannot run over the UART fixture, so every load path (plugin storage, saved
+    // project files, imports) strips them — legacy copies on operator machines clean
+    // themselves the first time the updated build reads them.
+    private static readonly HashSet<string> LegacySppOnlyCommandIds =
+        new(["ff-mic", "fb-mic", "talk-mic", "enc", "dns-on", "dns-off"], StringComparer.Ordinal);
+
+    /// <summary>Template-version migration: drop commands the current fixture cannot execute.</summary>
+    public void MigrateLegacy()
+    {
+        Commands.RemoveAll(c => c is not null && LegacySppOnlyCommandIds.Contains(c.Id));
+        foreach (ProductionCommand command in Commands)
+            command.Steps.RemoveAll(s => s is not null && LegacySppOnlyCommandIds.Contains(s.Id));
     }
 
     public void Validate()
@@ -79,10 +95,17 @@ public sealed class ProductionProfile
                 if (c.FixedResponseLength is < 0 or > 4096) throw new InvalidDataException("固定应答长度无效");
                 if (c.StatusOffset < -1 || c.StatusOffset > 4095 || c.StatusValue is < 0 or > 255) throw new InvalidDataException("状态字段无效");
                 if (c.Fields is null || c.Fields.Count > 16) throw new InvalidDataException("解析字段最多 16 个");
-                foreach (ResponseField f in c.Fields)
-                    if (f is null || f.Name is null || f.Unit is null || f.Name.Length > 80 || f.Unit.Length > 32 || !Enum.IsDefined(f.Type) || f.Offset < 0 || f.Offset > 4095 || f.Length is < 1 or > 256 || !double.IsFinite(f.Scale))
-                        throw new InvalidDataException("解析字段无效");
                 c.Frame?.Validate();
+                ProtocolSettings responseProtocol = c.Frame ?? Protocol;
+                int? responseLength = c.FixedResponseLength > 0 ? c.FixedResponseLength
+                    : c.RxLength >= 0 ? c.RxLength + responseProtocol.LengthAdjustment : null;
+                foreach (ResponseField f in c.Fields)
+                {
+                    if (f is null) throw new InvalidDataException("解析字段无效");
+                    f.Normalize();
+                    f.Validate();
+                    if (responseLength is int length) f.GetReadLength(length, ProtocolCodec.CrcSize(responseProtocol.Checksum));
+                }
                 if (c.TxLength is < -1 or > 255 || c.RxLength is < -1 or > 255) throw new InvalidDataException("长度需为自动或 0–255");
                 ProtocolCodec.BuildFrame(c.Frame ?? Protocol, c);
             }
@@ -96,14 +119,14 @@ public sealed class ProductionProfile
         Name = "X8I", Revision = "1.1", Notes = "直接查询，不进入 DUT。获取两耳组队数据、交叉写入，再读回对耳 MAC。",
         Commands =
         [
-            new() { Id = "mac", Name = "本机MAC", Hex = "94 01", Channel = EarChannel.Both, ResponseMatch = "94 02", Fields = [new() { Name = "MAC", Type = FieldType.Mac }] },
+            new() { Id = "mac", Name = "本机MAC", Hex = "94 01", Channel = EarChannel.Both, ResponseMatch = "94 02", Fields = [new() { Name = "MAC", Type = FieldType.Mac, Length = 6 }] },
             new() { Id = "battery", Name = "电量", Hex = "97 01", Channel = EarChannel.Both, ResponseMatch = "97 02", Fields = [new() { Name = "电量", Type = FieldType.UInt8, Unit = "%" }] },
-            new() { Id = "voltage", Name = "电压", Hex = "98 01", Channel = EarChannel.Both, ResponseMatch = "98 02", Fields = [new() { Name = "电压", Type = FieldType.UInt16, Unit = "mV" }] },
+            new() { Id = "voltage", Name = "电压", Hex = "98 01", Channel = EarChannel.Both, ResponseMatch = "98 02", Fields = [new() { Name = "电压", Type = FieldType.UInt16, Length = 2, Unit = "mV" }] },
             new() { Id = "pair-left", Name = "获取左耳组队数据", Hex = "01 02", Channel = EarChannel.Left, ResponseMatch = "01", Enabled = false, PairingStep = true, DelayMs = 200 },
             new() { Id = "pair-right", Name = "获取右耳组队数据", Hex = "01 01", Channel = EarChannel.Right, ResponseMatch = "01", Enabled = false, PairingStep = true, DelayMs = 200 },
             new() { Id = "pair-write-left", Name = "写入右耳组队数据", Hex = "02", Channel = EarChannel.Left, ResponseMatch = "02", Enabled = false, PairingStep = true, DelayMs = 200, ResponseSourceId = "pair-right", ResponseSourceChannel = EarChannel.Right, ResponseSourceOffset = 4, ResponseSourceLength = 31 },
             new() { Id = "pair-write-right", Name = "写入左耳组队数据", Hex = "02", Channel = EarChannel.Right, ResponseMatch = "02", Enabled = false, PairingStep = true, DelayMs = 1000, ResponseSourceId = "pair-left", ResponseSourceChannel = EarChannel.Left, ResponseSourceOffset = 4, ResponseSourceLength = 31 },
-            new() { Id = "peer-mac", Name = "对耳MAC", Hex = "96 01", Channel = EarChannel.Both, ResponseMatch = "96 02", PairingStep = true, Fields = [new() { Name = "MAC", Type = FieldType.Mac }] },
+            new() { Id = "peer-mac", Name = "对耳MAC", Hex = "96 01", Channel = EarChannel.Both, ResponseMatch = "96 02", PairingStep = true, Fields = [new() { Name = "MAC", Type = FieldType.Mac, Length = 6 }] },
         ],
     };
 }
@@ -137,7 +160,7 @@ public sealed class ProtocolSettings
 
 public enum EarChannel { Left, Right, Both }
 public enum ChecksumKind { None, Crc8Maxim, Crc8, Crc16Modbus, Crc16CcittFalse, Sum8, Xor8 }
-public enum FieldType { Hex, Mac, UInt8, UInt16, UInt32, Int16, Int32, Ascii, Version }
+public enum FieldType { Hex, Mac, UInt8, UInt16, UInt32, Int16, Int32, Ascii, Version, Str }
 
 public sealed class ProductionCommand
 {
@@ -190,16 +213,69 @@ public sealed class ResultComparison
 
 public sealed class ResponseField
 {
+    private int? _length;
+
     public bool ToEnd { get; set; }
     public string Example { get; set; } = "";
     public string Name { get; set; } = "值";
     public int Offset { get; set; } = 5;
     public FieldType Type { get; set; } = FieldType.Hex;
-    public int Length { get; set; } = 1;
+    // An omitted length follows the type, independently of JSON property order.
+    // Explicit custom lengths are retained, including when editing the type.
+    public int Length { get => _length ?? FixedLength ?? 1; set => _length = value; }
     public bool LittleEndian { get; set; }
+    // Reverse the extracted bytes first; numeric byte order is then LittleEndian.
     public bool Reverse { get; set; }
     public double Scale { get; set; } = 1;
     public string Unit { get; set; } = "";
+
+    /// <summary>Protocol-defined width, or null for Hex/Ascii/Version.</summary>
+    [JsonIgnore]
+    public int? FixedLength => Type switch
+    {
+        FieldType.Mac => 6,
+        FieldType.UInt8 => 1,
+        FieldType.UInt16 or FieldType.Int16 => 2,
+        FieldType.UInt32 or FieldType.Int32 => 4,
+        _ => null,
+    };
+
+    /// <summary>Width for display, layout and fixed-size reads. ToEnd resolves its runtime width from the frame instead.</summary>
+    [JsonIgnore]
+    public int EffectiveLength => FixedLength ?? Length;
+
+    /// <summary>Migrate the old default 1 for fixed-width types, without changing custom variable-width fields.</summary>
+    public void Normalize()
+    {
+        if (Length == 1 && FixedLength is int size) Length = size;
+    }
+
+    public void Validate()
+    {
+        if (Name is null || Unit is null || Example is null || Name.Length > 80 || Unit.Length > 32
+            || !Enum.IsDefined(Type) || Offset is < 0 or > 4095 || Length is < 1 or > 256 || !double.IsFinite(Scale))
+            throw new InvalidDataException("解析字段无效");
+        // Length=1 is the legacy default; it has always decoded using the fixed width.
+        if (FixedLength is int size && Length != size && Length != 1)
+            throw new InvalidDataException($"{Name}：{Type} 长度必须为 {size} 字节");
+        if (FixedLength is not null && ToEnd)
+            throw new InvalidDataException($"{Name}：固定长度类型不能使用读到末尾");
+        if (!ToEnd && Offset > 4096 - EffectiveLength)
+            throw new InvalidDataException($"{Name}：解析偏移与长度超过 4096 字节");
+    }
+
+    /// <summary>Resolve a read within the response data, excluding the actual protocol checksum trailer.</summary>
+    public int GetReadLength(int frameLength, int checksumLength)
+    {
+        Validate();
+        if (frameLength is < 0 or > 4096 || checksumLength is < 0 or > 2 || checksumLength > frameLength)
+            throw new InvalidDataException($"{Name}：应答长度无效");
+        int end = frameLength - checksumLength;
+        int size = ToEnd ? end - Offset : EffectiveLength;
+        if (size < 0 || Offset > end - size)
+            throw new InvalidDataException($"{Name}：解析越界");
+        return size;
+    }
 }
 
 public static class Hex

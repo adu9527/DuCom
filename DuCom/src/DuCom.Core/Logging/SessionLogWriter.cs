@@ -204,6 +204,8 @@ public sealed class SessionLogWriter : IAsyncDisposable
     private async Task WriteLoopAsync()
     {
         StreamWriter? writer = null;
+        IDisposable? activeProtection = null;
+        IDisposable? completedProtection = null;
         long currentBytes = 0;
         int segment = 0;
         Stopwatch drain = Stopwatch.StartNew();
@@ -310,6 +312,10 @@ public sealed class SessionLogWriter : IAsyncDisposable
                 }
             }
 
+            // Retain the final active file and latest completed segment until this writer ends.
+            // Other live writers keep their own active/recent leases independently.
+            activeProtection?.Dispose();
+            completedProtection?.Dispose();
             drain.Stop();
         }
 
@@ -367,26 +373,50 @@ public sealed class SessionLogWriter : IAsyncDisposable
                     {
                         await FlushAsync(SessionLogFlushReason.Rotation).ConfigureAwait(false);
                         await writer.DisposeAsync().ConfigureAwait(false);
+                        writer = null;
                     }
 
-                    string path = CreateSegmentPath(outputDirectory, segment++);
-                    writer = new StreamWriter(
-                        new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite, 64 * 1024, FileOptions.Asynchronous),
-                        new UTF8Encoding(false),
-                        64 * 1024)
+                    lock (LogFolderQuota.SyncRoot)
                     {
-                        AutoFlush = false,
-                    };
-                    Volatile.Write(ref _currentFilePath, path);
-                    _createdFilePaths.Add(path);
-                    currentBytes = 0;
-                    // Keep the serial folder under its quota. Rotation is the only moment a
-                    // new file appears, so this scan is naturally infrequent.
-                    LogFolderQuota.Enforce(
-                        outputDirectory,
-                        _options.FolderQuotaBytes,
-                        LogFolderQuota.IsSerialLogFile,
-                        [path]);
+                        if (activeProtection is not null)
+                        {
+                            completedProtection?.Dispose();
+                            completedProtection = activeProtection;
+                            activeProtection = null;
+                        }
+
+                        if (segment == 0 && _options.FolderQuotaBytes > 0)
+                        {
+                            // A new run must not erase the only complete segment left by a
+                            // previous run just because the rotation size exceeds the quota.
+                            string? previous = new DirectoryInfo(outputDirectory).EnumerateFiles("*.txt")
+                                .Where(file => LogFolderQuota.IsOwnedSerialFile(outputDirectory, file.Name) && !LogFolderQuota.IsProtected(file.FullName))
+                                .OrderByDescending(file => file.LastWriteTimeUtc)
+                                .ThenByDescending(file => file.Name, StringComparer.Ordinal)
+                                .Select(file => file.FullName).FirstOrDefault();
+                            if (previous is not null) completedProtection = LogFolderQuota.Protect(previous);
+                        }
+
+                        string path = CreateSegmentPath(outputDirectory, segment++);
+                        activeProtection = LogFolderQuota.Protect(path);
+                        writer = new StreamWriter(
+                            new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite, 64 * 1024, FileOptions.Asynchronous),
+                            new UTF8Encoding(false),
+                            64 * 1024)
+                        {
+                            AutoFlush = false,
+                        };
+                        if (_options.FolderQuotaBytes > 0) LogFolderQuota.MarkSerialFile(path);
+                        Volatile.Write(ref _currentFilePath, path);
+                        _createdFilePaths.Add(path);
+                        currentBytes = 0;
+                        // A soft quota: every live writer's active and most recent complete
+                        // segment survive even when rotation is larger than the configured quota.
+                        LogFolderQuota.Enforce(
+                            outputDirectory,
+                            _options.FolderQuotaBytes,
+                            name => LogFolderQuota.IsOwnedSerialFile(outputDirectory, name));
+                    }
                 }
 
                 pending.Append(record.Text);

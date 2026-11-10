@@ -151,6 +151,8 @@ A "start with all plugins disabled" entry must take effect before plugin startup
 
 The user's "1 GB" applies to the entire tool, not each plugin. This draft makes the default explicit as **1 GB = 1,000,000,000 bytes**. The final UI must display accurate units without mixing GB and GiB or increasing the budget through unit conversion.
 
+**Current implementation revision:** Partition defaults use decimal bytes: host 800,000,000; BES 200,000,000; all other plugins together 250,000,000; total 1,250,000,000. The warning remains 1,000,000,000. The preceding 1 GB is the original target, not a delivered hard ceiling. Each plugin's worker and owned helpers are aggregated; group quotas apply even below the tool-wide threshold, and processes without confirmed exit remain counted. Per-process Job limits and sampled governance coexist, without a hard instantaneous multi-process total guarantee.
+
 The primary metric is the sum of Windows private committed bytes for every managed process: host, all workers, and managed helpers. It is not GC heap size or resident physical memory; simply summing working sets does not reliably account for shared pages. Observe system available memory and working sets separately without conflating these metrics.
 
 The proposed warning threshold is 80% of the total budget, configurable but below the maximum. On warning, pause new plugin activations/large tasks and collect per-process usage, growth, queues, in-flight work, and recent operations; constrain or discard plugin-derived caches and side-channel work. Do not dump heaps or run lengthy GC work on the main thread.
@@ -195,7 +197,7 @@ Capabilities identify registration points; permissions authorize broker resource
 | `serial.lease` | Exclusive serial lease: list ports, open, read, write; the host restores the previous session on release. |
 | `files.user-selected.read` | Scoped file/directory read tokens obtained through user selection. |
 | `files.user-selected.write` | Transactional output tokens for user-selected destinations. |
-| `native-helpers.execute` | Run plugin-supplied native programs in a restricted helper process. |
+| `native-helpers.execute` | Run plugin-supplied native programs as a high-trust exception with full host-user authority. Job limits restrict resources/lifetime, not AppContainer file/network access. Activation requires extra approval bound to the package digest and current host process. |
 | `speech.online` | Host-brokered online speech: voice list, preview, and synthesis, with concurrency and deadline limits. |
 
 Version 1 exposes no general network access, ReceiveTransform, SendTransform, arbitrary window embedding, or direct plugin-to-plugin calls. Serial I/O is available only through the `serial.lease` interface, and online speech only through the `speech.online` broker. Reserved names are not implemented capabilities; unsupported requests must be rejected.

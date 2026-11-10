@@ -17,6 +17,8 @@ internal sealed class NativeHelperTaskManager : IDisposable
     private readonly string _packageDirectory;
     private readonly string _taskRoot;
     private readonly BudgetGovernor? _memoryMonitor;
+    private readonly string _activationId;
+    internal long HelperMemoryLimitBytes { get; }
     private readonly object _gate = new();
     private readonly Dictionary<string, RunningHelperTask> _tasks = new(StringComparer.Ordinal);
     private bool _disposed;
@@ -29,12 +31,23 @@ internal sealed class NativeHelperTaskManager : IDisposable
         }
     }
 
-    public NativeHelperTaskManager(PluginManifest manifest, string packageDirectory, string taskRoot, BudgetGovernor? memoryMonitor = null)
+    public NativeHelperTaskManager(PluginManifest manifest, string packageDirectory, string taskRoot, BudgetGovernor? memoryMonitor = null, string? activationId = null)
     {
         _manifest = manifest;
         _packageDirectory = Path.GetFullPath(packageDirectory);
         _taskRoot = Path.GetFullPath(taskRoot);
         _memoryMonitor = memoryMonitor;
+        if (memoryMonitor is not null)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(manifest.Id);
+            ArgumentException.ThrowIfNullOrEmpty(activationId);
+        }
+        _activationId = activationId ?? string.Empty;
+        // Every helper gets at most its owning plugin's quota. Aggregate usage remains
+        // sampled soft governance, not an atomic reservation across 32 concurrent starts.
+        BudgetGovernorConfig defaults = new();
+        HelperMemoryLimitBytes = memoryMonitor?.GetPluginQuota(manifest.Id)
+            ?? (manifest.Id == defaults.BesPluginId ? defaults.BesPluginQuotaBytes : defaults.PerPluginQuotaBytes);
         Directory.CreateDirectory(_taskRoot);
     }
 
@@ -46,10 +59,7 @@ internal sealed class NativeHelperTaskManager : IDisposable
         if (request.TimeoutMs is < 1000 or > 60 * 60 * 1000)
             throw new PluginScopeException(PluginErrorCode.InvalidArgument, "Helper timeout must be between 1 second and 1 hour.");
 
-        PluginNativeHelper helper = _manifest.NativeHelpers.FirstOrDefault(candidate => candidate.Id == request.HelperId)
-            ?? throw new PluginScopeException(PluginErrorCode.NotFound, $"Native helper '{request.HelperId}' is not registered.");
-        if (helper.ProtocolVersion != "1.0") throw new PluginScopeException(PluginErrorCode.UnsupportedOperation, "Native helper protocol is not supported.");
-        string executable = ResolvePackagePath(helper.EntryPoint);
+        string executable = GetExecutablePath(request.HelperId);
         string taskDirectory = Path.Combine(_taskRoot, request.TaskId);
         string requestPath = Path.Combine(taskDirectory, "request.json");
         string resultPath = Path.Combine(taskDirectory, "result.json");
@@ -151,7 +161,7 @@ internal sealed class NativeHelperTaskManager : IDisposable
         {
             bool confirmed = task.KillAndConfirm(5000);
             task.Complete("interrupted", null, null, confirmed ? "Helper exceeded its task timeout and was terminated." : "Helper timed out and termination could not be confirmed.", confirmed);
-            if (confirmed) task.DisposeHandles();
+            task.DisposeHandles(); // Retain process accounting/handle until actual exit even if termination was unconfirmed.
             return;
         }
 
@@ -214,7 +224,7 @@ internal sealed class NativeHelperTaskManager : IDisposable
                 LimitFlags = WindowsInterop.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | WindowsInterop.JOB_OBJECT_LIMIT_ACTIVE_PROCESS | WindowsInterop.JOB_OBJECT_LIMIT_PROCESS_MEMORY,
                 ActiveProcessLimit = 1,
             },
-            ProcessMemoryLimit = (UIntPtr)(512UL * 1024 * 1024),
+            ProcessMemoryLimit = (UIntPtr)(ulong)HelperMemoryLimitBytes,
         };
         if (!WindowsInterop.SetInformationJobObject(job, WindowsInterop.JobObjectExtendedLimitInformation, ref limits, Marshal.SizeOf<WindowsInterop.JOBOBJECT_EXTENDED_LIMIT_INFORMATION>()))
         {
@@ -239,7 +249,7 @@ internal sealed class NativeHelperTaskManager : IDisposable
                 WindowsInterop.CloseHandle(process.hThread);
                 throw new InvalidOperationException($"Helper Job assignment failed ({Marshal.GetLastWin32Error()}).");
             }
-            _memoryMonitor?.RegisterMemoryMonitorHelper(process.dwProcessId);
+            _memoryMonitor?.RegisterMemoryMonitorHelper(_manifest.Id, _activationId, process.dwProcessId);
             WindowsInterop.ResumeThread(process.hThread);
             WindowsInterop.CloseHandle(process.hThread);
             return new RunningHelperTask(taskId, process.hProcess, job, process.dwProcessId, resultPath, cancelPath, progressPath, timeoutMs, _memoryMonitor);
@@ -250,6 +260,15 @@ internal sealed class NativeHelperTaskManager : IDisposable
             throw;
         }
         finally { Marshal.FreeHGlobal(startupPtr); }
+    }
+
+    internal string GetExecutablePath(string helperId)
+    {
+        PluginNativeHelper helper = _manifest.NativeHelpers.FirstOrDefault(candidate => candidate.Id == helperId)
+            ?? throw new PluginScopeException(PluginErrorCode.NotFound, $"Native helper '{helperId}' is not registered.");
+        if (helper.ProtocolVersion != "1.0")
+            throw new PluginScopeException(PluginErrorCode.UnsupportedOperation, "Native helper protocol is not supported.");
+        return ResolvePackagePath(helper.EntryPoint);
     }
 
     private string ResolvePackagePath(string relative)
@@ -273,7 +292,7 @@ internal sealed class NativeHelperTaskManager : IDisposable
     {
         RunningHelperTask[] tasks;
         lock (_gate) { if (_disposed) return; _disposed = true; tasks = [.. _tasks.Values]; }
-        foreach (RunningHelperTask task in tasks.Where(task => !task.IsTerminal))
+        foreach (RunningHelperTask task in tasks.Where(task => !task.ExitConfirmed))
         {
             bool confirmed = task.KillAndConfirm(5000);
             task.Complete("interrupted", null, null, confirmed ? "Plugin activation ended before helper completion." : "Plugin activation ended and helper exit was not confirmed.", confirmed);
@@ -314,7 +333,7 @@ internal sealed class NativeHelperTaskManager : IDisposable
         public bool KillAndConfirm(int milliseconds) => Job != IntPtr.Zero && WindowsInterop.TerminateJobObject(Job, 1) && WaitForExit(milliseconds);
         public void Kill() { _ = KillAndConfirm(0); }
         public void Complete(string state, int? exitCode, string? result, string? error, bool exitConfirmed = true)
-        { lock (_gate) { if (_ended.HasValue) return; _state = state; _exitCode = exitCode; _result = result; _error = error; _exitConfirmed = exitConfirmed; _ended = DateTimeOffset.UtcNow; } _terminal.TrySetResult(); }
+        { lock (_gate) { if (_ended.HasValue) { _exitConfirmed |= exitConfirmed; return; } _state = state; _exitCode = exitCode; _result = result; _error = error; _exitConfirmed = exitConfirmed; _ended = DateTimeOffset.UtcNow; } _terminal.TrySetResult(); }
         public HelperTaskResult Snapshot()
         {
             RefreshProgressEvidence(strict: false);
@@ -359,6 +378,7 @@ internal sealed class NativeHelperTaskManager : IDisposable
             if (Process == IntPtr.Zero) return;
             if (WindowsInterop.WaitForSingleObject(Process, 0) == 0)
             {
+                lock (_gate) _exitConfirmed = true;
                 _memoryMonitor?.UnregisterMemoryMonitorHelper(ProcessId);
                 WindowsInterop.CloseHandle(Process);
             }
@@ -368,7 +388,10 @@ internal sealed class NativeHelperTaskManager : IDisposable
                 _ = Task.Run(() =>
                 {
                     if (WindowsInterop.WaitForSingleObject(Process, -1) == 0)
+                    {
+                        lock (_gate) _exitConfirmed = true;
                         _memoryMonitor?.UnregisterMemoryMonitorHelper(ProcessId);
+                    }
                     WindowsInterop.CloseHandle(Process);
                 });
             }

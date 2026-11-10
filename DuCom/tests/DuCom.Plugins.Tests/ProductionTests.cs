@@ -7,6 +7,7 @@ using System.Windows.Media.Imaging;
 using DuCom.Plugin;
 using DuCom.Plugins.Production;
 using DuCom.Services.Plugins;
+using DuCom.ViewModels;
 using Xunit;
 
 namespace DuCom.Plugins.Tests;
@@ -128,17 +129,66 @@ public sealed class ProductionTests
     [Fact]
     public void FullX8IProfileContainsUniqueCommandsAndNoPairingReadbackRules()
     {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "profiles", "X8I_V1.json"))) directory = directory.Parent;
-        Assert.NotNull(directory);
-        ProductionProfile profile = ProductionProfile.FromJson(File.ReadAllText(Path.Combine(directory!.FullName, "profiles", "X8I_V1.json")));
+        ProductionProfile profile = ProductionProfile.FromJson(Services.Plugins.ProductionBundledTemplate.LoadJson());
         Assert.Equal("X8I_V1", profile.Name);
-        Assert.True(profile.Commands.Count >= 50);
+        // UART-only template: the six SPP/HFP-only raw-frame commands were removed,
+        // so the bundled reference carries 49 commands.
+        Assert.True(profile.Commands.Count >= 45);
+        Assert.DoesNotContain(profile.Commands, c => c.Name.Contains("SPP", StringComparison.Ordinal));
         Assert.Equal(profile.Commands.Count, profile.Commands.Select(c => c.Name).Distinct().Count());
         ProductionCommand pairing = profile.Commands.Single(c => c.Steps.Count > 0);
         Assert.Empty(pairing.Comparisons); Assert.Equal(4, pairing.Steps.Count);
         Assert.Contains(profile.Commands, c => c.Id == "peer-mac");
     }
+    [Fact]
+    public void LegacySppOnlyCommandsAreStrippedFromEveryLoadPath()
+    {
+        // A pre-embedded copy persisted by the plugin or saved as project-X8I_V1.json
+        // still carries the SPP/HFP-only mic commands; loading it must clean them.
+        const string legacy = """
+            {
+              "Name": "X8I_V1",
+              "Notes": "旧备注保留",
+              "Commands": [
+                { "Id": "mac", "Name": "读取MAC地址", "Hex": "94 01", "ResponseMatch": "94 02",
+                  "Fields": [{ "Name": "MAC", "Type": "Mac", "Length": 6, "Offset": 5 }] },
+                { "Id": "ff-mic", "Name": "打开FF MIC（仅SPP/HFP）", "Hex": "0A 0B 01 BB 55 42 20 00 00 00 02", "RawFrame": true, "MatchOffset": 0, "ResponseMatch": "0A 0B 01", "FixedResponseLength": 11, "Frame": { "TxHeader": "0A 0B", "RxHeader": "0A 0B", "Checksum": "None" } },
+                { "Id": "dns-off", "Name": "关闭DNS（仅SPP/HFP）", "Hex": "0A 0B 01 BB 55 A5 50 00 00 00 05", "RawFrame": true, "MatchOffset": 0, "ResponseMatch": "0A 0B 01", "FixedResponseLength": 11, "Frame": { "TxHeader": "0A 0B", "RxHeader": "0A 0B", "Checksum": "None" } }
+              ]
+            }
+            """;
+        ProductionProfile profile = ProductionProfile.FromJson(legacy);
+        Assert.Equal(["mac"], profile.Commands.Select(c => c.Id));
+        Assert.Equal("旧备注保留", profile.Notes);
+        Assert.DoesNotContain(profile.ToJson(), "SPP", StringComparison.Ordinal);
+        // The migration is id-based and idempotent; already-clean profiles round-trip.
+        ProductionProfile again = ProductionProfile.FromJson(profile.ToJson());
+        Assert.Equal(profile.Commands.Count, again.Commands.Count);
+    }
+    [Fact]
+    public void GenericExportTemplateIsValidatesAndCarriesVendorNeutralDocumentation()
+    {
+        string json = Services.Plugins.ProductionBundledTemplate.LoadGenericJson();
+        ProductionProfile profile = ProductionProfile.FromJson(json);
+        // Vendor-neutral identity: no X8I branding, no internal SPP history.
+        Assert.Equal("产测项目模版", profile.Name);
+        Assert.DoesNotContain("X8I", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("SPP", json, StringComparison.Ordinal);
+        // In-Notes documentation covers the protocol knobs customers must adapt.
+        Assert.Contains("帧头", profile.Notes, StringComparison.Ordinal);
+        Assert.Contains("LengthAdjustment", profile.Notes, StringComparison.Ordinal);
+        Assert.Contains("Checksum", profile.Notes, StringComparison.Ordinal);
+        Assert.InRange(profile.Notes.Length, 100, 2000);
+        // Example commands cover the field-type families incl. text (Str) and a
+        // pairing compound with cross-ear data references.
+        Assert.Contains(profile.Commands, c => c.Fields.Any(f => f.Type == FieldType.Mac));
+        Assert.Contains(profile.Commands, c => c.Fields.Any(f => f.Type == FieldType.Str));
+        Assert.Contains(profile.Commands, c => c.Fields.Any(f => f.Type == FieldType.Version));
+        ProductionCommand pairing = Assert.Single(profile.Commands, c => c.Steps.Count > 0);
+        Assert.Equal(4, pairing.Steps.Count);
+        Assert.Contains(pairing.Steps, s => s.ResponseSourceId.Length > 0);
+    }
+
     [Fact]
     public void BuiltinActivationFitsUiLimitsAndPackIsPresent()
     {
@@ -148,12 +198,26 @@ public sealed class ProductionTests
     }
 
     [Fact]
+    public void PortPickersListOnlyClassifiedPhysicalAdapters()
+    {
+        static PortItemViewModel Port(string name, string type, string instance) => new(name,
+            _ => Task.CompletedTask, _ => { }, type, "", name, "", "", "", instance, "");
+        // Pure-filter coverage without constructing the heavy ProductionWindow on the
+        // shared test STA: parallel collections doing that deadlocked the dispatcher.
+        string[] ports = Services.Plugins.ProductionWindow.SelectPhysicalPorts(() =>
+            [Port("COM42", "USB", @"USB\VID_1234&PID_5678\A"), Port("COM7", "VAR", @"com0com\port7"), Port("COM9", "COM", "")]);
+        // Virtual (VAR) and not-yet-identified adapters stay out of the pickers, the
+        // same rule the plugin-facing host port list applies.
+        Assert.Equal(new[] { "COM42" }, ports);
+    }
+
+    [Fact]
     public void WindowAndTwoPageEditorRenderAtBothSizes()
     {
         // WPF Application is process-global; render explicitly in its own test run.
         if (Environment.GetEnvironmentVariable("DUCOM_PRODUCTION_SCREENSHOTS") is null) return;
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
@@ -165,8 +229,19 @@ public sealed class ProductionTests
                 portPicker.ItemsSource = new[] { "COM42", "COM40" }; portPicker.SelectedIndex = 0;
                 portPicker.ApplyTemplate(); portPicker.IsDropDownOpen = true; window.UpdateLayout();
                 Assert.True(portPicker.IsDropDownOpen);
-                var portPopup = (System.Windows.Controls.Primitives.Popup)portPicker.Template.FindName("PART_Popup", portPicker);
-                Assert.Same(portPicker, portPopup.PlacementTarget);
+                // The dropdown may live in the template or in a separate popup layer
+                // depending on which implicit style resolved; verify placement either way.
+                System.Windows.Controls.Primitives.Popup? portPopup = Descendants<System.Windows.Controls.Primitives.Popup>(window).FirstOrDefault(p =>
+                    ReferenceEquals(p.PlacementTarget, portPicker) || ReferenceEquals(p.TemplatedParent, portPicker));
+                if (portPopup is not null)
+                {
+                    Assert.True(portPopup.IsOpen);
+                    Assert.Same(portPicker, portPopup.PlacementTarget ?? (portPopup.TemplatedParent as ComboBox));
+                }
+                else
+                {
+                    Assert.Contains(Descendants<ComboBoxItem>(portPicker), item => item.IsVisible);
+                }
                 portPicker.IsDropDownOpen = false;
                 Capture(window, "production-1040.png");
                 DataGrid commands = (DataGrid)window.FindName("ResultsGrid");
@@ -207,8 +282,14 @@ public sealed class ProductionTests
                 Assert.Equal(before, editor.Profile.Commands[0].Enabled);
                 ProductionCommandEditor detail = new(new() { Name = "打开ANC", Hex = "A6 01", ResponseMatch = "A6 02" }, new()) { Owner = editor };
                 detail.Show(); Capture(detail, "production-command-detail.png");
-                Descendants<Button>(detail).Single(b => Equals(b.Content, "计算报文（不发送）")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                // The compact editor computes its example automatically on load; let
+                // the Loaded handler and layout pass run before asserting the preview.
+                window.UpdateLayout();
+                System.Windows.Threading.DispatcherFrame settle = new();
+                detail.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => settle.Continue = false);
+                System.Windows.Threading.Dispatcher.PushFrame(settle);
                 Assert.Contains(Descendants<TextBox>(detail), b => b.Text.Contains("55 AA 02 A6 01 A0", StringComparison.Ordinal));
+                Assert.Contains(Descendants<Button>(detail), b => Equals(b.Content, "刷新示例"));
                 detail.Close();
                 ProductionCompoundEditor pairingEditor = new(ProductionCommand.CreateX8IPairing(), new()) { Owner = editor };
                 pairingEditor.Show(); Capture(pairingEditor, "production-pairing-template.png");
@@ -219,9 +300,6 @@ public sealed class ProductionTests
             }
             catch (Exception e) { failure = e; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 

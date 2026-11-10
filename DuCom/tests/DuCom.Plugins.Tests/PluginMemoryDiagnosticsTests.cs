@@ -114,6 +114,15 @@ public sealed class PluginMemoryDiagnosticsTests : IAsyncLifetime
     }
 
     [Fact]
+    public void HelperDiagnosticsIncludeOwnershipWithoutBreakingWorkerOnlyFormat()
+    {
+        List<string> logs = [];
+        _service.ProgramLog += logs.Add;
+        Emit(1, Sample with { Helpers = [("org.example.one", "activation-1", 44, 400)] });
+        Assert.Contains("helpers=[pid=44 private=400 plugin=\"org.example.one\" activation=\"activation-1\"]", Assert.Single(logs));
+    }
+
+    [Fact]
     public void SinkFailureIsThrottledAndDoesNotInterruptBudgetSampleEvent()
     {
         int attempts = 0;

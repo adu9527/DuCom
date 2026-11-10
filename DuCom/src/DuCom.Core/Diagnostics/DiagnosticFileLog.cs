@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using DuCom.Core.Logging;
 
 namespace DuCom.Core.Diagnostics;
 
@@ -10,12 +11,16 @@ public sealed class DiagnosticFileLog : IDisposable
     private readonly long _maximumFileBytes;
     private readonly int _retainedFileCount;
     private StreamWriter? _writer;
+    private readonly long _folderQuotaBytes;
+    private IDisposable? _activeProtection;
+    private IDisposable? _completedProtection;
 
     public DiagnosticFileLog(
         string directoryPath,
         string fileName = "ducom.log",
         long maximumFileBytes = 10 * 1024 * 1024,
-        int retainedFileCount = 3)
+        int retainedFileCount = 3,
+        long folderQuotaBytes = LogFolderQuota.DefaultQuotaBytes)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
@@ -25,17 +30,33 @@ public sealed class DiagnosticFileLog : IDisposable
         _activePath = Path.Combine(directoryPath, fileName);
         _maximumFileBytes = maximumFileBytes;
         _retainedFileCount = retainedFileCount;
+        _folderQuotaBytes = folderQuotaBytes;
 
         try
         {
-            Directory.CreateDirectory(directoryPath);
-            RotateIfRequired();
-            _writer = OpenWriter();
+            lock (LogFolderQuota.SyncRoot)
+            {
+                Directory.CreateDirectory(directoryPath);
+                _activeProtection = LogFolderQuota.Protect(_activePath);
+                RotateIfRequired();
+                _writer = OpenWriter();
+                if (_folderQuotaBytes > 0 && _completedProtection is null && _retainedFileCount > 0)
+                {
+                    string? previous = new DirectoryInfo(directoryPath).EnumerateFiles()
+                        .Where(file => LogFolderQuota.IsSystemLogFile(file.Name) && !LogFolderQuota.IsProtected(file.FullName))
+                        .OrderByDescending(file => file.LastWriteTimeUtc)
+                        .Select(file => file.FullName).FirstOrDefault();
+                    if (previous is not null) _completedProtection = LogFolderQuota.Protect(previous);
+                }
+                EnforceQuota();
+            }
         }
         catch
         {
             _writer?.Dispose();
             _writer = null;
+            _activeProtection?.Dispose();
+            _completedProtection?.Dispose();
         }
     }
 
@@ -61,24 +82,31 @@ public sealed class DiagnosticFileLog : IDisposable
 
         try
         {
-            DateTime cutoffUtc = DateTime.UtcNow - (maximumAge ?? TimeSpan.FromDays(30));
-            FileInfo[] files = [.. new DirectoryInfo(directoryPath)
-                .EnumerateFiles(searchPattern, SearchOption.TopDirectoryOnly)
-                .OrderByDescending(file => file.LastWriteTimeUtc)];
-            long retainedBytes = 0;
-            for (int index = 0; index < files.Length; index++)
+            lock (LogFolderQuota.SyncRoot)
             {
-                FileInfo file = files[index];
-                bool retain = index < retainedFileCount &&
-                    file.LastWriteTimeUtc >= cutoffUtc &&
-                    retainedBytes + file.Length <= maximumTotalBytes;
-                if (retain)
+                DateTime cutoffUtc = DateTime.UtcNow - (maximumAge ?? TimeSpan.FromDays(30));
+                FileInfo[] files = [.. new DirectoryInfo(directoryPath)
+                    .EnumerateFiles(searchPattern, SearchOption.TopDirectoryOnly)
+                    .Where(file => LogFolderQuota.IsSystemLogFile(file.Name))
+                    .OrderByDescending(file => file.LastWriteTimeUtc)];
+                long retainedBytes = 0;
+                for (int index = 0; index < files.Length; index++)
                 {
-                    retainedBytes += file.Length;
-                }
-                else
-                {
-                    file.Delete();
+                    FileInfo file = files[index];
+                    if (LogFolderQuota.IsProtected(file.FullName)) continue;
+                    bool retain = index < retainedFileCount &&
+                        file.LastWriteTimeUtc >= cutoffUtc &&
+                        retainedBytes + file.Length <= maximumTotalBytes;
+                    if (retain)
+                    {
+                        retainedBytes += file.Length;
+                    }
+                    else
+                    {
+                        try { file.Delete(); }
+                        catch (IOException) { /* Another process may still own this log. */ }
+                        catch (UnauthorizedAccessException) { /* Continue with other candidates. */ }
+                    }
                 }
             }
         }
@@ -100,6 +128,8 @@ public sealed class DiagnosticFileLog : IDisposable
         {
             _writer?.Dispose();
             _writer = null;
+            _activeProtection?.Dispose();
+            _completedProtection?.Dispose();
         }
     }
 
@@ -154,10 +184,14 @@ public sealed class DiagnosticFileLog : IDisposable
             return;
         }
 
-        _writer.Dispose();
-        _writer = null;
-        RotateIfRequired();
-        _writer = OpenWriter();
+        lock (LogFolderQuota.SyncRoot)
+        {
+            _writer.Dispose();
+            _writer = null;
+            RotateIfRequired();
+            _writer = OpenWriter();
+            EnforceQuota();
+        }
     }
 
     private void RotateIfRequired()
@@ -190,5 +224,10 @@ public sealed class DiagnosticFileLog : IDisposable
         }
 
         File.Move(_activePath, $"{_activePath}.1");
+        _completedProtection?.Dispose();
+        _completedProtection = LogFolderQuota.Protect($"{_activePath}.1");
     }
+
+    private void EnforceQuota() => LogFolderQuota.Enforce(
+        Path.GetDirectoryName(_activePath)!, _folderQuotaBytes, LogFolderQuota.IsSystemLogFile);
 }

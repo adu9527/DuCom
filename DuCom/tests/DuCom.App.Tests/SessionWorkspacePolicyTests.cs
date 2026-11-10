@@ -15,12 +15,12 @@ public sealed class SessionWorkspacePolicyTests
     }
 
     [Fact]
-    public void LegacyLayoutRestoresRightPortsAndFirstLeftPort()
+    public void EmptyOpenListDoesNotTreatRememberedLayoutAsConnectionIntent()
     {
         string[] result = SessionWorkspacePolicy.ResolveOpenPorts(
             [], ["COM8", "COM9"], ["COM9", "COM3", "COM4"]);
 
-        Assert.Equal(["COM8", "COM9", "COM3"], result);
+        Assert.Empty(result);
     }
 
     [Theory]

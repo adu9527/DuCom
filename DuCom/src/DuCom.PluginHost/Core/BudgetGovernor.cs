@@ -16,10 +16,10 @@ public sealed record BudgetGovernorConfig
     /// </summary>
     public long HostBudgetBytes { get; init; } = HostBudgetDefault;
 
-    /// <summary>Hard per-process quota for ordinary plugins (job object limit).</summary>
+    /// <summary>Aggregate sampled ordinary-plugin quota; also the hard cap of each worker/helper job.</summary>
     public long PerPluginQuotaBytes { get; init; } = 250_000_000;
 
-    /// <summary>Hard per-process quota for the BES flashing plugin.</summary>
+    /// <summary>Aggregate sampled BES quota; also the hard cap of each BES worker/helper job.</summary>
     public long BesPluginQuotaBytes { get; init; } = 200_000_000;
 
     /// <summary>Group budget shared by every plugin except the BES one.</summary>
@@ -66,7 +66,11 @@ public sealed record PluginBudgetSample
     public required int ProcessThreadCount { get; init; }
     public required int ThreadPoolThreadCount { get; init; }
     public required long ThreadPoolPendingWorkItemCount { get; init; }
+    /// <summary>Worker processes only; bytes remain per-process for existing UI/diagnostics consumers.</summary>
     public required IReadOnlyList<(string PluginId, uint Pid, long PrivateBytes)> Workers { get; init; }
+
+    /// <summary>Helpers (including unconfirmed-exit remnants), counted once in plugin/group/total budgets.</summary>
+    public IReadOnlyList<(string PluginId, string ActivationId, uint Pid, long PrivateBytes)> Helpers { get; init; } = [];
 
     /// <summary>Private bytes owned by the BES flashing plugin.</summary>
     public long BesPluginBytes { get; init; }
@@ -81,7 +85,7 @@ public enum BudgetStopReason
     /// <summary>No violation was proven; the largest worker was chosen to protect the core.</summary>
     LargestWorker,
 
-    /// <summary>The worker exceeded its own per-process quota.</summary>
+    /// <summary>The plugin's worker plus all helpers exceeded its aggregate quota.</summary>
     QuotaExceeded,
 
     /// <summary>The worker's group or the whole plugin pool exceeded its share.</summary>
@@ -95,6 +99,9 @@ public sealed record BudgetStopRequest
 {
     public required string PluginId { get; init; }
     public required uint Pid { get; init; }
+    /// <summary>The sampled worker generation; stop handlers must match both PID and activation.</summary>
+    public string ActivationId { get; init; } = string.Empty;
+    /// <summary>Aggregate private bytes of this plugin's worker and all registered helpers.</summary>
     public required long PrivateBytes { get; init; }
     public required PluginBudgetSample Sample { get; init; }
     public BudgetStopReason Reason { get; init; } = BudgetStopReason.LargestWorker;
@@ -132,8 +139,11 @@ public sealed class BudgetGovernor : IDisposable
 {
     private readonly BudgetGovernorConfig _config;
     private readonly object _gate = new();
-    private readonly Dictionary<uint, string> _workers = new();
-    private readonly HashSet<uint> _memoryMonitorHelpers = [];
+    private readonly record struct ProcessOwner(string PluginId, string ActivationId);
+    private readonly Dictionary<uint, ProcessOwner> _workers = new();
+    private readonly Dictionary<uint, ProcessOwner> _memoryMonitorHelpers = new();
+    private readonly Func<int, ProcessMemorySnapshot> _readMemory;
+    private readonly object _sampleGate = new();
     private readonly Dictionary<uint, long> _lastBytes = new();
     private Timer? _timer;
     private bool _warningActive;
@@ -163,9 +173,16 @@ public sealed class BudgetGovernor : IDisposable
 
     public PluginBudgetSample? LastSample { get; private set; }
 
-    public BudgetGovernor(BudgetGovernorConfig config)
+    public BudgetGovernor(BudgetGovernorConfig config) : this(config, GetProcessMemorySnapshot)
+    {
+    }
+
+    // Exercises the real Sample outer flow without real processes, timers or hardware.
+    internal BudgetGovernor(BudgetGovernorConfig config, Func<int, ProcessMemorySnapshot> readMemory)
     {
         _config = config;
+        _readMemory = readMemory ?? throw new ArgumentNullException(nameof(readMemory));
+        _hostProcessId = Environment.ProcessId;
         if (_config.WarningThresholdBytes >= _config.TotalBudgetBytes)
         {
             throw new ArgumentException("The warning threshold must stay below the total budget.");
@@ -182,12 +199,17 @@ public sealed class BudgetGovernor : IDisposable
         _timer = new Timer(_ => Sample(), null, _config.SampleIntervalMilliseconds, _config.SampleIntervalMilliseconds);
     }
 
-    public void RegisterWorker(string pluginId, uint pid)
+    public void RegisterWorker(string pluginId, uint pid) => RegisterWorker(pluginId, pid, string.Empty);
+
+    public void RegisterWorker(string pluginId, uint pid, string activationId)
     {
         ArgumentException.ThrowIfNullOrEmpty(pluginId);
         lock (_gate)
         {
-            _workers[pid] = pluginId;
+            ProcessOwner owner = new(pluginId, activationId);
+            if (!_workers.TryGetValue(pid, out ProcessOwner previous) || previous != owner)
+                _lastBytes.Remove(pid);
+            _workers[pid] = owner;
         }
     }
 
@@ -200,22 +222,34 @@ public sealed class BudgetGovernor : IDisposable
         }
     }
 
-    // Both sandbox workers and broker-launched helpers use single-process jobs with
-    // no breakaway. Helpers are siblings of workers, not discoverable as worker children.
-    // Keep this UI membership separate from private-commit budget governance.
+    // Helpers are siblings, not discoverable worker children. The same owned membership
+    // drives both the UI process list and private-commit budget accounting.
     public uint[] GetMemoryMonitorProcessIds()
     {
-        lock (_gate) return [.. _workers.Keys.Concat(_memoryMonitorHelpers).Distinct()];
+        lock (_gate) return [.. _workers.Keys.Concat(_memoryMonitorHelpers.Keys).Distinct()];
     }
 
-    internal void RegisterMemoryMonitorHelper(uint pid)
+    internal void RegisterMemoryMonitorHelper(string pluginId, string activationId, uint pid)
     {
-        lock (_gate) _memoryMonitorHelpers.Add(pid);
+        ArgumentException.ThrowIfNullOrEmpty(pluginId);
+        ArgumentException.ThrowIfNullOrEmpty(activationId);
+        lock (_gate)
+        {
+            ProcessOwner owner = new(pluginId, activationId);
+            if (!_memoryMonitorHelpers.TryGetValue(pid, out ProcessOwner previous) || previous != owner)
+                _lastBytes.Remove(pid);
+            _memoryMonitorHelpers[pid] = owner;
+        }
     }
 
+    // Called only after the retained process handle has signalled actual exit.
     internal void UnregisterMemoryMonitorHelper(uint pid)
     {
-        lock (_gate) _memoryMonitorHelpers.Remove(pid);
+        lock (_gate)
+        {
+            _memoryMonitorHelpers.Remove(pid);
+            _lastBytes.Remove(pid);
+        }
     }
 
     public bool IsBesPlugin(string pluginId) => _config.BesPluginId.Length > 0
@@ -262,50 +296,54 @@ public sealed class BudgetGovernor : IDisposable
 
     public PluginBudgetSample Sample()
     {
-        ProcessMemorySnapshot hostSnapshot = GetProcessMemorySnapshot(_hostProcessId);
-        long host = hostSnapshot.PrivateBytes;
+        // Timer callbacks can overlap; keep baseline, cooldown and episode transitions ordered.
+        lock (_sampleGate) return SampleCore();
+    }
+
+    private PluginBudgetSample SampleCore()
+    {
+        ProcessMemorySnapshot hostSnapshot = _readMemory(_hostProcessId);
+        long host = Math.Max(0, hostSnapshot.PrivateBytes);
         GCMemoryInfo gc = GC.GetGCMemoryInfo();
-        List<(string, uint, long)> workers = [];
+        List<(string PluginId, uint Pid, long PrivateBytes)> workers = [];
+        List<(string PluginId, string ActivationId, uint Pid, long PrivateBytes)> helpers = [];
+        Dictionary<uint, ProcessOwner> workerOwners;
+        Dictionary<uint, ProcessOwner> helperOwners;
         Dictionary<uint, long> previousBytes;
         long previousHost;
-        uint[] pids;
         lock (_gate)
         {
-            pids = [.. _workers.Keys];
-            previousBytes = new Dictionary<uint, long>(_lastBytes);
+            workerOwners = new(_workers);
+            helperOwners = new(_memoryMonitorHelpers);
+            previousBytes = new(_lastBytes);
             previousHost = _lastHostBytes;
         }
 
-        long total = host;
-        long besBytes = 0;
-        long standardBytes = 0;
-        foreach (uint pid in pids)
+        Dictionary<string, long> pluginBytes = new(StringComparer.Ordinal);
+        Dictionary<string, long> previousPluginBytes = new(StringComparer.Ordinal);
+        foreach ((uint pid, ProcessOwner owner) in workerOwners.Concat(helperOwners.Where(pair => !workerOwners.ContainsKey(pair.Key))))
         {
-            long bytes = GetPrivateBytes((int)pid);
-            if (bytes < 0)
-            {
-                continue;
-            }
-
-            string pluginId;
+            long bytes = _readMemory((int)pid).PrivateBytes;
+            // A failed read is not proof of exit. Retain last-known usage until the owner
+            // confirms exit through its retained handle and unregisters the process.
+            if (bytes < 0) bytes = previousBytes.GetValueOrDefault(pid);
             lock (_gate)
             {
-                pluginId = _workers.TryGetValue(pid, out string? registered) ? registered : "?";
+                Dictionary<uint, ProcessOwner> current = workerOwners.ContainsKey(pid) ? _workers : _memoryMonitorHelpers;
+                if (!current.TryGetValue(pid, out ProcessOwner registered) || registered != owner) continue;
                 _lastBytes[pid] = bytes;
             }
-
-            workers.Add((pluginId, pid, bytes));
-            total += bytes;
-            if (IsBesPlugin(pluginId))
-            {
-                besBytes += bytes;
-            }
-            else
-            {
-                standardBytes += bytes;
-            }
+            if (workerOwners.ContainsKey(pid)) workers.Add((owner.PluginId, pid, bytes));
+            else helpers.Add((owner.PluginId, owner.ActivationId, pid, bytes));
+            pluginBytes[owner.PluginId] = pluginBytes.GetValueOrDefault(owner.PluginId) + bytes;
+            // Newly seen processes have no growth evidence on their first sample.
+            previousPluginBytes[owner.PluginId] = previousPluginBytes.GetValueOrDefault(owner.PluginId)
+                + previousBytes.GetValueOrDefault(pid, bytes);
         }
 
+        long besBytes = pluginBytes.Where(pair => IsBesPlugin(pair.Key)).Sum(pair => pair.Value);
+        long standardBytes = pluginBytes.Where(pair => !IsBesPlugin(pair.Key)).Sum(pair => pair.Value);
+        long total = host + besBytes + standardBytes;
         PluginBudgetSample sample = new()
         {
             HostPrivateBytes = host,
@@ -317,25 +355,57 @@ public sealed class BudgetGovernor : IDisposable
             ThreadPoolThreadCount = ThreadPool.ThreadCount,
             ThreadPoolPendingWorkItemCount = ThreadPool.PendingWorkItemCount,
             Workers = workers,
+            Helpers = helpers,
             BesPluginBytes = besBytes,
             StandardPluginBytes = standardBytes,
         };
         LastSample = sample;
-
-        long hostGrowth = host >= 0 && previousHost >= 0 ? host - previousHost : 0;
+        long hostGrowth = previousHost >= 0 ? host - previousHost : 0;
         lock (_gate) _lastHostBytes = host;
 
-        Sampled?.Invoke(sample);
+        // Decision rows are plugin aggregates, not extra independent helper workers. The
+        // representative PID/activation is captured now, before event handlers can restart it.
+        List<(string PluginId, uint Pid, long PrivateBytes)> aggregates = [];
+        Dictionary<uint, long> previousAggregates = new();
+        Dictionary<uint, ProcessOwner> stopOwners = new();
+        foreach ((string pluginId, long bytes) in pluginBytes)
+        {
+            uint pid = workers.LastOrDefault(worker => worker.PluginId == pluginId).Pid;
+            if (pid != 0 && bytes >= GetPluginQuota(pluginId))
+            {
+                ProcessOwner currentOwner = workerOwners[pid];
+                long currentActivationBytes = workers.Where(worker => worker.PluginId == pluginId
+                        && workerOwners[worker.Pid].ActivationId == currentOwner.ActivationId).Sum(worker => worker.PrivateBytes)
+                    + helpers.Where(helper => helper.PluginId == pluginId && helper.ActivationId == currentOwner.ActivationId)
+                        .Sum(helper => helper.PrivateBytes);
+                // Old helper debt stays charged, but cannot turn an old activation's stop
+                // into a stop of a healthy replacement activation.
+                if (currentActivationBytes < GetPluginQuota(pluginId)
+                    && helpers.Any(helper => helper.PluginId == pluginId && helper.ActivationId != currentOwner.ActivationId))
+                    pid = 0;
+            }
+            aggregates.Add((pluginId, pid, bytes));
+            if (pid != 0)
+            {
+                previousAggregates[pid] = previousPluginBytes[pluginId];
+                stopOwners[pid] = workerOwners[pid];
+            }
+        }
 
-        if (total >= _config.TotalBudgetBytes)
+        Sampled?.Invoke(sample);
+        bool totalExceeded = total >= _config.TotalBudgetBytes;
+        bool quotaExceeded = pluginBytes.Any(pair => pair.Value >= GetPluginQuota(pair.Key))
+            || besBytes > _config.BesPluginQuotaBytes || standardBytes > _config.StandardPluginPoolBytes
+            || besBytes + standardBytes > _config.PluginPoolBytes;
+        if (totalExceeded || quotaExceeded)
         {
             bool firstEscalation = !_restrictionActive;
             _restrictionActive = true;
             _warningActive = true;
-
-            (BudgetStopRequest? stop, bool suppressed) = DecideStop(sample, previousBytes, hostGrowth, firstEscalation);
+            (BudgetStopRequest? stop, bool suppressed) = DecideStop(
+                sample, aggregates, previousAggregates, stopOwners, hostGrowth, firstEscalation, totalExceeded);
             if (stop is not null) EmergencyStop?.Invoke(stop);
-            else if (firstEscalation && !suppressed) HostPressure?.Invoke(sample);
+            else if (totalExceeded && firstEscalation && !suppressed && !quotaExceeded) HostPressure?.Invoke(sample);
         }
         else
         {
@@ -344,7 +414,6 @@ public sealed class BudgetGovernor : IDisposable
                 _restrictionActive = false;
                 RestrictionRecovered?.Invoke(sample);
             }
-
             if (total >= _config.WarningThresholdBytes)
             {
                 _warningActive = true;
@@ -356,7 +425,6 @@ public sealed class BudgetGovernor : IDisposable
                 Recovered?.Invoke(sample);
             }
         }
-
         return sample;
     }
 
@@ -367,9 +435,12 @@ public sealed class BudgetGovernor : IDisposable
     /// </summary>
     private (BudgetStopRequest? Stop, bool Suppressed) DecideStop(
         PluginBudgetSample sample,
+        IReadOnlyList<(string PluginId, uint Pid, long PrivateBytes)> aggregates,
         IReadOnlyDictionary<uint, long> previousBytes,
+        IReadOnlyDictionary<uint, ProcessOwner> stopOwners,
         long hostGrowth,
-        bool firstEscalation)
+        bool firstEscalation,
+        bool totalExceeded)
     {
         BudgetLimits limits = new(
             _config.HostBudgetBytes,
@@ -382,13 +453,15 @@ public sealed class BudgetGovernor : IDisposable
 
         BudgetStopDecision? decision = DecideEmergencyStop(
             sample.HostPrivateBytes,
-            sample.Workers,
+            aggregates,
             previousBytes,
             hostGrowth,
             limits,
-            requireEvidence: !firstEscalation);
+            requireEvidence: !firstEscalation,
+            allowGrowthEvidence: totalExceeded);
 
-        if (decision is null)
+        if (decision is null || decision.Value.Pid == 0
+            || !stopOwners.TryGetValue(decision.Value.Pid, out ProcessOwner owner))
         {
             return (null, false);
         }
@@ -403,6 +476,8 @@ public sealed class BudgetGovernor : IDisposable
                 return (null, true);
             }
 
+            if (!_workers.TryGetValue(decision.Value.Pid, out ProcessOwner current) || current != owner)
+                return (null, true);
             _nextEmergencyStopTimestamp = now + _config.EmergencyStopCooldownMilliseconds;
         }
 
@@ -411,6 +486,7 @@ public sealed class BudgetGovernor : IDisposable
         {
             PluginId = stop.PluginId,
             Pid = stop.Pid,
+            ActivationId = owner.ActivationId,
             PrivateBytes = stop.PrivateBytes,
             GrowthBytes = stop.GrowthBytes,
             Reason = stop.Reason,
@@ -429,7 +505,8 @@ public sealed class BudgetGovernor : IDisposable
         IReadOnlyDictionary<uint, long> previousBytes,
         long hostGrowthBytes,
         BudgetLimits limits,
-        bool requireEvidence)
+        bool requireEvidence,
+        bool allowGrowthEvidence = true)
     {
         if (workers.Count == 0)
         {
@@ -453,9 +530,13 @@ public sealed class BudgetGovernor : IDisposable
             if (bes) besBytes += privateBytes;
             else standardBytes += privateBytes;
 
+            // Orphan remnants still owe group/pool bytes, but have no current worker to
+            // terminate. Do not let one hide another actionable violating plugin.
+            if (pid == 0) continue;
             long ownBudget = bes ? limits.BesPluginQuotaBytes : limits.PerPluginQuotaBytes;
             if (privateBytes >= ownBudget
-                && (ownQuota is null || privateBytes - ownBudget > ownQuota.Value.PrivateBytes - ownBudget))
+                && (ownQuota is null || privateBytes - ownBudget > ownQuota.Value.PrivateBytes
+                    - (limits.IsBes(ownQuota.Value.PluginId) ? limits.BesPluginQuotaBytes : limits.PerPluginQuotaBytes)))
             {
                 ownQuota = new(pluginId, pid, privateBytes, workerGrowth, BudgetStopReason.QuotaExceeded);
             }
@@ -489,7 +570,7 @@ public sealed class BudgetGovernor : IDisposable
             return quotaStop;
         }
 
-        if (growth is { } growthStop)
+        if (allowGrowthEvidence && growth is { } growthStop)
         {
             return growthStop;
         }
@@ -522,7 +603,7 @@ public sealed class BudgetGovernor : IDisposable
             return null;
         }
 
-        return pluginGrowth > hostGrowthBytes ? largest : null;
+        return allowGrowthEvidence && pluginGrowth > hostGrowthBytes ? largest : null;
     }
 
     public long GetWorkerBytes(uint pid)
@@ -532,9 +613,6 @@ public sealed class BudgetGovernor : IDisposable
             return _lastBytes.TryGetValue(pid, out long bytes) ? bytes : 0;
         }
     }
-
-    private static long GetPrivateBytes(int pid)
-        => GetProcessMemorySnapshot(pid).PrivateBytes;
 
     private static ProcessMemorySnapshot GetProcessMemorySnapshot(int pid)
     {
@@ -550,7 +628,7 @@ public sealed class BudgetGovernor : IDisposable
         }
     }
 
-    private readonly record struct ProcessMemorySnapshot(long PrivateBytes, int ThreadCount);
+    internal readonly record struct ProcessMemorySnapshot(long PrivateBytes, int ThreadCount);
 
     public void Dispose()
     {

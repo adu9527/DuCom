@@ -15,6 +15,17 @@ public sealed class SettingsCatalogTests
         Assert.Equal(40, SettingsCatalog.DefaultLogRotationMegabytes);
     }
 
+    [Fact]
+    public void LogQuotaIsEnabledOnlyForExactDefaultRoot()
+    {
+        string root = SettingsCatalog.DefaultLogDirectory;
+        Assert.Equal(DuCom.Core.Logging.LogFolderQuota.DefaultQuotaBytes, SettingsCatalog.GetLogFolderQuotaBytes(root));
+        Assert.Equal(DuCom.Core.Logging.LogFolderQuota.DefaultQuotaBytes, SettingsCatalog.GetLogFolderQuotaBytes(root + System.IO.Path.DirectorySeparatorChar));
+        Assert.Equal(DuCom.Core.Logging.LogFolderQuota.DefaultQuotaBytes, SettingsCatalog.GetLogFolderQuotaBytes(System.IO.Path.Combine(root, ".")));
+        Assert.Equal(0, SettingsCatalog.GetLogFolderQuotaBytes(root + "-custom"));
+        Assert.Equal(0, SettingsCatalog.GetLogFolderQuotaBytes(System.IO.Path.Combine(root, "custom")));
+    }
+
     [Theory]
     [InlineData(0, 1)]
     [InlineData(12, 12)]

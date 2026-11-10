@@ -542,6 +542,9 @@ public partial class SessionWorkspaceViewModel : ObservableObject, IAsyncDisposa
         {
             foreach (string port in openPorts)
             {
+                // A visibility preference gates automatic restore, never an
+                // explicit connection the user already opened in this process.
+                if (FindSession(port) is { IsOpen: true }) continue;
                 if (!_callbacks.IsPortAvailable(port))
                 {
                     Program.DiagnosticLog?.Warning($"Persisted session port is not currently available. Port={port}");

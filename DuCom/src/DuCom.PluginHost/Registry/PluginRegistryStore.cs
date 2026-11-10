@@ -66,6 +66,8 @@ public sealed record PluginRegistryEntry
     [JsonPropertyName("faultDisabled")] public FaultDisableRecord? FaultDisabled { get; init; }
     [JsonPropertyName("pendingUpdate")] public PendingUpdateRecord? PendingUpdate { get; init; }
     [JsonPropertyName("approvedPermissions")] public List<string> ApprovedPermissions { get; init; } = [];
+    /// <summary>Package digest whose native-helper high-trust consent was granted; empty when never granted.</summary>
+    [JsonPropertyName("trustedNativeHelperDigest")] public string TrustedNativeHelperDigest { get; init; } = "";
     [JsonPropertyName("rememberedGrants")] public List<RememberedGrantRecord> RememberedGrants { get; init; } = [];
     [JsonPropertyName("lastAttempt")] public AttemptRecord? LastAttempt { get; init; }
 }

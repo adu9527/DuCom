@@ -135,7 +135,9 @@ public sealed class VariablePlotEngineTests
     public void RuntimeChangeReanchorsAndStaleCursorRecordsGap()
     {
         Guid id = Guid.NewGuid();
-        VariableMonitorEngine engine = new();
+        // This tests cursor/runtime semantics, not the production 50ms scheduling budget.
+        // Concurrent builds/JIT on a busy runner must not truncate the fixture's two lines.
+        VariableMonitorEngine engine = new(new VariableMonitorEngineOptions(MaximumWorkTimePerTick: TimeSpan.FromSeconds(5)));
         engine.UpdateRules([new VariableMonitorRule(id, "value", null, @"v=(\d+)", true, 0)]);
         Queue<LineStoreSnapshot> firstRuntime = new([
             new LineStoreSnapshot(1, 1, 0, []),

@@ -296,7 +296,7 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
         }
 
         _stager.ApplyStagedUpdate();
-        System.Windows.Application.Current.Shutdown();
+        ShutdownAfterGracefulTeardown();
     }
 
     /// <summary>
@@ -325,7 +325,39 @@ public sealed partial class AppUpdateService : ObservableObject, IDisposable
         // Any staged update is now obsolete relative to the rolled-back executable.
         _stager.DiscardStagedPackage();
         Phase = UpdatePhase.Idle;
-        System.Windows.Application.Current.Shutdown();
+        ShutdownAfterGracefulTeardown();
+    }
+
+    /// <summary>
+    /// Shutdown must not run plugin/session teardown synchronously on the UI thread
+    /// inside OnExit: that path can block past the shutdown watchdog. Route through
+    /// the same graceful asynchronous preparation the main-window close uses.
+    /// </summary>
+    private static void ShutdownAfterGracefulTeardown()
+    {
+        System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+        {
+            try
+            {
+                if (System.Windows.Application.Current is App app)
+                {
+                    if (System.Windows.Application.Current.MainWindow is { } window)
+                    {
+                        window.IsEnabled = false;
+                        window.Hide();
+                    }
+                    await app.PrepareShutdownAsync();
+                }
+            }
+            catch (Exception exception)
+            {
+                Program.DiagnosticLog?.Warning("Graceful teardown before update shutdown failed; continuing.", exception);
+            }
+            finally
+            {
+                System.Windows.Application.Current.Shutdown();
+            }
+        });
     }
 
     /// <summary>

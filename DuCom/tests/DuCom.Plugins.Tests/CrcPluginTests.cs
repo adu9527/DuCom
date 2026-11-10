@@ -4,7 +4,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Runtime.InteropServices;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
+using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
 using DuCom.Plugin;
 using DuCom.PluginHost;
@@ -79,15 +81,14 @@ public sealed class CrcPluginTests
     public void NativeWindowSubmitsParametersConvertsInputAndInvalidatesOldResults()
     {
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
-                Application app = Application.Current ?? new Application();
-                app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary { Theme = Wpf.Ui.Appearance.ApplicationTheme.Dark });
-                app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
+                using PluginUiTestScope scope = new();
                 IReadOnlyDictionary<string, string>? submitted = null;
                 CrcWindow window = new((command, values) => { submitted = values; return Task.FromResult(true); });
+                scope.Track(window);
                 // The production host supplies these dynamic tokens; isolate them to this test window.
                 window.Resources.MergedDictionaries.Add(new ResourceDictionary
                 {
@@ -96,20 +97,23 @@ public sealed class CrcPluginTests
                 try
                 {
                     window.Show();
-                    window.UpdateLayout();
+                    Capture(window, "crc-initial.png");
                     ComboBox models = (ComboBox)window.FindName("ModelSelect");
                     Assert.Contains(VisualTexts(models), text => text.Text == "CRC-16/MODBUS");
                     Assert.DoesNotContain(VisualTexts(models), text => text.Text.Contains("CrcModel {", StringComparison.Ordinal));
-                    ClickAt(models, new Point(models.ActualWidth / 2, models.ActualHeight / 2));
-                    Assert.True(models.IsDropDownOpen, "Clicking the model field must open the dropdown.");
+                    ToggleDropDown(models);
+                    Assert.True(models.IsDropDownOpen, "The template toggle must open the model dropdown.");
                     ComboBoxItem longestModel = (ComboBoxItem)models.ItemContainerGenerator.ContainerFromIndex(16);
                     Assert.Contains(VisualTexts(longestModel), text => text.Text == "CRC-16/CCITT-FALSE");
                     Capture(window, "crc-model-dropdown.png");
-                    ClickAt(longestModel, new Point(40, longestModel.ActualHeight / 2));
-                    Assert.False(models.IsDropDownOpen);
+                    // ComboBoxItem delegates automation to its owning selector; it does not
+                    // guarantee a stand-alone SelectionItem provider for the realized container.
+                    longestModel.SetCurrentValue(ComboBoxItem.IsSelectedProperty, true);
                     Assert.Equal("CRC-16/CCITT-FALSE", ((CrcModel)models.SelectedItem).Name);
-                    ClickAt(models, new Point(models.ActualWidth - 16, models.ActualHeight / 2));
-                    Assert.True(models.IsDropDownOpen, "Clicking the arrow must reopen the dropdown.");
+                    ((IExpandCollapseProvider)new ComboBoxAutomationPeer(models).GetPattern(PatternInterface.ExpandCollapse)!).Collapse();
+                    Assert.False(models.IsDropDownOpen);
+                    ToggleDropDown(models);
+                    Assert.True(models.IsDropDownOpen, "The template toggle must reopen the dropdown.");
                     models.IsDropDownOpen = false;
                     models.SelectedItem = CrcCalculator.Models.Single(model => model.Name == "CRC-16/MODBUS");
                     TextBox input = (TextBox)window.FindName("DataInput");
@@ -132,8 +136,8 @@ public sealed class CrcPluginTests
                     ((ComboBox)window.FindName("ModelSelect")).SelectedIndex = 0;
                     Assert.True(((TextBox)window.FindName("PolyInput")).IsEnabled);
                     ComboBox widths = (ComboBox)window.FindName("WidthInput");
-                    ClickAt(widths, new Point(widths.ActualWidth / 2, widths.ActualHeight / 2));
-                    Assert.True(widths.IsDropDownOpen, "The custom WIDTH dropdown must open on click.");
+                    ToggleDropDown(widths);
+                    Assert.True(widths.IsDropDownOpen, "The custom WIDTH template toggle must open the dropdown.");
                     widths.IsDropDownOpen = false;
                     Assert.Equal(21, ((DataGrid)window.FindName("ModelTable")).Items.Count);
                 }
@@ -141,9 +145,6 @@ public sealed class CrcPluginTests
             }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
@@ -167,36 +168,21 @@ public sealed class CrcPluginTests
             foreach (TextBlock child in VisualTexts(VisualTreeHelper.GetChild(root, index))) yield return child;
     }
 
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetCursorPos(int x, int y);
-
-    [DllImport("user32.dll")]
-    private static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
-
-    private static void ClickAt(FrameworkElement element, Point point)
+    private static void ToggleDropDown(ComboBox combo)
     {
-        element.BringIntoView();
-        element.UpdateLayout();
-        // BringIntoView queues popup scrolling. Let the dispatcher settle before converting
-        // coordinates, otherwise short/high-DPI popup viewports click the old offscreen row.
-        DispatcherFrame layoutFrame = new();
-        element.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => layoutFrame.Continue = false);
-        Dispatcher.PushFrame(layoutFrame);
-        Point screen = element.PointToScreen(point);
-        Assert.True(SetCursorPos((int)screen.X, (int)screen.Y));
-        // Deliver WM_MOUSEMOVE before the button events: popup capture routes using
-        // Mouse.DirectlyOver, which otherwise still points at the combo's old position.
-        DispatcherFrame pointerFrame = new();
-        element.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => pointerFrame.Continue = false);
-        Dispatcher.PushFrame(pointerFrame);
-        mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
-        mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
+        // Exercise the shipped template's TwoWay toggle binding without moving the system
+        // cursor. Native mouse hit-testing/capture remains an interactive-desktop system
+        // test boundary; UIAutomation here is deterministic even on a locked build agent.
+        combo.ApplyTemplate();
+        ToggleButton toggle = Assert.IsType<ToggleButton>(combo.Template.FindName("DropDownToggle", combo));
+        Assert.True(toggle.IsHitTestVisible);
+        Assert.Equal(HorizontalAlignment.Stretch, toggle.HorizontalAlignment);
+        Assert.Equal(VerticalAlignment.Stretch, toggle.VerticalAlignment);
+        ((IToggleProvider)new ToggleButtonAutomationPeer(toggle).GetPattern(PatternInterface.Toggle)!).Toggle();
         DispatcherFrame frame = new();
-        DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(200) };
-        timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
-        timer.Start();
+        combo.Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => frame.Continue = false);
         Dispatcher.PushFrame(frame);
+        combo.UpdateLayout();
     }
 
     private sealed class CrcEnvironment : FakeEnvironment

@@ -92,14 +92,9 @@ internal sealed class PortRefreshCoordinator
                         _logSlowOperation(stopwatch.Elapsed, discovered.Names.Length);
                     }
 
-                    lock (_sync)
-                    {
-                        if (_requested)
-                        {
-                            continue;
-                        }
-                    }
-
+                    // A newer request means one trailing pass, not that this completed
+                    // presence snapshot is unusable. Dropping every in-flight result can
+                    // starve the UI forever when notifications arrive faster than discovery.
                     if (_isStopping())
                     {
                         break;

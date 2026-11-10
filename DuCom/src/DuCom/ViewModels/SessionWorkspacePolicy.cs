@@ -13,11 +13,9 @@ internal static class SessionWorkspacePolicy
         IReadOnlyList<string> rightPorts,
         IReadOnlyList<string> sessionOrder)
     {
-        IEnumerable<string> ports = openPorts.Count > 0
-            ? openPorts
-            : rightPorts.Concat(sessionOrder.Where(port =>
-                !rightPorts.Contains(port, StringComparer.OrdinalIgnoreCase)).Take(1));
-        return [.. ports.Where(port => !string.IsNullOrWhiteSpace(port)).Distinct(StringComparer.OrdinalIgnoreCase)];
+        // Tab order and split layout are not connection intent. In particular an
+        // explicitly empty open list means the user closed every connection.
+        return [.. openPorts.Where(port => !string.IsNullOrWhiteSpace(port)).Distinct(StringComparer.OrdinalIgnoreCase)];
     }
 
     public static int BoundMoveIndex(int requestedIndex, int count) =>

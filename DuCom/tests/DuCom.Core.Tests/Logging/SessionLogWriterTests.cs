@@ -292,6 +292,88 @@ public sealed class SessionLogWriterTests
         Assert.Equal("12345678\r\n", File.ReadAllText(path));
     }
 
+    [Theory]
+    [InlineData(40)]
+    [InlineData(100)]
+    public async Task RealRotationAboveDefaultQuotaRetainsLatestCompleteSegment(int rotationMiB)
+    {
+        using TemporaryDirectory directory = new();
+        SessionLogWriterOptions options = new(directory.Path, "COM3", FileNameFormat: "owned-{Segment}");
+        Assert.Equal(40L * 1024 * 1024, options.RotationBytes);
+        if (rotationMiB != 40) options = options with { RotationBytes = rotationMiB * 1024L * 1024 };
+        await using SessionLogWriter writer = new(options, new LoadMetrics());
+        await writer.StartAsync();
+        string chunk = new('x', 1024 * 1024);
+        for (int segment = 0; segment < 2; segment++)
+        {
+            for (int index = 0; index < rotationMiB; index++) Assert.True(await writer.WriteAsync(new(chunk)));
+        }
+        Assert.True(await writer.WriteAsync(new("tail")));
+        await writer.StopAsync();
+
+        string[] files = Directory.GetFiles(directory.Path, "*.txt").Order().ToArray();
+        Assert.Equal(2, files.Length);
+        Assert.Equal(options.RotationBytes, new FileInfo(files[0]).Length);
+        Assert.Equal("tail", File.ReadAllText(files[1]));
+        Assert.Equal(2, Directory.GetFiles(directory.Path, "*.ducom-owned").Length);
+        Assert.Null(writer.Fault);
+    }
+
+    [Fact]
+    public async Task QuotaProtectsOtherLiveWritersAndNeverAdoptsForeignTextFiles()
+    {
+        using TemporaryDirectory directory = new();
+        string foreign = Path.Combine(directory.Path, "notes.txt");
+        await File.WriteAllTextAsync(foreign, new string('n', 100));
+        await using SessionLogWriter first = new(new(directory.Path, "COM1", 8, FileNameFormat: "{Port}-{Segment}", FolderQuotaBytes: 1), new LoadMetrics());
+        await using SessionLogWriter second = new(new(directory.Path, "COM2", 8, FileNameFormat: "{Port}-{Segment}", FolderQuotaBytes: 1), new LoadMetrics());
+        await first.StartAsync();
+        await second.StartAsync();
+        Assert.True(await first.WriteAsync(new("11111111")));
+        Assert.True(await first.WriteAsync(new("22222222")));
+        IReadOnlyList<SessionLogFileSnapshot> original = await first.CreateSnapshotAsync();
+        for (int index = 0; index < 3; index++) Assert.True(await second.WriteAsync(new("abcdefgh")));
+        _ = await second.CreateSnapshotAsync();
+        Assert.All(original, file => Assert.True(File.Exists(file.Path)));
+        Assert.True(await first.WriteAsync(new("!")));
+        await first.StopAsync();
+        await second.StopAsync();
+        Assert.Equal(new string('n', 100), File.ReadAllText(foreign));
+        Assert.Null(first.Fault);
+        Assert.Null(second.Fault);
+    }
+
+    [Fact]
+    public async Task NewRunRetainsLatestOwnedCompleteSegmentAboveQuota()
+    {
+        using TemporaryDirectory directory = new();
+        SessionLogWriterOptions options = new(directory.Path, "COM3", 8, FileNameFormat: "run-{Segment}", FolderQuotaBytes: 1);
+        await using (SessionLogWriter previous = new(options, new LoadMetrics()))
+        {
+            await previous.StartAsync();
+            Assert.True(await previous.WriteAsync(new("12345678")));
+        }
+        string previousPath = Assert.Single(Directory.GetFiles(directory.Path, "*.txt"));
+        await using SessionLogWriter current = new(options, new LoadMetrics());
+        await current.StartAsync();
+        Assert.True(await current.WriteAsync(new("new")));
+        _ = await current.CreateSnapshotAsync();
+        Assert.Equal("12345678", File.ReadAllText(previousPath));
+        Assert.Null(current.Fault);
+    }
+
+    [Fact]
+    public async Task DisabledQuotaCreatesNoOwnershipMarkersAndKeepsAllSegments()
+    {
+        using TemporaryDirectory directory = new();
+        await using SessionLogWriter writer = new(new(directory.Path, "COM3", 8, FolderQuotaBytes: 0), new LoadMetrics());
+        await writer.StartAsync();
+        for (int index = 0; index < 3; index++) Assert.True(await writer.WriteAsync(new("12345678")));
+        await writer.StopAsync();
+        Assert.Equal(3, Directory.GetFiles(directory.Path, "*.txt").Length);
+        Assert.Empty(Directory.GetFiles(directory.Path, "*.ducom-owned"));
+    }
+
     private static async Task<string> WaitForSingleLogFileAsync(string directoryPath)
     {
         string? path = null;

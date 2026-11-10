@@ -27,7 +27,7 @@ public sealed partial class PluginRuntimeController
         StateChanged?.Invoke(this, new PluginStateChange(_manifest.Id, previous, next, reason, _activationId));
     }
 
-    public async Task<bool> StartAsync()
+    public async Task<bool> StartAsync(bool nativeHelpersApproved = false)
     {
         lock (_gate)
         {
@@ -74,7 +74,7 @@ public sealed partial class PluginRuntimeController
             Directory.CreateDirectory(hostSnapshotDirectory);
 
             _scope = new ActivationScope(_manifest, _activationId, storageDirectory, workerScratchDirectory, hostOutputDirectory, hostSnapshotDirectory, _limits, _grantedPermissions, _hostTempDiskBudget, _hostTempLedger);
-            _broker = new PluginBroker(_scope, _environment, _diagnostics, _versionDirectory, null, _budget);
+            _broker = new PluginBroker(_scope, _environment, _diagnostics, _versionDirectory, null, _budget, nativeHelpersApproved);
             _broker.SerialSubscriptionAdded += (subscriptionId, sessionId) => RegisterSerialSubscription(subscriptionId, sessionId);
             _broker.SerialSubscriptionRemoved += (_, subscriptionId) => RemoveSerialSubscription(subscriptionId);
 
@@ -104,13 +104,13 @@ public sealed partial class PluginRuntimeController
                 workerScratchDirectory,
                 hostOutputDirectory,
                 hostSnapshotDirectory,
-                _budget.Configuration.PerPluginQuotaBytes,
+                _budget.GetPluginQuota(_manifest.Id),
                 pipeName,
                 credential,
                 _sessionId,
                 _activationId);
 
-            _budget.RegisterWorker(_manifest.Id, _worker.ProcessId);
+            _budget.RegisterWorker(_manifest.Id, _worker.ProcessId, _activationId);
 
             bool connected = await _pipe.WaitForConnectionAndAuthenticateAsync(
                 credential,

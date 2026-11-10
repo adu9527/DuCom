@@ -47,7 +47,7 @@ public sealed class PortRefreshCoordinatorTests
     }
 
     [Fact]
-    public async Task NewRequestAfterDiscoveryStartedDiscardsOldResult()
+    public async Task NewRequestAfterDiscoveryStartedAppliesCompletedResultAndTrailingResult()
     {
         TaskCompletionSource<PortDiscoverySnapshot> firstDiscovery = NewDiscoverySource();
         List<string> appliedPorts = [];
@@ -63,7 +63,7 @@ public sealed class PortRefreshCoordinatorTests
         firstDiscovery.SetResult(Snapshot("COM1"));
         await refresh;
 
-        Assert.Equal(["COM2"], appliedPorts);
+        Assert.Equal(["COM1", "COM2"], appliedPorts);
     }
 
     [Fact]
@@ -160,6 +160,56 @@ public sealed class PortRefreshCoordinatorTests
 
         Assert.Equal(2, calls);
         Assert.Equal(2, applied);
+    }
+
+    [Fact]
+    public async Task ThreeTimerRequestsDuringSlowDiscoveryCannotStarvePublication()
+    {
+        TaskCompletionSource<PortDiscoverySnapshot>[] passes = [NewDiscoverySource(), NewDiscoverySource(), NewDiscoverySource()];
+        TaskCompletionSource[] started = [new(), new(), new()];
+        int calls = 0;
+        List<string> applied = [];
+        PortRefreshCoordinator coordinator = CreateCoordinator(() =>
+        {
+            int index = calls++;
+            started[index].SetResult();
+            return passes[index].Task;
+        }, snapshot => applied.Add(snapshot.Names.Single()));
+
+        Task refresh = coordinator.RequestRefreshAsync();
+        for (int index = 0; index < passes.Length; index++)
+        {
+            await started[index].Task;
+            if (index < passes.Length - 1)
+            {
+                for (int tick = 0; tick < 3; tick++) Assert.Same(refresh, coordinator.RequestRefreshAsync());
+            }
+            passes[index].SetResult(Snapshot($"COM{index + 1}"));
+        }
+        await refresh;
+
+        Assert.Equal(["COM1", "COM2", "COM3"], applied);
+        Assert.Equal(3, calls);
+        Assert.Null(coordinator.CurrentTask);
+    }
+
+    [Fact]
+    public async Task ShutdownDuringDiscoveryDoesNotApplyOrRunTrailingPass()
+    {
+        TaskCompletionSource<PortDiscoverySnapshot> discovery = NewDiscoverySource();
+        bool stopping = false;
+        int calls = 0;
+        int applied = 0;
+        PortRefreshCoordinator coordinator = new(() => { calls++; return discovery.Task; }, _ => applied++,
+            () => stopping, (_, _) => { }, _ => { }, DisabledSlowThreshold);
+        Task refresh = coordinator.RequestRefreshAsync();
+        _ = coordinator.RequestRefreshAsync();
+        stopping = true;
+        discovery.SetResult(Snapshot("COM8"));
+        await refresh;
+        Assert.Equal(1, calls);
+        Assert.Equal(0, applied);
+        Assert.Null(coordinator.CurrentTask);
     }
 
     private static PortRefreshCoordinator CreateCoordinator(

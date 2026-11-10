@@ -41,6 +41,11 @@ public sealed partial class SerialSession
             {
                 try
                 {
+                    // A disconnect publishes Closed before closing the transport handle.
+                    // Reopen may acquire this lock before queued fault cleanup; finish the
+                    // old transport close now rather than letting the new Open reuse it.
+                    PortCommandResult closed = await _lifecycle.CloseAsync(CancellationToken.None).ConfigureAwait(false);
+                    if (closed == PortCommandResult.Faulted) return PortCommandResult.Faulted;
                     await DrainRuntimeAsync(previousRuntime).ConfigureAwait(false);
                 }
                 catch (Exception exception)

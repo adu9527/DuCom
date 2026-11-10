@@ -13,11 +13,10 @@ public sealed class TaskbarIconTests
     public void DynamicWindowHasNativeSmallAndLargeIconsAcrossTaskbarVisibilityChanges()
     {
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
-                _ = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
                 TaskbarIconService.Initialize(portable: false);
                 Window window = new() { Title = "DuCom icon test", Width = 300, Height = 180, ShowInTaskbar = true };
                 TaskbarIconService.Attach(window);
@@ -45,8 +44,6 @@ public sealed class TaskbarIconTests
             }
             catch (Exception e) { failure = e; }
         });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(20)));
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
     private static void AssertIcons(nint hwnd)

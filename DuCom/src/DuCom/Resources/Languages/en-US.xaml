@@ -930,4 +930,8 @@
     <system:String x:Key="ProtocolDecoder.GapFormat">Input is discontinuous: {0} gaps, {1} blocks / {2} bytes dropped</system:String>
     <system:String x:Key="VariablePlot.Title">DuCom Variable Plot</system:String>
     <system:String x:Key="VariablePlot.StatusFormat">{0} series | {1} gaps | {2} samples evicted</system:String>
+    <system:String x:Key="Plugins.NativeHelper.InstallWarning">High-trust permission: this package can run local programs with DuCom's full current-user authority, outside plugin file and network broker permissions. Install only trusted packages; a separate session approval is required before activation.</system:String>
+    <system:String x:Key="Plugins.NativeHelper.Title">High-trust native program approval</system:String>
+    <system:String x:Key="Plugins.NativeHelper.Allow">Trust and allow this session</system:String>
+    <system:String x:Key="Plugins.NativeHelper.Confirm">Plugin {0} ({1}, version {2}) needs to run these native helpers:&#10;{3}&#10;&#10;These programs run outside the plugin AppContainer and inherit DuCom's current user authority over files, network, and devices. If DuCom is elevated, they inherit administrator authority. Job limits restrict resources and process lifetime, not security access.&#10;&#10;Allow only plugins you trust. Cancel leaves the plugin stopped and runs no helper. Consent is remembered per package digest: this package starts silently afterwards; a package update asks once again.&#10;Package digest: {4}</system:String>
 </ResourceDictionary>

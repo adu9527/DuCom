@@ -17,6 +17,15 @@ internal sealed record ComposedPort(
 /// </summary>
 internal static class PortListComposer
 {
+    // Unknown is not physical: wait for classification when either category is
+    // filtered, rather than briefly presenting a virtual device as a serial port.
+    internal static bool IsTypeVisible(DiscoveredPortType type, bool showSerial, bool showVirtual) => type switch
+    {
+        DiscoveredPortType.Virtual => showVirtual,
+        DiscoveredPortType.Unknown => showSerial && showVirtual,
+        _ => showSerial,
+    };
+
     public static IReadOnlyList<ComposedPort> Compose(
         IReadOnlyList<string> discoveredNames,
         IReadOnlyDictionary<string, DiscoveredPort> details,
@@ -46,8 +55,7 @@ internal static class PortListComposer
         {
             bool hidden = hiddenPorts.Contains(name, StringComparer.OrdinalIgnoreCase);
             details.TryGetValue(name, out DiscoveredPort? detail);
-            bool isVirtual = detail?.Type == DiscoveredPortType.Virtual;
-            bool typeVisible = isVirtual ? showVirtualPorts : showSerialPorts;
+            bool typeVisible = IsTypeVisible(detail?.Type ?? DiscoveredPortType.Unknown, showSerialPorts, showVirtualPorts);
             if (!typeVisible || (hidden && !showHiddenPorts))
             {
                 continue;

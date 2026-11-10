@@ -44,6 +44,20 @@ public sealed class TelnetHardeningTests
     }
 
     [Fact]
+    public async Task ImmediateStopCannotClearDeferredAcceptLoopGeneration()
+    {
+        await using BasicTelnetServer server = new();
+        for (int round = 0; round < 40; round++)
+        {
+            // Start and stop before yielding: the pool callback may not have run yet.
+            server.Start(NextPort());
+            await server.StopAsync();
+            Assert.False(server.IsRunning);
+        }
+        await server.DisposeAsync();
+    }
+
+    [Fact]
     public void OversizedInputWithoutNewlineIsDroppedNotBufferedForever()
     {
         IncrementalUtf8LineFramer framer = new(maximumCommandLength: 64);

@@ -16,11 +16,11 @@ public sealed class ChecksumUiTests
     public void OriginalWindowPreservesSizeLayoutDropAndCopyControls()
     {
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
-                Application app = Application.Current ?? new Application();
+                Application app = Application.Current!;
                 app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary { Theme = Wpf.Ui.Appearance.ApplicationTheme.Dark });
                 app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
                 Type type = typeof(App).Assembly.GetType("DuCom.Services.Plugins.ChecksumWindow", true)!;
@@ -86,8 +86,7 @@ public sealed class ChecksumUiTests
                 }
                 finally { File.Delete(path); }
                 window.Close();
-                // UI tests have separate STA threads; Application.Windows belongs to the
-                // first test's dispatcher. Inspect the returned window on its own dispatcher.
+                // The shared test dispatcher owns both the Application and this guide.
                 Window guide = (Window)typeof(App).Assembly.GetType("DuCom.Services.Plugins.PluginIntegrationGuide", true)!
                     .GetMethod("Show", BindingFlags.NonPublic | BindingFlags.Static)!.Invoke(null, [null])!;
                 Assert.StartsWith("恒玄接入文档", guide.Title);
@@ -95,9 +94,6 @@ public sealed class ChecksumUiTests
             }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 

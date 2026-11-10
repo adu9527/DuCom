@@ -71,6 +71,11 @@ public sealed class NativeHelperTaskManagerTests : IDisposable
         Assert.True(PrivateWorkingSetMonitor.ReadProcess(pid).Bytes > 0);
         await manager.CancelAsync(id);
         manager.Dispose();
+        // The observer can publish the terminal result before its retained-handle cleanup
+        // finishes. Membership is removed only after exit confirmation, never optimistically.
+        using CancellationTokenSource cleanup = new(TimeSpan.FromSeconds(5));
+        while (budget.GetMemoryMonitorProcessIds().Length > 0)
+            await Task.Delay(10, cleanup.Token);
         Assert.Empty(budget.GetMemoryMonitorProcessIds());
     }
 
@@ -86,9 +91,10 @@ public sealed class NativeHelperTaskManagerTests : IDisposable
             File.Copy(file, Path.Combine(helperDirectory, Path.GetFileName(file)), true);
         PluginManifest manifest = new()
         {
+            Id = "org.example.helper-tests",
             NativeHelpers = [new PluginNativeHelper { Id = "fake", EntryPoint = "helpers/win-x86/DuCom.NativeHelperTestBed.exe", Rid = "win-x86", ProtocolVersion = "1.0" }],
         };
-        return new NativeHelperTaskManager(manifest, package, Path.Combine(_root, "tasks"), memoryMonitor);
+        return new NativeHelperTaskManager(manifest, package, Path.Combine(_root, "tasks"), memoryMonitor, "helper-test-activation");
     }
 
     private static HelperStartRequest Start(string id, string mode) => new()

@@ -16,10 +16,9 @@ public sealed class BackgroundImageHostServiceTests
     public void ReuseRevalidatesContentAndPreservesOwnershipAndGeneration()
     {
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             string directory = Path.Combine(Path.GetTempPath(), $"ducom-background-{Guid.NewGuid():N}");
-            Application application = new() { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             try
             {
                 Directory.CreateDirectory(directory);
@@ -132,13 +131,9 @@ public sealed class BackgroundImageHostServiceTests
             }
             finally
             {
-                application.Shutdown();
                 if (Directory.Exists(directory)) Directory.Delete(directory, true);
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(90)), "Background image test timed out.");
         if (failure is not null) throw new Xunit.Sdk.XunitException(failure.ToString());
     }
 

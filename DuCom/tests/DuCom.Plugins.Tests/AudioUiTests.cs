@@ -18,18 +18,18 @@ public sealed class AudioUiTests
     public void NativeAudioWindowFitsDefaultAndMinimumSizes()
     {
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
-                Application app = Application.Current ?? new Application();
-                app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ThemesDictionary { Theme = Wpf.Ui.Appearance.ApplicationTheme.Dark });
-                app.Resources.MergedDictionaries.Add(new Wpf.Ui.Markup.ControlsDictionary());
+                using PluginUiTestScope scope = new();
+                Application app = Application.Current!;
                 app.Resources["Brush.ShellSurface"] = new SolidColorBrush(Color.FromRgb(20, 22, 27));
                 app.Resources["Brush.TextPrimary"] = Brushes.WhiteSmoke;
                 app.Resources["Brush.TextSecondary"] = new SolidColorBrush(Color.FromRgb(185, 190, 200));
                 app.Resources["Brush.PanelBorder"] = new SolidColorBrush(Color.FromRgb(55, 60, 68));
                 AudioWindow window = new((_, _) => Task.FromResult(true), (_, _) => Task.FromResult(true));
+                scope.Track(window);
                 List<UiNode> nodes = [new UiTextNode { FieldId = "native-state", Text = JsonSerializer.Serialize(new
                 {
                     Status = "已加载 318 个在线语音。", Error = false, Busy = false, Percent = 0,
@@ -66,10 +66,28 @@ public sealed class AudioUiTests
                 window.Width = 800; window.Height = 720;
                 Capture(window, "audio-minimum-dark.png");
                 Assert.True(text.ActualHeight >= 160);
-                foreach (Button button in Descendants<Button>((DependencyObject)window.Content).Where(b => b.Content is string s && s is "开始合成" or "试听"))
+                Button[] primaryActions = Descendants<Button>((DependencyObject)window.Content)
+                    .Where(b => b.Content is string s && s is "开始合成" or "试听").ToArray();
+                Assert.Equal(2, primaryActions.Length);
+                foreach (Button button in primaryActions)
                 {
-                    Point origin = button.TranslatePoint(new Point(), (UIElement)window.Content);
-                    Assert.InRange(origin.Y + button.ActualHeight, 0, 720);
+                    // At the minimum size the editor deliberately scrolls. Test reachability
+                    // in the actual outer viewport, not an absolute Y in the unscrolled page.
+                    ScrollViewer outer = Descendants<ScrollViewer>((DependencyObject)window.Content)
+                        .Single(viewer => viewer.Content is FrameworkElement page && IsAncestorOf(page, button));
+                    Assert.Equal(ScrollBarVisibility.Auto, outer.VerticalScrollBarVisibility);
+                    outer.ScrollToTop();
+                    SettleLayout(window);
+                    button.BringIntoView();
+                    SettleLayout(window);
+                    ScrollContentPresenter viewport = Descendants<ScrollContentPresenter>(outer)
+                        .First(presenter => ReferenceEquals(presenter.TemplatedParent, outer));
+                    Point origin = button.TranslatePoint(new Point(), viewport);
+                    Assert.True(button.IsVisible && button.IsEnabled);
+                    Assert.InRange(origin.Y, -1, viewport.ActualHeight);
+                    Assert.InRange(origin.Y + button.ActualHeight, 0, viewport.ActualHeight + 1);
+                    Assert.InRange(origin.X, -1, viewport.ActualWidth);
+                    Assert.InRange(origin.X + button.ActualWidth, 0, viewport.ActualWidth + 1);
                 }
                 window.Width = 1080; window.Height = 800;
                 // 4K at common 200% / 150% scaling corresponds to these logical viewports.
@@ -84,10 +102,23 @@ public sealed class AudioUiTests
             }
             catch (Exception e) { failure = e; }
         });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
+    private static bool IsAncestorOf(DependencyObject ancestor, DependencyObject element)
+    {
+        for (DependencyObject? current = element; current is not null; current = VisualTreeHelper.GetParent(current))
+            if (ReferenceEquals(current, ancestor)) return true;
+        return false;
+    }
+
+    private static void SettleLayout(Window window)
+    {
+        System.Windows.Threading.DispatcherFrame frame = new();
+        window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, () => frame.Continue = false);
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
+        window.UpdateLayout();
+    }
+
     private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
     {
         if (root is T value) yield return value;

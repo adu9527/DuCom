@@ -18,6 +18,9 @@ public sealed class Plugin : DuComPlugin
     private Task? _run;
     private string _status = "就绪";
     private int _round;
+    // Monotonic across runs: "once" restarts _round at 1 every time, so the round
+    // number alone cannot distinguish consecutive single tests in the record CSV.
+    private int _testSerial;
     private readonly SemaphoreSlim _publishGate = new(1, 1);
     private long _lastPublish;
     private int _logDirty;
@@ -89,6 +92,14 @@ public sealed class Plugin : DuComPlugin
                 EnsureIdle();
                 lock (_gate) { _results.Clear(); foreach (var r in _earResults) r.Clear(); _responses.Clear(); _passed = _failed = 0; _earState[0] = _earState[1] = "待执行"; _activeCommand = ""; }
                 _status = "本批次记录已清空，文件保留";
+            }
+            else if (commandId == "clear-records")
+            {
+                EnsureIdle();
+                await Api.Serial.RecordProductionAsync(new() { Action = "clear", Project = _profile.Name }, CancellationToken.None);
+                lock (_gate) { _results.Clear(); foreach (var r in _earResults) r.Clear(); _logs.Clear(); _responses.Clear(); _passed = _failed = 0; _earState[0] = _earState[1] = "待执行"; _activeCommand = ""; }
+                _recordPath = ""; _testSerial = 0;
+                _status = "记录已清空，从零重新开始";
             }
             else if (commandId == "clear")
             {
@@ -310,13 +321,15 @@ public sealed class Plugin : DuComPlugin
         {
             _recordPath = await Api.Serial.RecordProductionAsync(new() { Action = "begin", Project = _profile.Name }, ct);
             _recording = true;
+            int testSerial = ++_testSerial;
             do
             {
                 ct.ThrowIfCancellationRequested();
                 _round++;
+                DateTime roundStartedAt = DateTime.Now;
                 bool[] earFailed = [false, false];
                 bool roundFailed = false;
-                List<(int Channel, string Name, string Result, bool Ok)> roundResults = [];
+                List<(int Channel, string Name, string Result, bool Ok, DateTime CompletedAt)> roundResults = [];
                 lock (_gate)
                 {
                     _results.Clear(); foreach (var r in _earResults) r.Clear();
@@ -354,7 +367,7 @@ public sealed class Plugin : DuComPlugin
                             roundFailed |= !result.Success;
                             earFailed[result.Channel] |= !result.Success;
                             lock (_gate) _earResults[result.Channel][command.Id] = result.Text;
-                            roundResults.Add((result.Channel, command.Name, result.Text, result.Success));
+                            roundResults.Add((result.Channel, command.Name, result.Text, result.Success, DateTime.Now));
                         }
                         lock (_gate) _results[command.Id] = string.Join(" · ", compound.Select(r => r.Text));
                         await PushAsync(force: false);
@@ -383,7 +396,7 @@ public sealed class Plugin : DuComPlugin
                         if (result == "未连接") ok = false;
                         roundFailed |= !ok;
                         earFailed[index] |= !ok;
-                        roundResults.Add((index, command.Name, result, ok));
+                        roundResults.Add((index, command.Name, result, ok, DateTime.Now));
                         lock (_gate) { _results[command.Id] = string.Join(" · ", values); _earResults[index][command.Id] = result; }
                         await PushAsync(force: false);
                     }
@@ -392,7 +405,18 @@ public sealed class Plugin : DuComPlugin
                 }
                 if (roundFailed) _failed++; else _passed++;
                 for (int i = 0; i < 2; i++) _earState[i] = channels is not null && !channels.Contains(i) ? "未参与" : earFailed[i] ? "执行完成 · 不通过" : "执行完成 · 通过";
-                string[] csv = roundResults.Select(r => string.Join(",", new[] { DateTime.Now.ToString("O"), _round.ToString(), r.Channel == 0 ? "左耳" : "右耳", r.Name, r.Result, r.Ok ? "通过" : "不通过", roundFailed ? "不通过" : "通过" }.Select(Csv))).ToArray();
+                // Per-ear wall time: round start → that ear's last completed item.
+                Dictionary<int, DateTime> earFinished = roundResults.GroupBy(r => r.Channel)
+                    .ToDictionary(group => group.Key, group => group.Max(r => r.CompletedAt));
+                string[] csv = roundResults.Select(r => string.Join(",", new[]
+                {
+                    r.CompletedAt.ToString("O"), _round.ToString(), r.Channel == 0 ? "左耳" : "右耳", r.Name, r.Result,
+                    r.Ok ? "通过" : "不通过", roundFailed ? "不通过" : "通过",
+                    _connections[r.Channel]?.PortName ?? "",
+                    earFinished.TryGetValue(r.Channel, out DateTime finished)
+                        ? Math.Max(0, (finished - roundStartedAt).TotalSeconds).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : "",
+                    testSerial.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                }.Select(Csv))).ToArray();
                 await FlushRecordAsync(csv);
                 if (loop) await Task.Delay(Math.Max(10, _profile.LoopIntervalMs), ct);
             } while (loop);
@@ -446,7 +470,7 @@ public sealed class Plugin : DuComPlugin
             { connection.Faulted = true; throw; }
             if (!command.WaitResponse) return "已发送";
             byte[] response = await pending.Task.WaitAsync(TimeSpan.FromMilliseconds(command.TimeoutMs), ct);
-            string result = ProtocolCodec.Decode(command, response);
+            string result = ProtocolCodec.Decode(command, response, frameSettings);
             lock (_gate) _responses[$"{(index == 0 ? EarChannel.Left : EarChannel.Right)}:{command.Id}"] = response;
             return result;
         }

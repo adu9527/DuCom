@@ -33,6 +33,7 @@ public sealed class PluginSystemHost : IAsyncDisposable
         _environment = new DuComPluginHostEnvironment(sessionsProvider, portsProvider, serialLeases, Ui, Background, _rememberedGrants, logDirectoryProvider);
         Ui.StageReadSelection = _environment.StageReadSelection;
         Ui.ClearReadSelection = _environment.ClearReadSelection;
+        Ui.NativePortsProvider = portsProvider;
         string executable = System.Environment.ProcessPath
             ?? throw new InvalidOperationException("Cannot determine the host executable for plugin workers.");
         _service = new PluginSystemService(

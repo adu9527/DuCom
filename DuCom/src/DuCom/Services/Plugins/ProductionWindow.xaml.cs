@@ -10,20 +10,23 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using DuCom.Plugin;
 using DuCom.Plugins.Production;
+using DuCom.ViewModels;
 
 namespace DuCom.Services.Plugins;
 
 public partial class ProductionWindow : Window
 {
     private readonly Func<string, IReadOnlyDictionary<string, string>, Task<bool>> _invoke;
+    private readonly Func<IEnumerable<PortItemViewModel>>? _portsProvider;
     private ProductionProfile _profile = ProductionProfile.CreateExample();
     private bool _running, _dispatching, _left, _right, _initialized, _selecting, _approved, _closing;
     private readonly Dictionary<string, string> _paths = new(StringComparer.OrdinalIgnoreCase);
+    private string _recordPath = "";
     public ObservableCollection<ProductionResultRow> Rows { get; } = [];
     private static string ProfilesDirectory => Path.Combine(AppContext.BaseDirectory, "profiles");
-    public ProductionWindow(Func<string, IReadOnlyDictionary<string, string>, Task<bool>> invoke)
+    public ProductionWindow(Func<string, IReadOnlyDictionary<string, string>, Task<bool>> invoke, Func<IEnumerable<PortItemViewModel>>? portsProvider = null)
     {
-        _invoke = invoke; InitializeComponent(); PluginVisualTheme.Apply(this); DataContext = this; RefreshPorts(); Closing += OnClosing;
+        _invoke = invoke; _portsProvider = portsProvider; InitializeComponent(); PluginVisualTheme.Apply(this); DataContext = this; RefreshPorts(); Closing += OnClosing;
         LeftPort.PreviewMouseLeftButtonDown += PreparePortDropdown; RightPort.PreviewMouseLeftButtonDown += PreparePortDropdown;
         ResultsGrid.PreviewMouseWheel += (_, _) => { if (_running) FollowExecution.IsChecked = false; };
     }
@@ -41,6 +44,9 @@ public partial class ProductionWindow : Window
             LeftState.SetResourceReference(TextBlock.ForegroundProperty, _left ? "Brush.Success" : "Brush.TextSecondary"); RightState.SetResourceReference(TextBlock.ForegroundProperty, _right ? "Brush.Success" : "Brush.TextSecondary");
             LeftConnect.Content = _left ? "断开" : "连接"; RightConnect.Content = _right ? "断开" : "连接";
             StatusText.Text = state.GetProperty("Status").GetString(); StatusText.ToolTip = state.TryGetProperty("RecordPath", out var path) ? path.GetString() : StatusText.Text;
+            _recordPath = state.TryGetProperty("RecordPath", out var record) ? record.GetString() ?? "" : _recordPath;
+            try { ExportRecordsButton.IsEnabled = _recordPath.Length > 0 && File.Exists(_recordPath + ".csv"); }
+            catch (Exception) { ExportRecordsButton.IsEnabled = false; }
             foreach (var row in Rows)
             {
                 row.Left = Result(state, "LeftResults", row.Command.Id); row.Right = Result(state, "RightResults", row.Command.Id); row.Refresh();
@@ -66,6 +72,7 @@ public partial class ProductionWindow : Window
         LeftPort.IsEnabled = !_left; RightPort.IsEnabled = !_right;
         StartButton.IsEnabled = !_running && !_dispatching; StopButton.IsEnabled = _running && !_dispatching; LoopSelected.IsEnabled = !_running && !_dispatching;
         ClearBatchButton.IsEnabled = !_running && !_dispatching;
+        ClearRecordsButton.IsEnabled = !_running && !_dispatching;
         ContinuousButton.IsEnabled = !_running && !_dispatching;
     }
     private async Task Invoke(string command, Dictionary<string, string>? values = null)
@@ -78,20 +85,39 @@ public partial class ProductionWindow : Window
     private void RefreshPorts()
     {
         string? l = LeftPort.SelectedItem as string, r = RightPort.SelectedItem as string;
-        string[] ports = SerialPort.GetPortNames().Order().ToArray();
+        string[] ports = SelectPhysicalPorts(_portsProvider);
         if (LeftPort.ItemsSource is string[] existing && existing.SequenceEqual(ports)) return;
         LeftPort.ItemsSource = ports; RightPort.ItemsSource = ports;
         LeftPort.SelectedItem = ports.Contains(l) ? l : ports.Contains("COM42") ? "COM42" : ports.FirstOrDefault();
         RightPort.SelectedItem = ports.Contains(r) ? r : ports.Contains("COM40") ? "COM40" : ports.Skip(1).FirstOrDefault();
     }
+
+    /// <summary>
+    /// Physical adapters only: reuse the host's classified port list and drop virtual
+    /// devices (VAR) plus entries that have not been identified yet — the same rule the
+    /// plugin-facing host API applies. Pure so the filter can be unit-tested without
+    /// constructing the heavy production window on the shared test STA thread.
+    /// </summary>
+    internal static string[] SelectPhysicalPorts(Func<IEnumerable<ViewModels.PortItemViewModel>>? portsProvider) =>
+        portsProvider is null ? [.. SerialPort.GetPortNames().Order()]
+        : [.. portsProvider()
+            .Where(port => !string.Equals(port.PortType, "VAR", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(port.DeviceInstanceId))
+            .Select(port => port.PortName).Distinct().Order(StringComparer.OrdinalIgnoreCase)];
     private void RefreshProfiles()
     {
         _selecting = true;
         try
         {
             _paths.Clear();
-            if (Directory.Exists(ProfilesDirectory)) foreach (string file in Directory.EnumerateFiles(ProfilesDirectory, "*.json").Where(f => !string.Equals(Path.GetFileName(f), "X8I-pairing.json", StringComparison.OrdinalIgnoreCase) && !string.Equals(Path.GetFileName(f), "X8I.json", StringComparison.OrdinalIgnoreCase)))
+            if (Directory.Exists(ProfilesDirectory)) foreach (string file in Directory.EnumerateFiles(ProfilesDirectory, "*.json").Where(f => !Path.GetFileName(f).Equals("X8I-pairing.json", StringComparison.OrdinalIgnoreCase) && !Path.GetFileName(f).Equals("X8I.json", StringComparison.OrdinalIgnoreCase) && !Path.GetFileName(f).Equals("X8I_V1.json", StringComparison.OrdinalIgnoreCase)))
                 try { var p = ProductionProfile.FromJson(File.ReadAllText(file)); _paths[p.Name] = file; } catch (Exception e) { Program.DiagnosticLog?.Warning(e.Message); }
+            // X8I_V1.json is excluded above: it is the legacy loose copy of the template
+            // that now ships embedded. Ignoring it lets the embedded (current) template
+            // win; user-saved copies live under project-*.json and are unaffected.
+            // The bundled template ships inside the exe; offer it even with an empty
+            // profiles folder. A user-saved copy with the same name wins over it.
+            _paths.TryAdd(ProductionBundledTemplate.Name, "");
             Profiles.ItemsSource = _paths.Keys.Append(_profile.Name).Distinct().Order().ToArray(); Profiles.SelectedItem = _profile.Name;
         }
         finally { _selecting = false; }
@@ -100,7 +126,13 @@ public partial class ProductionWindow : Window
     {
         if (_selecting || Profiles.SelectedItem is not string name || name == _profile.Name) return;
         if (_left || _right) { StatusText.Text = "切换项目请先断开串口"; RefreshProfiles(); return; }
-        try { await Apply(ProductionProfile.FromJson(File.ReadAllText(_paths[name]))); } catch (Exception ex) { StatusText.Text = ex.Message; }
+        try
+        {
+            string json = name == ProductionBundledTemplate.Name ? ProductionBundledTemplate.LoadJson()
+                : File.ReadAllText(_paths[name]);
+            await Apply(ProductionProfile.FromJson(json));
+        }
+        catch (Exception ex) { StatusText.Text = ex.Message; }
     }
     private async Task Apply(ProductionProfile profile)
     {
@@ -125,8 +157,84 @@ public partial class ProductionWindow : Window
             try { await Apply(editor.Profile); } catch (Exception ex) { StatusText.Text = ex.Message; }
         }
     }
-    private async void DeleteProject_Click(object sender, RoutedEventArgs e)
+    private async void ImportProject_Click(object sender, RoutedEventArgs e)
     {
+        if (_left || _right) { StatusText.Text = "导入项目前请先断开串口"; return; }
+        Microsoft.Win32.OpenFileDialog dialog = new() { Filter = "项目配置 (*.json)|*.json", CheckFileExists = true, Title = "导入项目配置" };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            ProductionProfile profile = ProductionProfile.FromJson(File.ReadAllText(dialog.FileName));
+            if (profile.Commands.Count == 0) { StatusText.Text = "导入的项目没有启用任何命令，请先在项目配置中添加"; return; }
+            // Re-importing an existing project name intentionally replaces its saved file.
+            await Apply(profile);
+            StatusText.Text = $"已导入项目 {profile.Name}";
+        }
+        catch (Exception ex) { StatusText.Text = ex.Message; }
+    }
+    private void ExportTemplate_Click(object sender, RoutedEventArgs e)
+    {
+        Microsoft.Win32.SaveFileDialog dialog = new()
+        {
+            Filter = "项目配置 (*.json)|*.json",
+            FileName = "产测项目模版.json",
+            Title = "导出公共项目模版",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            // The public template is vendor-neutral: generic placeholders plus in-Notes
+            // documentation, so customers adapt it to their own protocol from scratch.
+            string json = ProductionBundledTemplate.LoadGenericJson();
+            ProductionProfile.FromJson(json); // Refuse to hand out a template that would not import.
+            File.WriteAllText(dialog.FileName, json, System.Text.Encoding.UTF8);
+            StatusText.Text = $"已导出通用模版 {Path.GetFileName(dialog.FileName)}（含协议与命令说明，导入后按贵司协议修改）";
+        }
+        catch (Exception ex) { StatusText.Text = "导出失败 · " + ex.Message; }
+    }
+    private void ExportRecords_Click(object sender, RoutedEventArgs e)
+    {
+        if (_recordPath.Length == 0) { StatusText.Text = "还没有产测记录，先完成一轮测试"; return; }
+        // One export covers EVERY record of this project, not just the current file:
+        // collect its Production-*.csv across the plugin's dated log folders (oldest
+        // first — the file names start with a timestamp), then merge into one sheet.
+        string? recordDir = Path.GetDirectoryName(_recordPath);
+        string pluginRoot = recordDir is not null ? Directory.GetParent(recordDir)?.FullName ?? recordDir : "";
+        if (!pluginRoot.EndsWith("com.ducom.production", StringComparison.OrdinalIgnoreCase)) pluginRoot = recordDir ?? "";
+        string filePrefix = "Production-" + string.Concat(_profile.Name.Take(80).Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)) + "-";
+        List<string> recordFiles = [];
+        if (pluginRoot.Length > 0 && Directory.Exists(pluginRoot))
+            recordFiles.AddRange(Directory.EnumerateFiles(pluginRoot, "Production-*.csv", SearchOption.AllDirectories)
+                .Where(file => Path.GetFileName(file).StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(file => Path.GetFileName(file), StringComparer.OrdinalIgnoreCase));
+        if (recordFiles.Count == 0 || !File.Exists(_recordPath + ".csv")) { StatusText.Text = "还没有产测记录，先完成一轮测试"; return; }
+        Microsoft.Win32.SaveFileDialog dialog = new()
+        {
+            Filter = "Excel 表 (*.xlsx)|*.xlsx",
+            FileName = Path.GetFileName(_recordPath) + ".xlsx",
+            Title = "导出产测记录",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            // Column order follows the current profile's enabled commands, so the sheet
+            // matches the test items the operator sees on this page.
+            string version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "";
+            ProductionRecordExporter.Export(recordFiles, dialog.FileName, [.. Rows.Select(row => row.Name)],
+                new ProductionExportContext(_profile.Name, "DuCom V" + version));
+            StatusText.Text = $"已导出产测记录 {Path.GetFileName(dialog.FileName)}（{recordFiles.Count} 个记录文件 · 每次测试一行）";
+        }
+        catch (Exception ex) { StatusText.Text = "导出失败 · " + ex.Message; }
+    }
+    private async void ClearRecords_Click(object sender, RoutedEventArgs e)
+    {
+        if (_running || _dispatching) return;
+        if (!ThemedMessageDialog.Confirm(this,
+                $"删除项目“{_profile.Name}”的全部产测记录文件并从零重新开始记录？\n删除后无法恢复，需要留档请先导出。",
+                "清空记录")) return;
+        await Invoke("clear-records");
+    }
+    private async void DeleteProject_Click(object sender, RoutedEventArgs e)    {
         if (_running || _dispatching) return;
         if (_left || _right) { StatusText.Text = "删除项目前请先断开串口"; return; }
         string name = _profile.Name;

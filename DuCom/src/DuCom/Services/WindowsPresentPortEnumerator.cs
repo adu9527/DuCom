@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 
@@ -12,7 +13,9 @@ internal static class WindowsPresentPortEnumerator
     private const int NoMoreItems = 259;
     private static readonly IntPtr InvalidHandle = new(-1);
 
-    internal static IReadOnlyCollection<string>? GetPortNames()
+    internal static IReadOnlyCollection<string>? GetPortNames() => GetPortDetails()?.Keys.ToArray();
+
+    internal static IReadOnlyDictionary<string, DiscoveredPort>? GetPortDetails()
     {
         IntPtr devices = SetupDiGetClassDevs(IntPtr.Zero, null, IntPtr.Zero, PresentAllClasses);
         if (devices == InvalidHandle)
@@ -23,7 +26,7 @@ internal static class WindowsPresentPortEnumerator
 
         try
         {
-            HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, DiscoveredPort> names = new(StringComparer.OrdinalIgnoreCase);
             for (uint index = 0; ; index++)
             {
                 DeviceInfoData info = new() { Size = (uint)Marshal.SizeOf<DeviceInfoData>() };
@@ -49,7 +52,17 @@ internal static class WindowsPresentPortEnumerator
                 using RegistryKey key = RegistryKey.FromHandle(handle);
                 if (key.GetValue("PortName") is string name && Com0ComService.IsValidPortName(name))
                 {
-                    names.Add(name.ToUpperInvariant());
+                    string portName = name.ToUpperInvariant();
+                    char[] instanceId = new char[1024];
+                    string id = SetupDiGetDeviceInstanceId(devices, ref info, instanceId, (uint)instanceId.Length, out _)
+                        ? new string(instanceId).TrimEnd('\0') : string.Empty;
+                    string caption = ReadProperty(devices, ref info, 12); // SPDRP_FRIENDLYNAME
+                    if (string.IsNullOrEmpty(caption)) caption = ReadProperty(devices, ref info, 0); // SPDRP_DEVICEDESC
+                    names[portName] = new DiscoveredPort(portName,
+                        WindowsPortDiscovery.GetPortType(id, caption), caption,
+                        string.IsNullOrEmpty(caption) ? portName : caption,
+                        ReadProperty(devices, ref info, 11), string.Empty, string.Empty, id,
+                        ReadProperty(devices, ref info, 13));
                 }
             }
         }
@@ -63,6 +76,21 @@ internal static class WindowsPresentPortEnumerator
             _ = SetupDiDestroyDeviceInfoList(devices);
         }
     }
+
+    private static string ReadProperty(IntPtr devices, ref DeviceInfoData info, uint property)
+    {
+        byte[] buffer = new byte[4096];
+        return SetupDiGetDeviceRegistryProperty(devices, ref info, property, out _, buffer, (uint)buffer.Length, out _)
+            ? Encoding.Unicode.GetString(buffer).TrimEnd('\0') : string.Empty;
+    }
+
+    [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "SetupDiGetDeviceInstanceIdW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetupDiGetDeviceInstanceId(IntPtr devices, ref DeviceInfoData info, [Out] char[] instanceId, uint size, out uint requiredSize);
+
+    [DllImport("setupapi.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "SetupDiGetDeviceRegistryPropertyW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetupDiGetDeviceRegistryProperty(IntPtr devices, ref DeviceInfoData info, uint property, out uint registryType, byte[] buffer, uint size, out uint requiredSize);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct DeviceInfoData

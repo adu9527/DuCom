@@ -930,4 +930,8 @@
     <system:String x:Key="ProtocolDecoder.GapFormat">输入不连续：{0} 个缺口，丢弃 {1} 块 / {2} 字节</system:String>
     <system:String x:Key="VariablePlot.Title">DuCom 数据绘图</system:String>
     <system:String x:Key="VariablePlot.StatusFormat">{0} 条曲线 | {1} 个缺口 | 已淘汰 {2} 个样本</system:String>
+    <system:String x:Key="Plugins.NativeHelper.InstallWarning">高信任权限警告：此包可运行具有 DuCom 当前用户完整权限的本地程序，不受插件文件及网络代理权限限制。仅安装可信来源的包；启动前还需要对本次运行单独确认。</system:String>
+    <system:String x:Key="Plugins.NativeHelper.Title">本地程序高信任授权</system:String>
+    <system:String x:Key="Plugins.NativeHelper.Allow">信任并允许本次运行</system:String>
+    <system:String x:Key="Plugins.NativeHelper.Confirm">插件 {0}（{1}，版本 {2}）需要运行下列原生辅助程序：&#10;{3}&#10;&#10;这些程序不在插件 AppContainer 中运行，将继承 DuCom 当前用户的文件、网络及设备访问权限；如果 DuCom 以管理员运行，也会继承管理员权限。Job 仅限制资源和进程生命周期，不是安全沙箱。&#10;&#10;只允许你信任的插件。取消将保持插件未启动，不会运行辅助程序。本次同意会按包摘要记住：此包以后启动不再询问，插件包更新后需重新确认。&#10;包摘要：{4}</system:String>
 </ResourceDictionary>

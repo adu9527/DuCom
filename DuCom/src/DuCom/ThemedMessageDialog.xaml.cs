@@ -30,18 +30,31 @@ public partial class ThemedMessageDialog : FluentWindow
     public static bool Confirm(Window? owner, string message, string title)
         => Confirm(owner, message, title, "Dialog.Yes", "Dialog.No");
 
-    public static bool Confirm(Window? owner, string message, string title, string primaryResourceKey, string secondaryResourceKey)
+    public static bool Confirm(Window? owner, string message, string title, string primaryResourceKey, string secondaryResourceKey,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (AutoConfirmer is not null)
         {
-            return AutoConfirmer(message);
+            bool answer = AutoConfirmer(message);
+            cancellationToken.ThrowIfCancellationRequested();
+            return answer;
         }
 
         ThemedMessageDialog dialog = Create(owner, message, title, ThemedMessageDialogKind.Warning);
         dialog.PrimaryButton.Content = GetResourceString(primaryResourceKey, "Yes");
         dialog.SecondaryButton.Content = GetResourceString(secondaryResourceKey, "No");
         dialog.SecondaryButton.Visibility = Visibility.Visible;
-        return dialog.ShowDialog() == true;
+        using CancellationTokenRegistration registration = cancellationToken.Register(() =>
+        {
+            // Never close a WPF dialog on the cancellation thread or wait on its dispatcher.
+            if (!dialog.Dispatcher.HasShutdownStarted)
+                _ = dialog.Dispatcher.BeginInvoke(new Action(() => { if (dialog.IsVisible) dialog.Close(); }));
+        });
+        cancellationToken.ThrowIfCancellationRequested();
+        bool confirmed = dialog.ShowDialog() == true;
+        cancellationToken.ThrowIfCancellationRequested();
+        return confirmed;
     }
 
     /// <summary>Shows a two-button dialog that also distinguishes a title-bar dismissal from the secondary button.</summary>

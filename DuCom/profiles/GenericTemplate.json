@@ -1,0 +1,24 @@
+{
+  "SchemaVersion": 1,
+  "Name": "产测项目模版",
+  "Revision": "1.0",
+  "Notes": "通用产测配置模版：耳机产测 → 导入项目选择本文件，按贵司协议修改 Protocol 与各命令，在项目配置里勾选启用需要的测试项。Protocol 各字段（务必按贵司协议修改）：BaudRate 波特率；TxHeader / RxHeader 收发帧头 HEX；LengthOffset / LengthSize 长度字段的位置与字节数（1 或 2）；LengthAdjustment 整帧长度 = 长度值 + 此调整值；PayloadOffset 数据区在整帧中的起始偏移；Checksum 校验算法，可选 None / Sum8 / Xor8 / Crc8 / Crc8Maxim / Crc16Modbus / Crc16CcittFalse。Commands 各字段：Hex = 发送的 CMD 与数据字节；ResponseMatch = 回复帧中用于识别的 CMD 字节，MatchOffset = 从整帧第几字节开始匹配（默认 3，即帧头+长度之后）；Fields = 解析字段，Type 可选 Hex / Mac / UInt8 / UInt16 / UInt32 / Int16 / Int32 / Ascii / Str / Version，Offset 从整帧第 0 字节起，固定宽度类型（Mac 6 字节、整数 1/2/4 字节）长度自动，Str 适合蓝牙名等文本（UTF-8 优先、GBK 兼容），ToEnd = 读到数据末尾；Unit 显示单位；DelayMs 发送后间隔，TimeoutMs 回复超时；Channel = Left / Right / Both；Enabled = true 才执行。写入类命令的参数以 00 占位，发送前改成真实值。耳机组队为复合命令示例：Steps 内多个子命令按序执行，子命令用 ResponseSourceId / ResponseSourceChannel / ResponseSourceOffset / ResponseSourceLength 把前序回复的字节段带入下一帧，实现左右耳数据交叉写入；FixedResponseLength = 回复整帧固定长度，变长协议保持 0。改完在项目配置里点保存即可生效，可先点命令详情里的“计算报文（不发送）”核对组帧。",
+  "Protocol": { "BaudRate": 9600, "TxHeader": "55 AA", "RxHeader": "55 AA", "LengthOffset": 2, "LengthSize": 1, "LengthAdjustment": 4, "PayloadOffset": 3, "Checksum": "Crc8Maxim" },
+  "LoopIntervalMs": 500,
+  "RemovalTimeoutMs": 100,
+  "Commands": [
+    { "Id": "query-mac", "Name": "查询MAC（示例）", "Hex": "01 01", "ResponseMatch": "01 02", "DelayMs": 200, "Fields": [{ "Name": "MAC", "Type": "Mac", "Length": 6, "Offset": 5 }] },
+    { "Id": "query-battery", "Name": "查询电量（示例）", "Hex": "02 01", "ResponseMatch": "02 02", "DelayMs": 200, "Fields": [{ "Name": "电量", "Type": "UInt8", "Offset": 5, "Unit": "%" }] },
+    { "Id": "query-version", "Name": "查询版本（示例）", "Enabled": false, "Hex": "03 01", "ResponseMatch": "03 02", "Fields": [{ "Name": "版本", "Type": "Version", "Length": 4, "Offset": 5 }] },
+    { "Id": "query-name", "Name": "查询蓝牙名（示例）", "Enabled": false, "Hex": "04 01", "ResponseMatch": "04 02", "Fields": [{ "Name": "蓝牙名", "Type": "Str", "Offset": 5, "ToEnd": true }] },
+    { "Id": "write-sn", "Name": "写入SN（示例，需填16字节）", "Enabled": false, "Hex": "05 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00", "ResponseMatch": "05 02" },
+    { "Id": "pairing", "Name": "耳机组队（示例）", "Enabled": false, "Hex": "01", "DelayMs": 1000, "SuccessText": "组队示例完成",
+      "Steps": [
+        { "Id": "read-left", "Name": "读取左耳数据", "Channel": "Left", "PairingStep": true, "Hex": "01 02", "ResponseMatch": "01", "FixedResponseLength": 36, "DelayMs": 200 },
+        { "Id": "read-right", "Name": "读取右耳数据", "Channel": "Right", "PairingStep": true, "Hex": "01 01", "ResponseMatch": "01", "FixedResponseLength": 36, "DelayMs": 200 },
+        { "Id": "write-left", "Name": "左耳写入对耳数据", "Channel": "Left", "PairingStep": true, "Hex": "02", "ResponseMatch": "02", "FixedResponseLength": 5, "ResponseSourceId": "read-right", "ResponseSourceChannel": "Right", "ResponseSourceOffset": 4, "ResponseSourceLength": 31, "DelayMs": 200 },
+        { "Id": "write-right", "Name": "右耳写入对耳数据", "Channel": "Right", "PairingStep": true, "Hex": "02", "ResponseMatch": "02", "FixedResponseLength": 5, "ResponseSourceId": "read-left", "ResponseSourceChannel": "Left", "ResponseSourceOffset": 4, "ResponseSourceLength": 31, "DelayMs": 1000 }
+      ]
+    }
+  ]
+}

@@ -65,6 +65,8 @@ public partial class PluginManagerViewModel
             result.Manifest.Version,
             result.Manifest.Name,
             permissions);
+        if (result.Manifest.Permissions.Contains(DuCom.Plugin.Permission.NativeHelpersExecute, StringComparer.Ordinal))
+            message += Environment.NewLine + Environment.NewLine + Resource("Plugins.NativeHelper.InstallWarning");
         bool existingPlugin = system.Service.Registry.Current.Plugins.ContainsKey(result.Manifest.Id);
         DuCom.PluginHost.Registry.PluginRegistryEntry? existingEntry = existingPlugin
             ? system.Service.Registry.Current.Plugins[result.Manifest.Id]

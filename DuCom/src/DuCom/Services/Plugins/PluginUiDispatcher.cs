@@ -24,6 +24,8 @@ public sealed class PluginUiDispatcher
     private PluginFaultNoticeWindow? _faultWindow;
     internal Action<string, string>? StageReadSelection { get; set; }
     internal Action<string>? ClearReadSelection { get; set; }
+    // Classified host port list for native windows that need real-adapter-only pickers.
+    internal Func<IEnumerable<ViewModels.PortItemViewModel>>? NativePortsProvider { get; set; }
 
     public event EventHandler? Changed;
 
@@ -276,7 +278,7 @@ public sealed class PluginUiDispatcher
                     existing.Activate();
                     return;
                 }
-                ProductionWindow production = new(commandInvoker);
+                ProductionWindow production = new(commandInvoker, NativePortsProvider);
                 production.UpdateState(page!.Nodes);
                 production.Show();
                 return;

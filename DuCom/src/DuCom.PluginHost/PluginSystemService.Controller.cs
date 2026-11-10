@@ -44,7 +44,18 @@ public sealed partial class PluginSystemService
             return false;
         }
 
-        bool started = await controller.StartAsync().ConfigureAwait(false);
+        if (controller.State is PluginRuntimeState.Active or PluginRuntimeState.Starting or PluginRuntimeState.Activating)
+            return false;
+        string digest = controller.PackageDigest;
+        bool approved = await AuthorizeNativeHelpersAsync(controller.Manifest, digest, _autoRestartCancellation.Token).ConfigureAwait(false);
+        if (!approved || Volatile.Read(ref _autoRestartShutdown) != 0
+            || !_registry.Current.Plugins.TryGetValue(pluginId, out entry) || !entry.Enabled
+            || entry.FaultDisabled is not null || _registry.Current.SafeStartAllPlugins)
+            return false;
+        controller = GetOrCreateController(pluginId);
+        if (controller is null || controller.PackageDigest != digest || !_budget.CanActivatePlugins(pluginId)) return false;
+
+        bool started = await controller.StartAsync(nativeHelpersApproved: approved).ConfigureAwait(false);
         if (started)
         {
             NotifyPluginStarted(pluginId);
@@ -52,6 +63,54 @@ public sealed partial class PluginSystemService
 
         Changed?.Invoke();
         return started;
+    }
+
+    internal async Task<bool> AuthorizeNativeHelpersAsync(PluginManifest manifest, string packageDigest, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (manifest.NativeHelpers.Count == 0 || !manifest.Permissions.Contains(Permission.NativeHelpersExecute))
+            return true;
+        string key = manifest.Id + ":" + packageDigest;
+        if (_nativeHelperApprovals.ContainsKey(key)) return true;
+        // Consent is remembered per exact package: a restart stays silent, but a
+        // package update (different digest) asks once again.
+        if (_registry.Current.Plugins.TryGetValue(manifest.Id, out PluginRegistryEntry? entry)
+            && string.Equals(entry.TrustedNativeHelperDigest, packageDigest, StringComparison.OrdinalIgnoreCase))
+        {
+            _nativeHelperApprovals.TryAdd(key, 0);
+            return true;
+        }
+        bool approved = await _environment.ConfirmNativeHelperExecutionAsync(new HostNativeHelperConsent
+        {
+            PluginId = manifest.Id,
+            PluginName = manifest.Name,
+            Version = manifest.Version,
+            PackageDigest = packageDigest,
+            HelperEntryPoints = [.. manifest.NativeHelpers.Select(helper => helper.EntryPoint)],
+        }, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (approved)
+        {
+            _nativeHelperApprovals.TryAdd(key, 0);
+            try
+            {
+                _registry.Mutate(data =>
+                {
+                    if (data.Plugins.TryGetValue(manifest.Id, out PluginRegistryEntry? current))
+                    {
+                        data.Plugins[manifest.Id] = current with { TrustedNativeHelperDigest = packageDigest };
+                    }
+                    return data;
+                });
+                ProgramLog?.Invoke($"Native-helper trust remembered for '{manifest.Id}' (digest {packageDigest[..8]}…); future starts of this exact package are silent.");
+            }
+            catch (Exception exception)
+            {
+                // Persisting is an optimization; the in-process cache still applies.
+                ProgramLog?.Invoke($"Could not persist native-helper trust for '{manifest.Id}': {exception.Message}");
+            }
+        }
+        return approved;
     }
 
     public async Task StopAsync(string pluginId)
@@ -119,10 +178,12 @@ public sealed partial class PluginSystemService
             controllers = [.. _controllers.Values];
         }
 
-        foreach (PluginRuntimeController controller in controllers)
-        {
-            await StopControllerAsync(controller).ConfigureAwait(false);
-        }
+        // Stop every worker concurrently: a serial loop spends up to one full
+        // deactivate-grace + terminate-wait budget PER plugin (8s with defaults),
+        // which overrun the 15s shutdown watchdog when several plugins are active.
+        // Each controller stops its own worker independently; FaultAsync on one
+        // does not affect the others' teardown.
+        await Task.WhenAll(controllers.Select(StopControllerAsync)).ConfigureAwait(false);
     }
 
     private async Task HandleBudgetStopAsync(BudgetStopRequest request)
@@ -138,12 +199,20 @@ public sealed partial class PluginSystemService
         }
     }
 
+    internal static bool MatchesBudgetStop(BudgetStopRequest request, string pluginId, uint workerPid, string activationId) =>
+        workerPid != 0 && request.Pid == workerPid
+        && string.Equals(request.PluginId, pluginId, StringComparison.Ordinal)
+        && request.ActivationId.Length > 0
+        && string.Equals(request.ActivationId, activationId, StringComparison.Ordinal);
+
     private async Task HandleBudgetStopLockedAsync(BudgetStopRequest request)
     {
         PluginRuntimeController? controller;
         lock (_controllers)
         {
-            controller = _controllers.Values.FirstOrDefault(candidate => candidate.WorkerPid == request.Pid);
+            controller = _controllers.GetValueOrDefault(request.PluginId);
+            if (controller is not null && !MatchesBudgetStop(request, controller.Manifest.Id, controller.WorkerPid, controller.ActivationId))
+                controller = null;
         }
 
         if (controller is not null)
@@ -207,13 +276,13 @@ public sealed partial class PluginSystemService
                     return;
                 }
 
-                foreach (string pluginId in _budgetRecoveryPending.Order(StringComparer.Ordinal).ToArray())
+                await TryRecoverBudgetQueueAsync(_budgetRecoveryPending.Order(StringComparer.Ordinal).ToArray(), async pluginId =>
                 {
                     PluginRegistryEntry? entry = _registry.Current.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? found) ? found : null;
                     if (entry is null || !entry.Enabled)
                     {
                         _budgetRecoveryPending.Remove(pluginId);
-                        continue;
+                        return false;
                     }
 
                     PluginRuntimeController? controller = GetOrCreateController(pluginId);
@@ -227,11 +296,11 @@ public sealed partial class PluginSystemService
                         // The plugin was uninstalled, refused, turned off by the user, or is
                         // already running again: nothing left to recover for this entry.
                         _budgetRecoveryPending.Remove(pluginId);
-                        continue;
+                        return false;
                     }
                     if (controller.State != PluginRuntimeState.StoppedByBudget)
                     {
-                        continue;
+                        return false;
                     }
 
                     ProgramLog?.Invoke($"Budget recovered: restarting '{pluginId}'.");
@@ -243,9 +312,11 @@ public sealed partial class PluginSystemService
                             System.Diagnostics.Stopwatch.GetTimestamp()
                                 + (long)(BudgetRecoveryCooldownSeconds * System.Diagnostics.Stopwatch.Frequency));
                         Changed?.Invoke();
+                        return true;
                     }
-                    return;
-                }
+                    // A blocked group must not starve another independently admissible group.
+                    return false;
+                }).ConfigureAwait(false);
             }
             finally
             {
@@ -256,6 +327,13 @@ public sealed partial class PluginSystemService
         {
             Interlocked.Exchange(ref _budgetRecoveryScheduled, 0);
         }
+    }
+
+    internal static async Task<bool> TryRecoverBudgetQueueAsync(IEnumerable<string> pluginIds, Func<string, Task<bool>> tryRecover)
+    {
+        foreach (string pluginId in pluginIds)
+            if (await tryRecover(pluginId).ConfigureAwait(false)) return true;
+        return false;
     }
 
     public PluginRuntimeController? GetOrCreateController(string pluginId)

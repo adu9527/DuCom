@@ -151,7 +151,8 @@ internal sealed class ChecksumWindowState : INotifyPropertyChanged
     public string StatusMessage { get; private set; } = "拖入固件文件即可校验 · Ctrl+O 打开";
     public string StatusColor => _error ? "#F87171" : "#71717A";
     public string StatusDotColor => _error ? "#EF4444" : _busy ? "#64748B" : _verified ? "#10B981" : _legacy ? "#F59E0B" : "#64748B";
-    public string ChecksumColor => _error ? "#F87171" : _busy ? "#A1A1AA" : _verified ? "#22D3EE" : _legacy ? "#F59E0B" : "#A1A1AA";
+    // Presentation selects dynamic semantic brushes so an open window follows theme changes.
+    public string ChecksumTone => _error ? "error" : _busy ? "idle" : _verified ? "verified" : _legacy ? "legacy" : "idle";
     public double ChecksumGlowOpacity => _verified && !_busy && !_error ? 0.4 : 0;
     public double StatusGlowOpacity => _verified && !_busy && !_error ? 0.8 : 0;
     public event PropertyChangedEventHandler? PropertyChanged;

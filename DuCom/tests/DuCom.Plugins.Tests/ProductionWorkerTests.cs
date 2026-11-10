@@ -41,15 +41,16 @@ public sealed class ProductionWorkerTests
         Assert.True(await controller.InvokeCommandAsync("apply", new Dictionary<string, string> { ["profile"] = profile.ToJson() }));
         Assert.True(await controller.InvokeCommandAsync("once", new Dictionary<string, string> { ["profile"] = profile.ToJson() }));
         await WaitFor(environment, root => root.GetProperty("Status").GetString()!.StartsWith("完成", StringComparison.Ordinal));
+        string recordPath = "";
         using (JsonDocument state = JsonDocument.Parse(environment.LastJson))
         {
             var results = state.RootElement.GetProperty("Results");
             Assert.Equal(4, results.EnumerateObject().Count());
             Assert.Contains("左：未连接 · 右：未连接", results.GetProperty(profile.Commands[0].Id).GetString());
             Assert.False(results.TryGetProperty("pair-left", out _));
-            string record = state.RootElement.GetProperty("RecordPath").GetString()!;
-            Assert.True(File.Exists(record + ".log")); Assert.True(File.Exists(record + ".csv"));
-            Assert.Contains("不通过", File.ReadAllText(record + ".csv"));
+            recordPath = state.RootElement.GetProperty("RecordPath").GetString()!;
+            Assert.True(File.Exists(recordPath + ".log")); Assert.True(File.Exists(recordPath + ".csv"));
+            Assert.Contains("不通过", File.ReadAllText(recordPath + ".csv"));
             Assert.Equal(1, state.RootElement.GetProperty("Failed").GetInt32());
         }
         Assert.True(await controller.InvokeCommandAsync("loop", new Dictionary<string, string> { ["profile"] = profile.ToJson() }));
@@ -61,6 +62,13 @@ public sealed class ProductionWorkerTests
         Assert.True(await controller.InvokeCommandAsync("clear-batch", new Dictionary<string, string>()));
         await WaitFor(environment, root => root.GetProperty("Passed").GetInt32() == 0 && root.GetProperty("Failed").GetInt32() == 0 && root.GetProperty("LeftState").GetString() == "待执行");
         Assert.True(await controller.InvokeCommandAsync("close", new Dictionary<string, string>()));
+        // 清空记录 deletes every record file of the project and resets the record path.
+        Assert.True(await controller.InvokeCommandAsync("clear-records", new Dictionary<string, string>()));
+        Assert.False(File.Exists(recordPath + ".csv"));
+        Assert.False(File.Exists(recordPath + ".log"));
+        await WaitFor(environment, root => root.GetProperty("Status").GetString() == "记录已清空，从零重新开始");
+        using (JsonDocument state = JsonDocument.Parse(environment.LastJson))
+            Assert.Equal("", state.RootElement.GetProperty("RecordPath").GetString());
     }
 
     private static async Task WaitFor(ProductionEnvironment environment, Func<JsonElement, bool> predicate)

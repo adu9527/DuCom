@@ -84,10 +84,9 @@ public sealed partial class DuComPluginHostEnvironment : IPluginHostEnvironment
                 return new HostSerialLeaseResult(string.Empty, request.Port, "changed", false, false, "The physical serial device changed after task confirmation.");
             SessionViewModel? session = _sessionsProvider().FirstOrDefault(item => string.Equals(item.PortName, request.Port, StringComparison.OrdinalIgnoreCase));
             bool wasOpen = session?.IsOpen == true;
-            // Production is an independent fixture: never take an active terminal away
-            // from the operator. Check inside the port gate to avoid an open/lease race.
-            if (wasOpen && request.PluginId == "com.ducom.production")
-                return new HostSerialLeaseResult(string.Empty, request.Port, "busy", true, false, "端口正在 DuCom 中使用，请先关闭该端口");
+            // Production fixtures take the port over automatically: an open host terminal
+            // on the same port is closed here (inside the port gate, to avoid an
+            // open/lease race) instead of refusing the plugin connection.
             SerialLeaseSnapshot lease;
             try { lease = _serialLeases.Acquire(request.PluginId, request.ActivationId, request.TaskId, request.Port, request.DeviceIdentity, request.RestoreSession, wasOpen); }
             catch (InvalidOperationException exception) { return new HostSerialLeaseResult(string.Empty, request.Port, "busy", wasOpen, false, exception.Message); }
@@ -552,6 +551,29 @@ public sealed partial class DuComPluginHostEnvironment : IPluginHostEnvironment
     /// </summary>
     public string GetPluginLogDirectory(string pluginId) =>
         LogFolderLayout.Plugin(GetLogDirectory(), pluginId, DateTimeOffset.Now);
+
+    public Task<bool> ConfirmNativeHelperExecutionAsync(HostNativeHelperConsent request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+        return RunOnUiAsync(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Application? app = Application.Current;
+            if (app is null || app.Dispatcher.HasShutdownStarted || app.Dispatcher.HasShutdownFinished
+                || app.MainWindow is not { IsVisible: true, IsEnabled: true } owner)
+                return false;
+
+            string Resource(string key) => app.TryFindResource(key) as string ?? key;
+            string message = string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                Resource("Plugins.NativeHelper.Confirm"), request.PluginName, request.PluginId,
+                request.Version, string.Join(Environment.NewLine, request.HelperEntryPoints), request.PackageDigest);
+            bool approved = ThemedMessageDialog.Confirm(owner, message, Resource("Plugins.NativeHelper.Title"),
+                "Plugins.NativeHelper.Allow", "Dialog.Cancel", cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return approved;
+        });
+    }
 
     public Task<bool> ShowNoticeAsync(HostPluginNotice notice)
     {

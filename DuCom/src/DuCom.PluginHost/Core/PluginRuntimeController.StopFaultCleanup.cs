@@ -200,9 +200,9 @@ public sealed partial class PluginRuntimeController
 
             int waitResult = WindowsInterop.WaitForSingleObject(worker.ProcessHandle, 5000);
             exited = waitResult == 0;
-            // A failed exit confirmation must not remove a live process from the UI total.
-            // Preserve the existing budget cleanup while retaining monitoring membership.
-            if (!exited) _budget.RegisterMemoryMonitorHelper(worker.ProcessId);
+            // Keep an unconfirmed process attributed to its original activation in both
+            // monitoring and budget totals; it must not be mistaken for a restarted worker.
+            if (!exited) _budget.RegisterMemoryMonitorHelper(_manifest.Id, _activationId, worker.ProcessId);
             _budget.UnregisterWorker(worker.ProcessId);
             WindowsInterop.CloseHandle(worker.JobHandle);
             if (exited)

@@ -76,6 +76,34 @@ public sealed class DiagnosticFileLogTests
         Assert.True(File.Exists(newest));
     }
 
+    [Fact]
+    public void RotationEnforcesBackupQuotaAndPreservesOtherActiveLogsAndForeignFiles()
+    {
+        using TemporaryDirectory directory = new();
+        string foreign = Path.Combine(directory.Path, "notes.log.1");
+        File.WriteAllText(foreign, new string('n', 500));
+        string old = Path.Combine(directory.Path, "ducom-20260101-123000-1.log.3");
+        File.WriteAllText(old, new string('o', 500));
+        File.SetLastWriteTimeUtc(old, DateTime.UtcNow.AddDays(-1));
+        using DiagnosticFileLog other = new(directory.Path, "ducom-20260101-123000-2.log", maximumFileBytes: 10000, folderQuotaBytes: 0);
+        other.Information(new string('a', 500));
+        using DiagnosticFileLog log = new(directory.Path, "ducom.log", maximumFileBytes: 64, retainedFileCount: 3, folderQuotaBytes: 2000);
+        Assert.True(File.Exists(old)); // Below startup quota; cleanup must happen on actual rotation.
+        log.Information(new string('x', 2000));
+        log.Information("second");
+        log.Information(new string('y', 2000));
+        log.Information("third");
+
+        Assert.False(File.Exists(old));
+        Assert.False(File.Exists(log.FilePath + ".2"));
+        Assert.True(File.Exists(log.FilePath + ".1")); // Oversized latest complete backup is a soft-quota exception.
+        Assert.Contains("third", ReadShared(log.FilePath));
+        Assert.Contains(new string('a', 500), ReadShared(other.FilePath));
+        Assert.True(File.Exists(foreign));
+        other.Information("still active");
+        Assert.Contains("still active", ReadShared(other.FilePath));
+    }
+
     private sealed class TemporaryDirectory : IDisposable
     {
         public TemporaryDirectory()

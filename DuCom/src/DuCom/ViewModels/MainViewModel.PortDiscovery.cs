@@ -6,6 +6,7 @@ namespace DuCom.ViewModels;
 
 public partial class MainViewModel
 {
+    private bool _rebuildingPortItems;
     [RelayCommand(AllowConcurrentExecutions = true)]
     private Task RefreshPortsAsync() => _portRefreshCoordinator.RequestRefreshAsync();
 
@@ -27,12 +28,32 @@ public partial class MainViewModel
 
     private void ApplyDiscoveredPorts(PortDiscoverySnapshot discovered)
     {
+        // The watchdog usually observes no change. Avoid clearing the bound list
+        // (and its selection) every two seconds just because a new snapshot exists.
+        bool changed = !SameDiscoveredPorts(
+            new PortDiscoverySnapshot(_discoveredPortNames, _discoveredPortDetails), discovered);
+        if (!changed && PortSortMode == PortSortMode.ConnectedFirst)
+        {
+            changed = !AvailablePorts.Select(item => item.PortName).SequenceEqual(
+                AvailablePorts.OrderByDescending(item => Workspace.Sessions.Any(session => session.IsOpen
+                    && string.Equals(session.PortName, item.PortName, StringComparison.OrdinalIgnoreCase)))
+                    .ThenBy(item => item.PortName, StringComparer.OrdinalIgnoreCase).Select(item => item.PortName),
+                StringComparer.OrdinalIgnoreCase);
+        }
         string? previous = SelectedPort;
         _discoveredPortDetails = discovered.Details;
         _discoveredPortNames = discovered.Names;
-        RebuildPortItems(previous);
+        if (changed)
+        {
+            RebuildPortItems(previous);
+        }
         Workspace.HandleDiscoveredPorts(_discoveredPortNames);
     }
+
+    internal static bool SameDiscoveredPorts(PortDiscoverySnapshot previous, PortDiscoverySnapshot current) =>
+        previous.Names.SequenceEqual(current.Names, StringComparer.OrdinalIgnoreCase)
+        && previous.Details.Count == current.Details.Count
+        && previous.Details.All(pair => current.Details.TryGetValue(pair.Key, out DiscoveredPort? detail) && pair.Value == detail);
 
     private void RebuildPortItems(string? selectedPort = null)
     {
@@ -46,29 +67,34 @@ public partial class MainViewModel
             ShowHiddenPorts,
             isPortOpen: name => Workspace.Sessions.Any(session =>
                 session.IsOpen && string.Equals(session.PortName, name, StringComparison.OrdinalIgnoreCase)));
-        AvailablePorts.Clear();
-        foreach (ComposedPort port in composed)
+        _rebuildingPortItems = true;
+        try
         {
-            AvailablePorts.Add(new PortItemViewModel(
-                port.PortName,
-                port => Workspace.TogglePortAsync(port.PortName),
-                TogglePortHidden,
-                port.TypeLabel,
-                port.Detail?.Description ?? string.Empty,
-                port.Detail?.DeviceName ?? port.PortName,
-                port.Detail?.Manufacturer ?? string.Empty,
-                port.Detail?.VidPid ?? string.Empty,
-                port.Detail?.SerialNumber ?? string.Empty,
-                port.Detail?.DeviceInstanceId ?? string.Empty,
-                port.Detail?.LocationInfo ?? string.Empty)
+            AvailablePorts.Clear();
+            foreach (ComposedPort port in composed)
             {
-                IsHidden = port.IsHidden,
-            });
-        }
+                AvailablePorts.Add(new PortItemViewModel(
+                    port.PortName,
+                    port => Workspace.TogglePortAsync(port.PortName),
+                    TogglePortHidden,
+                    port.TypeLabel,
+                    port.Detail?.Description ?? string.Empty,
+                    port.Detail?.DeviceName ?? port.PortName,
+                    port.Detail?.Manufacturer ?? string.Empty,
+                    port.Detail?.VidPid ?? string.Empty,
+                    port.Detail?.SerialNumber ?? string.Empty,
+                    port.Detail?.DeviceInstanceId ?? string.Empty,
+                    port.Detail?.LocationInfo ?? string.Empty)
+                {
+                    IsHidden = port.IsHidden,
+                });
+            }
 
-        SelectedPortItem = selectedPort is not null
-            ? AvailablePorts.FirstOrDefault(item => string.Equals(item.PortName, selectedPort, StringComparison.OrdinalIgnoreCase))
-            : AvailablePorts.FirstOrDefault();
+            SelectedPortItem = selectedPort is not null
+                ? AvailablePorts.FirstOrDefault(item => string.Equals(item.PortName, selectedPort, StringComparison.OrdinalIgnoreCase))
+                : null;
+        }
+        finally { _rebuildingPortItems = false; }
     }
 
     [RelayCommand]

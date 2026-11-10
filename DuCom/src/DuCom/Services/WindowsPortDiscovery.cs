@@ -13,6 +13,7 @@ internal enum DiscoveredPortType
     Serial,
     UsbSerial,
     Virtual,
+    Unknown,
 }
 
 internal sealed record DiscoveredPort(
@@ -35,7 +36,7 @@ internal sealed class WindowsPortDiscovery : IPortDiscovery, IPortDetailsProvide
 {
     // Caption is already resolved by WMI (e.g. "USB-Enhanced-SERIAL CH344 (COM31)"),
     // which avoids having to translate the indirect "@oemNN.inf,..." registry strings.
-    // The LIKE filter keeps the result set to COM-attached devices so the query stays fast.
+    // This filtered metadata query can still be slow; it runs independently of presence.
     private const string PortInfoSelectSql =
         "SELECT Caption, Name, Manufacturer, PNPDeviceID, DeviceID FROM Win32_PnPEntity WHERE Caption LIKE '%(COM%'";
 
@@ -45,24 +46,52 @@ internal sealed class WindowsPortDiscovery : IPortDiscovery, IPortDetailsProvide
     private static readonly Regex BareComPort = new(
         @"\b(COM\d+)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    public IReadOnlyList<string> GetPortNames() => GetPortDetails().Keys
-        .Order(StringComparer.OrdinalIgnoreCase)
-        .ToArray();
+    private readonly Func<IReadOnlyCollection<string>?> _readPresentNames;
+    private readonly Func<string[]> _readRuntimeNames;
+    private readonly PortMetadataCache _metadata;
+    private readonly Func<IReadOnlyDictionary<string, DiscoveredPort>?>? _readPresentDetails;
+
+    public WindowsPortDiscovery() : this(
+        WindowsPresentPortEnumerator.GetPortNames,
+        ReadRuntimePortNames,
+        new PortMetadataCache(() => Task.Run(QueryPortMetadata), () => DateTimeOffset.UtcNow,
+            exception => Program.DiagnosticLog?.Warning("Serial-port metadata refresh failed.", exception)),
+        WindowsPresentPortEnumerator.GetPortDetails)
+    {
+    }
+
+    internal WindowsPortDiscovery(
+        Func<IReadOnlyCollection<string>?> readPresentNames,
+        Func<string[]> readRuntimeNames,
+        PortMetadataCache metadata,
+        Func<IReadOnlyDictionary<string, DiscoveredPort>?>? readPresentDetails = null)
+    {
+        _readPresentDetails = readPresentDetails;
+        _readPresentNames = readPresentNames;
+        _readRuntimeNames = readRuntimeNames;
+        _metadata = metadata;
+    }
+
+    public IReadOnlyList<string> GetPortNames()
+    {
+        IReadOnlyCollection<string>? present = _readPresentNames();
+        return SelectPortNames(present, present is null ? _readRuntimeNames() : []);
+    }
 
     public IReadOnlyDictionary<string, DiscoveredPort> GetPortDetails()
     {
+        // Presence is authoritative and cheap; a hung/slow WMI provider cannot delay it.
+        IReadOnlyDictionary<string, DiscoveredPort>? native = _readPresentDetails?.Invoke();
+        IReadOnlyList<string> names = _readPresentDetails is null ? GetPortNames()
+            : SelectPortNames(native?.Keys.ToArray(), native is null ? _readRuntimeNames() : []);
+        IReadOnlyDictionary<string, DiscoveredPort> metadata = _metadata.Get(names);
         Dictionary<string, DiscoveredPort> ports = new(StringComparer.OrdinalIgnoreCase);
-        // Take the presence snapshot after WMI: WMI is slow and can lag an arrival/removal.
-        // Its caption-based metadata must not decide which ports currently exist.
-        Dictionary<string, PnPDeviceInfo> pnpDevices = QueryPnPDevices();
-        IReadOnlyCollection<string>? presentPorts = WindowsPresentPortEnumerator.GetPortNames();
-        IEnumerable<string> portNames = SelectPortNames(presentPorts,
-            presentPorts is null ? ReadRuntimePortNames() : [], pnpDevices.Keys);
-        foreach (string portName in portNames)
+        foreach (string portName in names)
         {
-            ports[portName] = new DiscoveredPort(
+            ports[portName] = native is not null && native.TryGetValue(portName, out DiscoveredPort? presentDetail)
+                ? presentDetail : new DiscoveredPort(
                 portName,
-                DiscoveredPortType.Serial,
+                DiscoveredPortType.Unknown,
                 string.Empty,
                 portName,
                 string.Empty,
@@ -72,14 +101,27 @@ internal sealed class WindowsPortDiscovery : IPortDiscovery, IPortDetailsProvide
                 string.Empty);
         }
 
-        // Resolve PnP device metadata for each port, then enrich the seed entries.
-        foreach ((string portName, PnPDeviceInfo info) in pnpDevices)
+        foreach ((string portName, DiscoveredPort detail) in metadata)
         {
-            if (!ports.ContainsKey(portName))
+            if (ports.TryGetValue(portName, out DiscoveredPort? present))
             {
-                continue; // Never resurrect a removed port from cached metadata.
+                // Native identity/classification belongs to this devnode generation. A
+                // cached WMI caption must not reclassify a reused COM number.
+                if (!string.IsNullOrEmpty(present.DeviceInstanceId)
+                    && !string.Equals(present.DeviceInstanceId, detail.DeviceInstanceId, StringComparison.OrdinalIgnoreCase)) continue;
+                ports[portName] = present.Type == DiscoveredPortType.Unknown ? detail
+                    : detail with { Type = present.Type }; // Enrich, never resurrect or reclassify.
             }
+        }
 
+        return ports;
+    }
+
+    private static IReadOnlyDictionary<string, DiscoveredPort> QueryPortMetadata()
+    {
+        Dictionary<string, DiscoveredPort> ports = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string portName, PnPDeviceInfo info) in QueryPnPDevices())
+        {
             string description = TrimComSuffix(info.Caption);
             ports[portName] = new DiscoveredPort(
                 portName,
@@ -99,8 +141,9 @@ internal sealed class WindowsPortDiscovery : IPortDiscovery, IPortDetailsProvide
     internal static string[] SelectPortNames(
         IReadOnlyCollection<string>? presentPorts,
         IEnumerable<string> runtimePorts,
-        IEnumerable<string> metadataPorts) =>
-        (presentPorts is not null ? presentPorts : runtimePorts.Concat(metadataPorts))
+        IEnumerable<string>? metadataPorts = null) =>
+        // WMI is not a presence fallback either: ghost captions can survive removals.
+        (presentPorts is not null ? presentPorts : runtimePorts)
             .Where(Com0ComService.IsValidPortName)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase)
@@ -206,7 +249,7 @@ internal sealed class WindowsPortDiscovery : IPortDiscovery, IPortDetailsProvide
             return DiscoveredPortType.UsbSerial;
         }
 
-        return DiscoveredPortType.Serial;
+        return string.IsNullOrWhiteSpace(id) ? DiscoveredPortType.Unknown : DiscoveredPortType.Serial;
     }
 
     private static string ExtractVidPid(string? pnp)

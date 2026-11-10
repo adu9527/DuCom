@@ -47,6 +47,18 @@ public sealed partial class PluginSystemService
                 message.Append(FormattableString.Invariant($"pid={pid} private={privateBytes} plugin={System.Text.Json.JsonSerializer.Serialize(pluginId)}"));
             }
             message.Append(']');
+            if (sample.Helpers.Count > 0)
+            {
+                message.Append(" helpers=[");
+                bool firstHelper = true;
+                foreach ((string pluginId, string activationId, uint pid, long privateBytes) in sample.Helpers)
+                {
+                    if (!firstHelper) message.Append("; ");
+                    firstHelper = false;
+                    message.Append(FormattableString.Invariant($"pid={pid} private={privateBytes} plugin={System.Text.Json.JsonSerializer.Serialize(pluginId)} activation={System.Text.Json.JsonSerializer.Serialize(activationId)}"));
+                }
+                message.Append(']');
+            }
             log(message.ToString());
         }
         catch (Exception)

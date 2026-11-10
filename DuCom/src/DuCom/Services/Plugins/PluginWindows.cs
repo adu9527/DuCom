@@ -34,11 +34,7 @@ public partial class PluginToolWindow : FluentWindow
             Height = Math.Min(Height, 800);
         }
         MinHeight = compactBes ? 700 : 560;
-        // 窗口永远不超过当前屏幕工作区，插件声明再大的高度也不会顶出屏幕。
-        MaxHeight = SystemParameters.WorkArea.Height - 24;
-        MaxWidth = SystemParameters.WorkArea.Width - 24;
-        Height = Math.Min(Height, MaxHeight);
-        Width = Math.Min(Width, MaxWidth);
+        ApplyWorkAreaConstraints(SystemParameters.WorkArea.Size);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ShowInTaskbar = true;
         Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/DuCom;component/Assets/DuCom.ico", UriKind.Absolute));
@@ -137,6 +133,18 @@ public partial class PluginToolWindow : FluentWindow
         Grid.SetRow(footer, 2);
         shell.Children.Add(footer);
         Content = shell;
+    }
+
+    private void ApplyWorkAreaConstraints(Size workArea)
+    {
+        // WPF gives MinHeight/MinWidth precedence over Max*: clamp the minima too,
+        // otherwise BES's 700-DIP floor can push the footer outside a short workspace.
+        MaxHeight = Math.Max(1, workArea.Height - 24);
+        MaxWidth = Math.Max(1, workArea.Width - 24);
+        MinHeight = Math.Min(MinHeight, MaxHeight);
+        MinWidth = Math.Min(MinWidth, MaxWidth);
+        Height = Math.Clamp(Height, MinHeight, MaxHeight);
+        Width = Math.Clamp(Width, MinWidth, MaxWidth);
     }
 
     public string PluginId { get; }

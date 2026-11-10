@@ -33,6 +33,12 @@ internal static class SettingsCatalog
 
     internal static string DefaultLogDirectory => Path.Combine(AppContext.BaseDirectory, "Logs");
 
+    // Never automatically delete files under a user-selected root.
+    internal static long GetLogFolderQuotaBytes(string directory) =>
+        string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(DefaultLogDirectory)), StringComparison.OrdinalIgnoreCase)
+            ? DuCom.Core.Logging.LogFolderQuota.DefaultQuotaBytes : 0;
+
     internal static string NormalizeTimestampFormat(string value, IReadOnlyList<string> availableFormats) =>
         availableFormats.Contains(value) ? value : DefaultTimestampFormat;
 

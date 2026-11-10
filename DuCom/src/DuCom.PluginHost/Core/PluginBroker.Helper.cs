@@ -8,6 +8,9 @@ public sealed partial class PluginBroker
     private HelperTaskResult StartHelper(HelperStartRequest request)
     {
         RequirePermission(Permission.NativeHelpersExecute);
+        if (!_nativeHelpersApproved)
+            throw new PluginScopeException(PluginErrorCode.PermissionDenied,
+                "Native helpers run with the host user's authority. Explicit high-trust package approval is required for this host session.");
         return _helperTasks.Start(request);
     }
 

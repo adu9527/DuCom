@@ -33,7 +33,7 @@ internal static class SystemLogAccess
         Process.Start(new ProcessStartInfo(DirectoryPath) { UseShellExecute = true });
     }
 
-    /// <summary>Keeps today's system log folder under the same per-folder quota as everything else.</summary>
+    /// <summary>Startup soft-quota pass; DiagnosticFileLog also enforces it on every real rotation.</summary>
     public static void EnforceQuota(string? activeFilePath)
         => LogFolderQuota.Enforce(
             DirectoryPath,

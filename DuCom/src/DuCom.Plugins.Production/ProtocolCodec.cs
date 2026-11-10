@@ -92,26 +92,25 @@ public static class ProtocolCodec
         return c.MatchOffset + match.Length <= frame.Length && frame.AsSpan(c.MatchOffset, match.Length).SequenceEqual(match);
     }
 
-    public static string Decode(ProductionCommand c, byte[] frame)
+    public static string Decode(ProductionCommand c, byte[] frame, ProtocolSettings? settings = null)
     {
+        int checksumLength = CrcSize((c.Frame ?? settings ?? new ProtocolSettings()).Checksum);
         if (c.StatusOffset >= 0 && (c.StatusOffset >= frame.Length || frame[c.StatusOffset] != c.StatusValue))
             throw new InvalidDataException(c.StatusOffset >= frame.Length ? "状态字段越界" : $"设备状态异常：{frame[c.StatusOffset]:X2}");
         if (c.Fields.Count == 0) return "已应答";
-        return string.Join(" · ", c.Fields.Select(f => (c.Fields.Count > 1 ? f.Name + "：" : "") + DecodeField(f, frame)));
+        return string.Join(" · ", c.Fields.Select(f => (c.Fields.Count > 1 ? f.Name + "：" : "") + DecodeField(f, frame, checksumLength)));
     }
 
-    private static string DecodeField(ResponseField f, byte[] frame)
+    private static string DecodeField(ResponseField f, byte[] frame, int checksumLength)
     {
-        int size = f.Type switch { FieldType.Mac => 6, FieldType.UInt8 => 1, FieldType.UInt16 or FieldType.Int16 => 2, FieldType.UInt32 or FieldType.Int32 => 4, _ => f.Length };
-        if (f.ToEnd) size = frame.Length - f.Offset - 1;
-        if (size < 0) throw new InvalidDataException($"{f.Name}：解析越界");
-        if (f.Offset > frame.Length - size) throw new InvalidDataException($"{f.Name}：解析越界");
+        int size = f.GetReadLength(frame.Length, checksumLength);
         byte[] bytes = frame.AsSpan(f.Offset, size).ToArray();
         if (f.Reverse) Array.Reverse(bytes);
         string value;
         if (f.Type == FieldType.Mac) value = string.Join(":", bytes.Select(b => b.ToString("X2", CultureInfo.InvariantCulture)));
         else if (f.Type == FieldType.Hex) value = Hex.Format(bytes);
         else if (f.Type == FieldType.Ascii) value = Encoding.ASCII.GetString(bytes).TrimEnd('\0');
+        else if (f.Type == FieldType.Str) value = DecodeStr(bytes);
         else if (f.Type == FieldType.Version) value = string.Join(".", bytes.Select(b => b.ToString(CultureInfo.InvariantCulture)));
         else
         {
@@ -127,6 +126,30 @@ public static class ProtocolCodec
             value = (number * f.Scale).ToString("0.###", CultureInfo.InvariantCulture);
         }
         return value + (f.Unit.Length == 0 ? "" : f.Unit == "%" ? "%" : " " + f.Unit);
+    }
+
+    private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+    private static readonly Encoding LegacyString = CreateLegacyStringEncoding();
+
+    // Bluetooth names are UTF-8 on modern firmware; legacy modules may send GBK/GB18030.
+    // Trailing NUL padding is trimmed before decoding either way.
+    public static string DecodeStr(byte[] bytes)
+    {
+        int end = bytes.Length;
+        while (end > 0 && bytes[end - 1] == 0) end--;
+        if (end == 0) return "";
+        try { return StrictUtf8.GetString(bytes, 0, end); }
+        catch (DecoderFallbackException) { return LegacyString.GetString(bytes, 0, end); }
+    }
+
+    private static Encoding CreateLegacyStringEncoding()
+    {
+        try
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            return Encoding.GetEncoding("GB18030");
+        }
+        catch (Exception) { return Encoding.Latin1; }
     }
 }
 

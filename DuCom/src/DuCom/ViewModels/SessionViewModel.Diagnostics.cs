@@ -62,6 +62,9 @@ public partial class SessionViewModel
         }
     }
 
+    /// <summary>Refresh connection/fault state without reading or projecting display lines.</summary>
+    internal bool RefreshStatus() => RefreshState();
+
     private bool RefreshState()
     {
         PortLifecycleState previousState = State;

@@ -18,11 +18,11 @@ public sealed class PluginUiRendererFormEventTests
         int calls = 0;
         Exception? failure = null;
         using ManualResetEventSlim rendered = new();
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
-                Application app = Application.Current ?? new Application();
+                Application app = Application.Current!;
                 PluginCommandRouter router = new((command, values) =>
                 {
                     Interlocked.Increment(ref calls);
@@ -60,10 +60,7 @@ public sealed class PluginUiRendererFormEventTests
                 rendered.Set();
             }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
         Assert.True(rendered.Wait(TimeSpan.FromSeconds(5)));
-        thread.Join();
         if (failure is not null) throw failure;
 
         (string command, IReadOnlyDictionary<string, string> values) = await invoked.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -77,11 +74,11 @@ public sealed class PluginUiRendererFormEventTests
     public void NoWrapCompactPanelBuildsHorizontalCenteredStackAndCompactProgress()
     {
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
-                _ = Application.Current ?? new Application();
+                _ = Application.Current!;
                 FrameworkElement root = PluginUiRenderer.Render(
                     [new UiPanelNode { Direction = UiDirection.Horizontal, Wrap = false, Compact = true, VerticalCenter = true, Children = [new UiProgressNode { Width = 220, Height = 14 }, new UiLabelNode { Text = "就绪", VerticalCenter = true }] }],
                     new PluginCommandRouter((_, _) => Task.FromResult(true)));
@@ -97,9 +94,6 @@ public sealed class PluginUiRendererFormEventTests
             }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
         if (failure is not null) throw failure;
     }
 
@@ -113,11 +107,11 @@ public sealed class PluginUiRendererFormEventTests
     public void ProgressFillRetainsStateColorAfterThemeApplication(string state, string brushKey)
     {
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
-                Application app = Application.Current ?? new Application();
+                Application app = Application.Current!;
                 app.Resources[brushKey] = Brushes.DodgerBlue;
                 app.Resources["Brush.PanelRaised"] = Brushes.Transparent;
                 app.Resources["Brush.PanelBorder"] = Brushes.Transparent;
@@ -129,9 +123,6 @@ public sealed class PluginUiRendererFormEventTests
             }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
         if (failure is not null) throw failure;
     }
 
@@ -139,11 +130,11 @@ public sealed class PluginUiRendererFormEventTests
     public void ToolWindowAppliesPageDimensionsAndDispatcherUpdateKeepsMetadata()
     {
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
-                Application app = Application.Current ?? new Application();
+                Application app = Application.Current!;
                 app.Resources["Brush.PanelRaised"] = Brushes.Transparent;
                 app.Resources["Brush.PanelBorder"] = Brushes.Transparent;
                 app.Resources["LogPackage.Cancel"] = "Close";
@@ -168,9 +159,6 @@ public sealed class PluginUiRendererFormEventTests
             }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
         if (failure is not null) throw failure;
     }
 
@@ -178,11 +166,11 @@ public sealed class PluginUiRendererFormEventTests
     public void TextPlaceholderIsVisibleOnlyWhileInputIsEmpty()
     {
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
-                _ = Application.Current ?? new Application();
+                _ = Application.Current!;
                 FrameworkElement root = PluginUiRenderer.Render(
                     [new UiTextNode { FieldId = "segment", Placeholder = "12", Width = 32 }],
                     new PluginCommandRouter((_, _) => Task.FromResult(true)));
@@ -196,9 +184,6 @@ public sealed class PluginUiRendererFormEventTests
             }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
         if (failure is not null) throw failure;
     }
 
@@ -206,11 +191,11 @@ public sealed class PluginUiRendererFormEventTests
     public void LogPackageRendererToleratesDuplicateSessionFields()
     {
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
-                Application app = Application.Current ?? new Application();
+                Application app = Application.Current!;
                 app.Resources["Brush.PanelRaised"] = Brushes.Transparent;
                 app.Resources["Brush.PanelBorder"] = Brushes.Transparent;
                 FrameworkElement root = PluginUiRenderer.Render(
@@ -225,9 +210,6 @@ public sealed class PluginUiRendererFormEventTests
             }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
         if (failure is not null) throw failure;
     }
 
@@ -235,11 +217,11 @@ public sealed class PluginUiRendererFormEventTests
     public void PageRefreshKeepsUserExpandedExpanderState()
     {
         Exception? failure = null;
-        Thread thread = new(() =>
+        WpfTestDispatcher.Run(() =>
         {
             try
             {
-                Application app = Application.Current ?? new Application();
+                Application app = Application.Current!;
                 app.Resources["Brush.PanelRaised"] = Brushes.Transparent;
                 app.Resources["Brush.PanelBorder"] = Brushes.Transparent;
                 app.Resources["LogPackage.Cancel"] = "Close";
@@ -265,9 +247,6 @@ public sealed class PluginUiRendererFormEventTests
             }
             catch (Exception exception) { failure = exception; }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        thread.Join();
         if (failure is not null) throw failure;
     }
 

@@ -165,11 +165,17 @@ public partial class App : Application, IDisposable
     public void Dispose()
     {
         Program.BeginShutdown();
+        // OnExit runs this on the UI thread. The graceful path (MainWindow close) has
+        // already completed PrepareShutdownAsync, so these usually find null fields.
+        // Direct Shutdown() callers (update restart) may still get here mid-teardown:
+        // bound the synchronous wait so the UI thread can never block unboundedly.
+        // If the bound expires we simply exit; every worker sits in a
+        // KILL_ON_JOB_CLOSE job, so the OS terminates children when the host dies.
         if (_pluginSystemHost is not null)
         {
             try
             {
-                Task.Run(async () => await _pluginSystemHost.DisposeAsync()).GetAwaiter().GetResult();
+                WaitForDisposal(Task.Run(() => _pluginSystemHost.DisposeAsync().AsTask()), "plugin system");
             }
             catch (Exception exception)
             {
@@ -181,11 +187,29 @@ public partial class App : Application, IDisposable
 
         if (_compositionRoot is not null)
         {
-            Task.Run(async () => await _compositionRoot.DisposeAsync()).GetAwaiter().GetResult();
+            try
+            {
+                WaitForDisposal(Task.Run(() => _compositionRoot.DisposeAsync().AsTask()), "application services");
+            }
+            catch (Exception exception)
+            {
+                DiagnosticLog?.Warning("Application services shutdown reported a failure.", exception);
+            }
             _compositionRoot = null;
         }
 
         GC.SuppressFinalize(this);
+    }
+
+    private static void WaitForDisposal(Task disposal, string name)
+    {
+        if (disposal.IsCompleted || disposal.Wait(TimeSpan.FromSeconds(10)))
+        {
+            return;
+        }
+
+        Program.DiagnosticLog?.Warning(
+            $"{name} disposal did not complete within 10s during exit; exiting anyway. Worker jobs terminate with the host.");
     }
 
 }

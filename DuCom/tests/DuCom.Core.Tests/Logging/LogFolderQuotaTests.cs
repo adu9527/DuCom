@@ -41,6 +41,7 @@ public sealed class LogFolderQuotaTests
             [protectedFile]);
 
         Assert.Equal(2, result.DeletedFiles);
+        Assert.Equal(100, result.RemainingBytes); // Unowned files do not consume the host quota.
         Assert.False(File.Exists(managed));
         Assert.False(File.Exists(managedNewest));
         Assert.True(File.Exists(unmanaged));
@@ -81,6 +82,18 @@ public sealed class LogFolderQuotaTests
         Assert.True(LogFolderQuota.IsPluginArtifactFile("game_mode.pcm"));
         Assert.False(LogFolderQuota.IsPluginArtifactFile("notes.exe"));
         Assert.False(LogFolderQuota.IsPluginArtifactFile("no-extension"));
+    }
+
+    [Theory]
+    [InlineData("ducom.log", true)]
+    [InlineData("ducom.log.1", true)]
+    [InlineData("ducom-20261107-110000-42.log.3", true)]
+    [InlineData("ducom.log.0", false)]
+    [InlineData("ducom.log.notes", false)]
+    [InlineData("notes.log.1", false)]
+    public void SystemPredicateMatchesOnlyHostLogsAndNumericBackups(string name, bool expected)
+    {
+        Assert.Equal(expected, LogFolderQuota.IsSystemLogFile(name));
     }
 
     [Fact]
