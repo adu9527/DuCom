@@ -21,8 +21,14 @@ public partial class MainViewModel
         // keep background receive/logging but defer the inactive main log's repaint.
         // Connection and fault polling keeps its normal status cadence.
         Window? main = Application.Current?.MainWindow;
-        bool projectDisplay = main is null ||
-            main.IsActive && main.IsEnabled && main.IsVisible && main.WindowState != WindowState.Minimized;
+        bool mainShowable = main is null ||
+            main.IsEnabled && main.IsVisible && main.WindowState != WindowState.Minimized;
+        // Defer the repaint only while another window of THIS application holds the
+        // activation. When a foreign application is active (e.g. the mouse moved to
+        // the other monitor and another program took focus), the main log must keep
+        // flowing; otherwise the display looks paused on dual-monitor setups.
+        bool projectDisplay = mainShowable &&
+            (main is null || main.IsActive || !IsAnyApplicationWindowActive());
         if (!projectDisplay && renderingTime - _framePacerState.LastStatusRefreshTime < FramePacer.StatusRefreshInterval)
             return;
 
@@ -39,6 +45,25 @@ public partial class MainViewModel
     internal static bool RefreshSessionDisplay(SessionViewModel session, bool projectDisplay, TimeSpan projectionBudget) =>
         projectDisplay ? session.PullDisplaySnapshot(publishSearchSnapshot: false, projectionBudget: projectionBudget)
             : session.RefreshStatus();
+
+    private static bool IsAnyApplicationWindowActive()
+    {
+        WindowCollection? windows = Application.Current?.Windows;
+        if (windows is null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < windows.Count; i++)
+        {
+            if (windows[i] is { IsActive: true })
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private void OnRenderTick(bool shouldRefreshStatus, bool projectDisplay = true)
     {
