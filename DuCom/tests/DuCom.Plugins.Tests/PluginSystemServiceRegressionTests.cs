@@ -366,8 +366,13 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
     [InlineData(true)]
     public async Task BuiltInPluginCannotBeUninstalled(bool asynchronous)
     {
+        await AssertBuiltInCannotBeUninstalled("com.ducom.timer", asynchronous);
+        await AssertBuiltInCannotBeUninstalled("internal.ducom.bes-download", asynchronous);
+    }
+
+    private async Task AssertBuiltInCannotBeUninstalled(string builtInId, bool asynchronous)
+    {
         PluginSystemService service = Create();
-        const string builtInId = "com.ducom.timer";
         string stage = Path.Combine(_root, "built-in-stage");
         Directory.CreateDirectory(stage);
         File.WriteAllText(Path.Combine(stage, "plugin.manifest.json"), "{}");
@@ -382,6 +387,7 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         service.Registry.Mutate(data => data.Plugins[builtInId] = new PluginRegistryEntry
         {
             Id = builtInId,
+            BuiltIn = true,
             InstalledVersions = [new InstalledVersionRecord { Version = "1.0.0", Path = stage, Source = InstalledVersionRecord.SourceBuiltIn }],
         });
         if (asynchronous)
@@ -827,7 +833,21 @@ public sealed class PluginSystemServiceRegressionTests : IAsyncLifetime
         await seed.InitializeAsync([]);
         seed.SafeStartAllPlugins = true;
         IReadOnlyList<FactoryPackDefinition> packs = DuCom.Services.Plugins.PluginSystemHost.BuildFactoryPacks();
-        Assert.Equal(PluginSystemService.FactoryIds.Order(), packs.Select(pack => pack.PluginId).Order());
+        Assert.Equal(PluginSystemService.FactoryIds.Order(), packs.Where(pack => pack.PluginId != "internal.ducom.bes-download").Select(pack => pack.PluginId).Order());
+        foreach (FactoryPackDefinition pack in packs)
+        {
+            using Stream manifestStream = Assert.Single(pack.Files, file => file.RelativePath == "plugin.manifest.json").OpenRead();
+            using System.Text.Json.JsonDocument manifest = System.Text.Json.JsonDocument.Parse(manifestStream);
+            Assert.Equal(pack.PluginId, manifest.RootElement.GetProperty("id").GetString());
+            Assert.Equal(pack.Version, manifest.RootElement.GetProperty("version").GetString());
+            if (pack.PluginId == "internal.ducom.bes-download")
+            {
+                Assert.Contains(pack.Files, file => file.RelativePath == "helpers/win-x86/BesBurnRunner.exe");
+                Assert.Contains(pack.Files, file => file.RelativePath == "helpers/win-x86/lib_transfer.dll");
+                Assert.Contains(pack.Files, file => file.RelativePath.StartsWith("helpers/win-x86/programmer/", StringComparison.Ordinal) && file.RelativePath.EndsWith(".bin", StringComparison.Ordinal));
+                Assert.DoesNotContain(pack.Files, file => file.RelativePath.EndsWith(".cs", StringComparison.Ordinal) || file.RelativePath.EndsWith(".pdb", StringComparison.Ordinal));
+            }
+        }
         PluginSystemService restarted = Create();
         await restarted.InitializeAsync(packs);
         foreach (FactoryPackDefinition pack in packs)

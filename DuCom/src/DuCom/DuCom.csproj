@@ -59,6 +59,21 @@
     <EmbeddedResource Include="..\..\..\Doc\BesFirmwareIntegration.zh-CN.md" LogicalName="DuCom.Docs.BesFirmwareIntegration" WithCulture="false" />
   </ItemGroup>
 
+  <!-- Supplied only by local release packaging. Public builds have no private dependency. -->
+  <Target Name="EmbedPrivatePluginPacks" BeforeTargets="AssignTargetPaths">
+    <Error Condition="'$(RequireBundledBes)' == 'true' And '$(BundledPrivatePluginsRoot)' == ''"
+           Text="This release requires the private BES runtime package." />
+    <ItemGroup Condition="'$(BundledPrivatePluginsRoot)' != ''">
+      <PrivatePluginFile Include="$(BundledPrivatePluginsRoot)\**\*.*" />
+      <EmbeddedResource Include="@(PrivatePluginFile)">
+        <LogicalName>DuCom.Factory.$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)</LogicalName>
+        <WithCulture>false</WithCulture>
+      </EmbeddedResource>
+    </ItemGroup>
+    <Error Condition="'$(RequireBundledBes)' == 'true' And '@(PrivatePluginFile)' == ''"
+           Text="The private BES runtime directory is empty or missing." />
+  </Target>
+
   <Target Name="BuildBuiltinPluginPacks"
           BeforeTargets="AssignTargetPaths"
           DependsOnTargets="$(BuiltinPluginPacksDependsOn)">

@@ -8,7 +8,9 @@
 # Velopack requires a three-part semver. The four-part product version V a.b.c.d is mapped
 # to a.b.(c*1000+d) so ordering always matches the full version.
 param(
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [string]$BesPluginPackage,
+    [switch]$WithoutBesPlugin
 )
 
 $ErrorActionPreference = "Stop"
@@ -33,6 +35,11 @@ $patch = [int]$parts[2]
 $revision = if ($parts.Count -gt 3) { [int]$parts[3] } else { 0 }
 $packVersion = "$major.$minor.$($patch * 1000 + $revision)"
 
+if ($WithoutBesPlugin -and $BesPluginPackage) { throw "Choose either -BesPluginPackage or -WithoutBesPlugin." }
+$privateRoot = if ($WithoutBesPlugin) { "" } else {
+    & (Join-Path $scriptDirectory "prepare-bundled-bes.ps1") -Configuration $Configuration -PackagePath $BesPluginPackage
+}
+
 Write-Host "DuCom version: $version (Velopack pack version: $packVersion)"
 Write-Host "Publishing self-contained single-file build..."
 
@@ -41,6 +48,8 @@ dotnet publish $csproj `
     -r win-x64 `
     --self-contained true `
     -p:DuComDistribution=Installed `
+    "-p:BundledPrivatePluginsRoot=$privateRoot" `
+    "-p:RequireBundledBes=$(-not $WithoutBesPlugin)" `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:EnableCompressionInSingleFile=true `

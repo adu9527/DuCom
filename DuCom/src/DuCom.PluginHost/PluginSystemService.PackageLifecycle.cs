@@ -302,9 +302,10 @@ public sealed partial class PluginSystemService
         }
     }
 
-    private static void ThrowIfBuiltIn(string pluginId)
+    private void ThrowIfBuiltIn(string pluginId)
     {
-        if (FactoryIds.Contains(pluginId, StringComparer.Ordinal))
+        if (FactoryIds.Contains(pluginId, StringComparer.Ordinal)
+            || (_registry.Current.Plugins.TryGetValue(pluginId, out PluginRegistryEntry? entry) && entry.BuiltIn))
             throw new InvalidOperationException("Built-in plugins cannot be uninstalled.");
     }
 }

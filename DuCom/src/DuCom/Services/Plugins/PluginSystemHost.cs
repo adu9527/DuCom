@@ -121,7 +121,7 @@ public sealed class PluginSystemHost : IAsyncDisposable
         List<FactoryPackDefinition> packs = [];
         foreach (string resource in assembly.GetManifestResourceNames().Where(name => name.StartsWith(Prefix, StringComparison.Ordinal)).OrderBy(name => name, StringComparer.Ordinal))
         {
-            string rest = resource[Prefix.Length..];
+            string rest = resource[Prefix.Length..].Replace('\\', '/');
             int versionSeparator = rest.IndexOf('/');
             if (versionSeparator <= 0)
             {

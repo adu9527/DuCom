@@ -498,3 +498,4 @@ $RECYCLE.BIN/
 
 # Local agent workspace data
 .workbuddy/
+.permission-recovery/

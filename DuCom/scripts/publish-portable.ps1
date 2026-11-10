@@ -6,7 +6,9 @@
 # updater looks for an asset named exactly "DuCom.exe".
 param(
     [string]$Configuration = "Release",
-    [switch]$FrameworkDependent
+    [switch]$FrameworkDependent,
+    [string]$BesPluginPackage,
+    [switch]$WithoutBesPlugin
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,6 +25,11 @@ if ([string]::IsNullOrWhiteSpace($version)) {
     throw "Could not read <Version> from $csproj"
 }
 
+if ($WithoutBesPlugin -and $BesPluginPackage) { throw "Choose either -BesPluginPackage or -WithoutBesPlugin." }
+$privateRoot = if ($WithoutBesPlugin) { "" } else {
+    & (Join-Path $scriptDirectory "prepare-bundled-bes.ps1") -Configuration $Configuration -PackagePath $BesPluginPackage
+}
+
 Write-Host "DuCom version: $version"
 Write-Host "Publishing portable single-file build..."
 
@@ -31,6 +38,8 @@ dotnet publish $csproj `
     -r win-x64 `
     --self-contained $selfContained `
     -p:DuComDistribution=$distribution `
+    "-p:BundledPrivatePluginsRoot=$privateRoot" `
+    "-p:RequireBundledBes=$(-not $WithoutBesPlugin)" `
     -p:PublishSingleFile=true `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -p:EnableCompressionInSingleFile=$selfContained `
